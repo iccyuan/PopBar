@@ -1,0 +1,103 @@
+<Window x:Class="PopBar.UI.ActionEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="编辑动作" Width="560" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource BgBrush}" FontFamily="{StaticResource UiFont}"
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Setter Property="Margin" Value="0,10,0,5"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="24,18,24,20">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="名称"/>
+                <TextBox x:Name="LabelBox"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="图标"/>
+                <ComboBox x:Name="IconCombo">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <Canvas Width="24" Height="24" Margin="0,0,8,0">
+                                    <Canvas.LayoutTransform>
+                                        <ScaleTransform ScaleX="0.7" ScaleY="0.7"/>
+                                    </Canvas.LayoutTransform>
+                                    <Path Data="{Binding Geometry}" Stroke="{StaticResource TextBrush}" StrokeThickness="2"
+                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Canvas>
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock Style="{StaticResource FieldLabel}" Text="类型"/>
+        <ComboBox x:Name="TypeCombo" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="TypeCombo_SelectionChanged"/>
+
+        <StackPanel x:Name="UrlPanel">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="网址模板（{text} = URL 编码后的选中内容，{raw} = 原文）"/>
+            <TextBox x:Name="UrlBox"/>
+        </StackPanel>
+
+        <StackPanel x:Name="TransformPanel">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="转换"/>
+                    <ComboBox x:Name="OpCombo" DisplayMemberPath="Value" SelectedValuePath="Key"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="模板（可选，{text} = 转换结果，如 「{text}」）"/>
+                    <TextBox x:Name="TemplateBox"/>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+
+        <StackPanel x:Name="CommandPanel">
+            <TextBlock Style="{StaticResource FieldLabel}" Text="命令（可执行文件路径，支持 %环境变量%）"/>
+            <TextBox x:Name="CommandBox"/>
+            <TextBlock Style="{StaticResource FieldLabel}" Text="参数（{text} = 选中内容，引号已转义）"/>
+            <TextBox x:Name="ArgsBox"/>
+        </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="显示条件"/>
+                <ComboBox x:Name="MatchCombo" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="MatchCombo_SelectionChanged"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2" x:Name="RegexPanel">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="正则表达式（忽略大小写）"/>
+                <TextBox x:Name="RegexBox"/>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" Margin="0,10,0,0" Visibility="Collapsed"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+            <Button Content="取消" IsCancel="True" Margin="0,0,8,0" MinWidth="80"/>
+            <Button Content="保存" Style="{StaticResource AccentButton}" Click="Ok_Click" IsDefault="True" MinWidth="80"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

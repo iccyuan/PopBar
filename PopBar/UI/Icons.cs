@@ -1,0 +1,75 @@
+using System.Windows.Media;
+
+namespace PopBar.UI;
+
+/// <summary>Stroke icons (Lucide, 24x24 viewbox) as WPF path data, looked up by name.</summary>
+public static class Icons
+{
+    private static readonly Dictionary<string, string> Data = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["copy"] = "M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2",
+        ["search"] = "M19 11a8 8 0 1 1 -16 0a8 8 0 1 1 16 0 M21 21l-4.3-4.3",
+        ["languages"] = "M5 8l6 6 M4 14l6-6 2-3 M2 5h12 M7 2h1 M22 22l-5-10-5 10 M14 18h6",
+        ["external-link"] = "M15 3h6v6 M10 14L21 3 M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+        ["link"] = "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+        ["mail"] = "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M22 7l-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7",
+        ["case-upper"] = "M3 15l4-8 4 8 M4 13h6 M15 11h4.5a2 2 0 0 1 0 4h-4.5V7h4a2 2 0 0 1 0 4",
+        ["case-lower"] = "M10 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M10 9v6 M20 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M14 7v8",
+        ["clipboard"] = "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2",
+        ["clipboard-paste"] = "M15 2H9a1 1 0 0 0-1 1v2c0 .6.4 1 1 1h6c.6 0 1-.4 1-1V3c0-.6-.4-1-1-1Z M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4 M16 4h2a2 2 0 0 1 2 2v2 M11 14h10 M17 10l4 4-4 4",
+        ["terminal"] = "M4 17l6-6-6-6 M12 19h8",
+        ["globe"] = "M22 12a10 10 0 1 1 -20 0a10 10 0 1 1 20 0 M12 2a14.5 14.5 0 0 0 0 20 M12 2a14.5 14.5 0 0 1 0 20 M2 12h20",
+        ["scissors"] = "M9 6a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M8.12 8.12L12 12 M20 4L8.12 15.88 M9 18a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M14.8 14.8L20 20",
+        ["sparkles"] = "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z M20 3v4 M22 5h-4 M4 17v2 M5 18H3",
+        ["hash"] = "M4 9h16 M4 15h16 M10 3L8 21 M16 3l-2 18",
+        ["type"] = "M4 7V4h16v3 M9 20h6 M12 4v16",
+        ["bookmark"] = "M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z",
+        ["message-square"] = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+        ["bot"] = "M12 8V4H8 M4 8h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z M2 14h2 M20 14h2 M15 13v2 M9 13v2",
+        ["calculator"] = "M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z M8 6h8 M16 14v4 M16 10h.01 M12 10h.01 M8 10h.01 M12 14h.01 M8 14h.01 M12 18h.01 M8 18h.01",
+        ["book-open"] = "M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z",
+        ["pencil"] = "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z M15 5l4 4",
+        ["trash"] = "M3 6h18 M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6 M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2",
+        ["arrow-up"] = "M12 19V5 M5 12l7-7 7 7",
+        ["arrow-down"] = "M12 5v14 M19 12l-7 7-7-7",
+        ["plus"] = "M5 12h14 M12 5v14",
+        ["settings"] = "M15 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z",
+        ["circle"] = "M22 12a10 10 0 1 1 -20 0a10 10 0 1 1 20 0",
+        ["star"] = "M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z",
+        ["quote"] = "M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z",
+        ["x"] = "M18 6L6 18 M6 6l12 12",
+    };
+
+    private static readonly Dictionary<string, Geometry> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static IEnumerable<string> Names => Data.Keys.OrderBy(k => k, StringComparer.Ordinal);
+
+    // Static accessors for XAML ({x:Static ui:Icons.Pencil}).
+    public static Geometry ArrowUp => Get("arrow-up");
+    public static Geometry ArrowDown => Get("arrow-down");
+    public static Geometry Pencil => Get("pencil");
+    public static Geometry Trash => Get("trash");
+    public static Geometry Plus => Get("plus");
+
+    public static Geometry Get(string? name)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "circle" : name;
+        lock (Cache)
+        {
+            if (Cache.TryGetValue(name, out var g)) return g;
+            Geometry geo;
+            try
+            {
+                geo = Geometry.Parse(Data.TryGetValue(name, out var d) ? d : Data["circle"]);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"icon '{name}' failed to parse: {ex.Message}");
+                geo = Geometry.Parse(Data["circle"]);
+            }
+            geo.Freeze();
+            Cache[name] = geo;
+            return geo;
+        }
+    }
+}
