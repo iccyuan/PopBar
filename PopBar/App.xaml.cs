@@ -93,6 +93,7 @@ public partial class App : Application
             ShowPopup = ctx => _engine?.ShowExternal(ctx),
             OpenSettings = pluginId => Dispatcher.InvokeAsync(() => ShowSettings(pluginId)),
             RunAction = (id, ctx) => _plugins!.ExecuteAsync(id, ctx),
+            ResyncActions = id => _plugins?.Resync(id),
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         ActionRunner.Plugins = _plugins;

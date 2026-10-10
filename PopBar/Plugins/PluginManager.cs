@@ -105,25 +105,55 @@ internal sealed class PluginManager : IDisposable
         }
     }
 
-    /// <summary>Append config entries for plugin actions the user has not seen yet (keeps user order / labels / enabled flags).</summary>
-    public void SyncConfig()
+    /// <summary>Raised (any thread) after <see cref="Resync"/> changed the configured action list.</summary>
+    public event Action? ActionsSynced;
+
+    /// <summary>A plugin's action list changed: re-read it and bring the bar in line, dropping its vanished actions.</summary>
+    public void Resync(string pluginId)
     {
-        List<(string Id, IPopBarPlugin P, PluginAction A)> snapshot;
-        lock (_gate) snapshot = _actions.Select(kv => (kv.Key, kv.Value.Plugin, kv.Value.Action)).ToList();
+        RefreshActions();
+        SyncConfig(pluginId);
+        ActionsSynced?.Invoke();
+    }
+
+    /// <summary>
+    /// Append config entries for plugin actions the user has not seen yet (keeps user order / enabled flags), and
+    /// refresh labels / icons of existing ones. With <paramref name="pruneOwner"/>, that plugin's entries whose action
+    /// no longer exists are removed (only the owner knows it deleted them, not just failed to load).
+    /// </summary>
+    public void SyncConfig(string? pruneOwner = null)
+    {
+        Dictionary<string, PluginAction> offered;
+        lock (_gate) offered = _actions.ToDictionary(kv => kv.Key, kv => kv.Value.Action, StringComparer.OrdinalIgnoreCase);
+        bool Owned(ActionDefinition a) => pruneOwner != null && a.IsPlugin && (a.Ref ?? "").StartsWith(pruneOwner + ":", StringComparison.OrdinalIgnoreCase);
+
         var cfg = _store.Current;
-        var missing = snapshot.Where(s => !cfg.Actions.Any(a => a.IsPlugin && string.Equals(a.Ref, s.Id, StringComparison.OrdinalIgnoreCase))).ToList();
-        if (missing.Count == 0) return;
+        bool needed = offered.Any(o => !cfg.Actions.Any(a => a.IsPlugin && string.Equals(a.Ref, o.Key, StringComparison.OrdinalIgnoreCase)))
+            || cfg.Actions.Any(a => a.IsPlugin && a.Ref != null && offered.TryGetValue(a.Ref, out var pa) && (a.Label != pa.Label || a.Icon != pa.Icon))
+            || cfg.Actions.Any(a => Owned(a) && !offered.ContainsKey(a.Ref!));
+        if (!needed) return;
+
         _store.Update(c =>
         {
-            foreach (var m in missing)
+            c.Actions.RemoveAll(a => Owned(a) && !offered.ContainsKey(a.Ref!));
+            foreach (var a in c.Actions)
+                if (a.IsPlugin && a.Ref != null && offered.TryGetValue(a.Ref, out var pa)) { a.Label = pa.Label; a.Icon = pa.Icon; }
+
+            foreach (var (id, act) in offered)
             {
-                var def = new ActionDefinition { Id = m.Id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = m.Id, Label = m.A.Label, Icon = m.A.Icon, Enabled = m.A.EnabledByDefault };
+                if (c.Actions.Any(a => a.IsPlugin && string.Equals(a.Ref, id, StringComparison.OrdinalIgnoreCase))) continue;
+                var def = new ActionDefinition { Id = id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = id, Label = act.Label, Icon = act.Icon, Enabled = act.EnabledByDefault };
+                string owner = id[..id.IndexOf(':')];
                 // The translation panel sits right after search, where the stock bar used to have "翻译".
-                int search = m.Id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "search") : -1;
+                int search = id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "search") : -1;
+                // Otherwise a new action joins its siblings (e.g. a second send-to target next to the first).
+                int sibling = c.Actions.FindLastIndex(a => a.IsPlugin && (a.Ref ?? "").StartsWith(owner + ":", StringComparison.OrdinalIgnoreCase));
                 if (search >= 0)
                     c.Actions.Insert(search + 1, def);
-                else if (m.Id == "ai:explain" && c.Actions.FindIndex(a => a.Ref == "translate:panel") is var t && t >= 0)
+                else if (id == "ai:explain" && c.Actions.FindIndex(a => a.Ref == "translate:panel") is var t && t >= 0)
                     c.Actions.Insert(t + 1, def);
+                else if (sibling >= 0)
+                    c.Actions.Insert(sibling + 1, def);
                 else
                     c.Actions.Add(def);
             }

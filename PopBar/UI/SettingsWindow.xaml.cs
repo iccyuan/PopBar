@@ -136,7 +136,22 @@ public partial class SettingsWindow : Window
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveNow(); };
 
         LoadFromConfig(_store.Current);
+
+        // A plugin added / removed actions (e.g. a new send-to target): show them on the actions page right away.
+        _plugins.ActionsSynced += OnPluginActionsSynced;
+        Closed += (_, _) => _plugins.ActionsSynced -= OnPluginActionsSynced;
     }
+
+    private void OnPluginActionsSynced() => Dispatcher.InvokeAsync(() =>
+    {
+        _loading = true;
+        try
+        {
+            _rows.Clear();
+            foreach (var a in _store.Current.Actions) _rows.Add(new ActionRow(a.Clone()));
+        }
+        finally { _loading = false; }
+    });
 
     // ------------------------------------------------------------------ load / save
 

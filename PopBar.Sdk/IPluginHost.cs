@@ -54,6 +54,11 @@ public interface IPluginHost
     void UnregisterHotkey(string id);
     /// <summary>Add an entry to the tray context menu.</summary>
     void AddTrayMenuItem(string id, string label, Action callback);
+    /// <summary>
+    /// Call after your <see cref="IPopBarPlugin.GetActions"/> result changed (items added, removed, renamed): new actions
+    /// join the bar right away, removed ones leave it, and an open settings window refreshes its action list.
+    /// </summary>
+    void RefreshActions();
     /// <summary>Run any registered action (own or another plugin's, e.g. "translate:panel") for a context.</summary>
     Task RunActionAsync(string actionId, SelectionContext context);
 }

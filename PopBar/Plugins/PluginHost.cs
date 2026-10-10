@@ -22,6 +22,7 @@ internal sealed class HostServices
     public required Action<SelectionContext> ShowPopup { get; init; }
     public required Action<string> OpenSettings { get; init; }
     public required Func<string, SelectionContext, Task> RunAction { get; init; }
+    public required Action<string> ResyncActions { get; init; }
     public required PanelRegistry Panels { get; init; }
     public ServiceRegistry Services { get; } = new();
 
@@ -189,6 +190,8 @@ internal sealed class PluginHost : IPluginHost
     public void AddTrayMenuItem(string id, string label, Action callback) => _s.AddTrayItem($"{_pluginId}:{id}", label, callback);
 
     public Task RunActionAsync(string actionId, SelectionContext context) => _s.RunAction(actionId, context);
+
+    public void RefreshActions() => _s.ResyncActions(_pluginId);
 
     private sealed class PluginLogger : IPluginLogger
     {

@@ -156,9 +156,9 @@ public sealed class SendToPlugin : IPopBarPlugin
                 var target = t;
                 var sub = target.Mode switch { "launch" => "启动 " + target.Program, "url" => target.Args, _ => "粘贴到 " + target.Program };
                 list.Children.Add(Form.ListRow(target.Label, sub, target.Enabled,
-                    on => { target.Enabled = on; Save(); },
-                    () => { if (Edit(target, false)) { Save(); Rebuild(); } },
-                    () => { _cfg.Targets.Remove(target); Save(); Rebuild(); },
+                    on => { target.Enabled = on; Save(); _host.RefreshActions(); },
+                    () => { if (Edit(target, false)) { Save(); Rebuild(); _host.RefreshActions(); } },
+                    () => { _cfg.Targets.Remove(target); Save(); Rebuild(); _host.RefreshActions(); },
                     ui, target.Icon));
             }
         }
@@ -166,8 +166,8 @@ public sealed class SendToPlugin : IPopBarPlugin
 
         return Form.Stack(
             list,
-            Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { _cfg.Targets.Add(t); Save(); Rebuild(); } }, accent: true)),
-            Form.Hint("新增或删除目标后重启 PopBar 才会同步到操作条；顺序在「动作」页调整。"));
+            Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { _cfg.Targets.Add(t); Save(); Rebuild(); _host.RefreshActions(); } }, accent: true)),
+            Form.Hint("每个开启的目标都是操作条上的一个按钮，可以同时显示多个；顺序在「动作」页拖动调整。"));
     }
 
     public void Dispose() { }
