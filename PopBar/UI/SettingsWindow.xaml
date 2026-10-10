@@ -60,10 +60,10 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="启用 PopBar"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="关闭后不再监听选择，托盘菜单也可切换"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="启用 PopBar" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="关闭后不再监听选择，托盘菜单也可切换"/>
+                                    </StackPanel>
                                 <CheckBox x:Name="EnabledSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
@@ -82,13 +82,13 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="显示方式"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="“按键后显示”：选中时按住该键，或选中后 4 秒内按一下，操作条才出现"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="显示方式" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="“按键后显示”：选中时按住该键，或选中后 4 秒内按一下，操作条才出现"/>
+                                    </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <ComboBox x:Name="ShowModeCombo" Width="150" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="ShowMode_Changed"/>
-                                    <ComboBox x:Name="ShowKeyCombo" Width="90" Margin="8,0,0,0" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                                    <Button x:Name="ShowKeyBtn" MinWidth="90" Margin="8,0,0,0" Content="Ctrl" ToolTip="点击后按下想用的键" Click="ShowKeyBtn_Click"/>
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
@@ -117,19 +117,19 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="剪贴板回退"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="UI Automation 读不到选区时，模拟 Ctrl+C 取词并立即恢复剪贴板。终端类程序永远不用此方式。"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="剪贴板回退" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="UI Automation 读不到选区时，模拟 Ctrl+C 取词并立即恢复剪贴板。终端类程序永远不用此方式。"/>
+                                    </StackPanel>
                                 <ComboBox x:Name="FallbackCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
                                           DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
                             <Grid Style="{StaticResource Row}">
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="弹出延迟（毫秒）"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="松开鼠标后等待多久再取词，太小可能取到上一次的选区"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="弹出延迟（毫秒）" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="松开鼠标后等待多久再取词，太小可能取到上一次的选区"/>
+                                    </StackPanel>
                                 <TextBox x:Name="DelayBox" Width="90" HorizontalAlignment="Right" VerticalAlignment="Center" TextChanged="Changed"/>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
@@ -144,10 +144,10 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="主题"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="作用于操作条、面板和本窗口；跟随系统时随 Windows 深浅色实时切换"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="主题" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="作用于操作条、面板和本窗口；跟随系统时随 Windows 深浅色实时切换"/>
+                                    </StackPanel>
                                 <ComboBox x:Name="ThemeCombo" Width="160" HorizontalAlignment="Right" VerticalAlignment="Center"
                                           DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
                             </Grid>
@@ -162,10 +162,10 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="毛玻璃不透明度"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="操作条和面板底色的实度，越低越透、越容易发灰"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="毛玻璃不透明度" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="操作条和面板底色的实度，越低越透、越容易发灰"/>
+                                    </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <Slider x:Name="BlurSlider" Width="180" Minimum="40" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="BlurSlider_ValueChanged"/>
                                     <TextBlock x:Name="BlurValueText" Width="40" Margin="10,0,0,0" VerticalAlignment="Center" TextAlignment="Right"/>
@@ -179,12 +179,12 @@
                 <!-- ===== Apps ===== -->
                 <StackPanel x:Name="PanelApps" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource H1}" Text="应用"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="从正在运行的程序里选，或浏览选择 exe 文件；按进程名匹配。"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="从运行中的程序里选，或浏览 exe 文件。"/>
 
                     <TextBlock Style="{StaticResource H2}" Text="排除的应用" Margin="4,0,0,8"/>
                     <Border Style="{StaticResource Card}" Padding="18,14">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Muted}" Text="PopBar 在这些程序里完全不弹出（游戏、设计软件、远程桌面等）" Margin="0,0,0,10"/>
+                            <TextBlock Style="{StaticResource Muted}" Text="这些程序里不弹出操作条。" Margin="0,0,0,10"/>
                             <StackPanel x:Name="ExcludedList"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                 <ComboBox x:Name="ExcludedPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
@@ -197,7 +197,7 @@
                     <TextBlock Style="{StaticResource H2}" Text="禁用剪贴板回退的应用"/>
                     <Border Style="{StaticResource Card}" Padding="18,14">
                         <StackPanel>
-                            <TextBlock Style="{StaticResource Muted}" Text="Ctrl+C 有副作用的程序（终端、远程桌面、虚拟机），这些程序里只用 UI Automation 取词" Margin="0,0,0,10"/>
+                            <TextBlock Style="{StaticResource Muted}" Text="这些程序里不用 Ctrl+C 取词（终端、远程桌面等）。" Margin="0,0,0,10"/>
                             <StackPanel x:Name="NoClipList"/>
                             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                                 <ComboBox x:Name="NoClipPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
@@ -217,7 +217,7 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource H1}" Text="动作" Margin="0"/>
                     </DockPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="按钮按此顺序显示在悬浮条上。带显示条件的动作只在选中内容匹配时出现；插件提供的动作在「插件」页配置。"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="按此顺序显示在操作条上，上下箭头调整顺序。"/>
 
                     <ListBox x:Name="ActionsList" Style="{StaticResource PlainList}">
                         <ListBox.ItemTemplate>
@@ -271,10 +271,10 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="协议"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="Anthropic 走官方 SDK；OpenAI 兼容可接 LiteLLM、Ollama、DeepSeek 等任何 /chat/completions 接口"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="协议" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="Anthropic 走官方 SDK；OpenAI 兼容可接 LiteLLM、Ollama、DeepSeek 等任何 /chat/completions 接口"/>
+                                    </StackPanel>
                                 <ComboBox x:Name="LlmProtocolCombo" Grid.Column="1" Width="220" VerticalAlignment="Center"
                                           DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Llm_Changed"/>
                             </Grid>
@@ -284,10 +284,10 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="接口地址"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="Anthropic 留空即官方；OpenAI 兼容填到 /v1 为止，如 http://localhost:4000/v1"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="接口地址" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="Anthropic 留空即官方；OpenAI 兼容填到 /v1 为止，如 http://localhost:4000/v1"/>
+                                    </StackPanel>
                                 <TextBox x:Name="LlmBaseUrlBox" Grid.Column="1" Width="330" VerticalAlignment="Center" TextChanged="Llm_Changed"/>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
@@ -305,10 +305,10 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="模型"/>
-                                    <TextBlock Style="{StaticResource Muted}" Text="可直接输入，或点「获取模型」从接口拉取列表后选择"/>
-                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="模型" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="可直接输入，或点「获取模型」从接口拉取列表后选择"/>
+                                    </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <ComboBox x:Name="LlmModelBox" Width="236" IsEditable="True" SelectionChanged="Llm_Changed"/>
                                     <Button Content="获取模型" Margin="8,0,0,0" Click="FetchModels_Click"/>

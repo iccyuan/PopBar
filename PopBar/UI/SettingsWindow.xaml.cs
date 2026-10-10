@@ -84,7 +84,7 @@ public partial class SettingsWindow : Window
             new("anthropic", "Anthropic（官方 SDK）"),
             new("openai", "OpenAI 兼容"),
         };
-        PluginDirText.Text = "第三方插件放在 " + Plugins.PluginStorage.PluginsDir + "\\<插件名>\\*.dll，重启后加载。";
+        PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir;
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
         BuildPluginList();
@@ -100,12 +100,7 @@ public partial class SettingsWindow : Window
             new("auto", "选中后自动显示"),
             new("key", "按键后显示"),
         };
-        ShowKeyCombo.ItemsSource = new List<KeyValuePair<string, string>>
-        {
-            new("ctrl", "Ctrl"),
-            new("alt", "Alt"),
-            new("win", "Win"),
-        };
+        PreviewKeyDown += OnPreviewKeyDownForCapture;
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
             new("system", "跟随系统"),
@@ -141,9 +136,9 @@ public partial class SettingsWindow : Window
             AutoStartSw.IsChecked = c.AutoStart;
             ShowModeCombo.SelectedValue = c.ShowMode;
             if (ShowModeCombo.SelectedIndex < 0) ShowModeCombo.SelectedIndex = 0;
-            ShowKeyCombo.SelectedValue = c.ShowKey;
-            if (ShowKeyCombo.SelectedIndex < 0) ShowKeyCombo.SelectedIndex = 0;
-            ShowKeyCombo.IsEnabled = c.ShowMode == "key";
+            _showKey = string.IsNullOrWhiteSpace(c.ShowKey) ? "ctrl" : c.ShowKey;
+            ShowKeyBtn.Content = KeyDisplayName(_showKey);
+            ShowKeyBtn.IsEnabled = c.ShowMode == "key";
             DragSw.IsChecked = c.TriggerOnDrag;
             DblSw.IsChecked = c.TriggerOnDoubleClick;
             ShiftSw.IsChecked = c.TriggerOnShiftClick;
@@ -181,7 +176,7 @@ public partial class SettingsWindow : Window
             Enabled = EnabledSw.IsChecked == true,
             AutoStart = AutoStartSw.IsChecked == true,
             ShowMode = ShowModeCombo.SelectedValue as string ?? "auto",
-            ShowKey = ShowKeyCombo.SelectedValue as string ?? "ctrl",
+            ShowKey = _showKey,
             TriggerOnDrag = DragSw.IsChecked == true,
             TriggerOnDoubleClick = DblSw.IsChecked == true,
             TriggerOnShiftClick = ShiftSw.IsChecked == true,
@@ -400,9 +395,51 @@ public partial class SettingsWindow : Window
     private void BrowseExcluded_Click(object sender, RoutedEventArgs e) => BrowseApp(_excluded);
     private void BrowseNoClip_Click(object sender, RoutedEventArgs e) => BrowseApp(_noClip);
 
+    // ------------------------------------------------------------------ reveal-key capture
+
+    private string _showKey = "ctrl";
+    private bool _capturingKey;
+
+    private static string KeyDisplayName(string key) => key.ToLowerInvariant() switch
+    {
+        "ctrl" => "Ctrl", "alt" => "Alt", "shift" => "Shift", "win" => "Win", _ => key,
+    };
+
+    private void ShowKeyBtn_Click(object sender, RoutedEventArgs e)
+    {
+        _capturingKey = true;
+        ShowKeyBtn.Content = "按下按键…";
+        ShowKeyBtn.Focus();
+    }
+
+    private void OnPreviewKeyDownForCapture(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (!_capturingKey) return;
+        var key = e.Key switch
+        {
+            System.Windows.Input.Key.System => e.SystemKey,
+            System.Windows.Input.Key.ImeProcessed => e.ImeProcessedKey, // Chinese IME swallows letter keys otherwise
+            _ => e.Key,
+        };
+        if (key == System.Windows.Input.Key.Escape) { _capturingKey = false; ShowKeyBtn.Content = KeyDisplayName(_showKey); e.Handled = true; return; }
+        string name = key switch
+        {
+            System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl => "ctrl",
+            System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt => "alt",
+            System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift => "shift",
+            System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin => "win",
+            _ => key.ToString(),
+        };
+        _showKey = name;
+        _capturingKey = false;
+        ShowKeyBtn.Content = KeyDisplayName(name);
+        e.Handled = true;
+        Changed(sender, e);
+    }
+
     private void ShowMode_Changed(object sender, RoutedEventArgs e)
     {
-        if (ShowKeyCombo != null) ShowKeyCombo.IsEnabled = (ShowModeCombo.SelectedValue as string) == "key";
+        if (ShowKeyBtn != null) ShowKeyBtn.IsEnabled = (ShowModeCombo.SelectedValue as string) == "key";
         Changed(sender, e);
     }
 

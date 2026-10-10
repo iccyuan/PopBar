@@ -41,8 +41,13 @@ public sealed class IconImage : FrameworkElement
         int px = Math.Max(1, (int)Math.Round(Size * scale));
         var color = (Brush as SolidColorBrush)?.Color ?? Colors.Black;
         var bmp = Icons.Render(Icon, px, color, Thickness);
-        // Draw at exactly px physical pixels; layout rounding keeps the origin on the pixel grid.
+        // Draw at exactly px physical pixels, centred in whatever size the layout gave us
+        // (the element may be stretched to fill a container); layout rounding keeps the origin on the pixel grid.
         double dip = px / scale;
-        dc.DrawImage(bmp, new Rect((Size - dip) / 2, (Size - dip) / 2, dip, dip));
+        double w = double.IsNaN(RenderSize.Width) || RenderSize.Width <= 0 ? Size : RenderSize.Width;
+        double h = double.IsNaN(RenderSize.Height) || RenderSize.Height <= 0 ? Size : RenderSize.Height;
+        double x = Math.Round((w - dip) / 2 * scale) / scale;
+        double y = Math.Round((h - dip) / 2 * scale) / scale;
+        dc.DrawImage(bmp, new Rect(x, y, dip, dip));
     }
 }

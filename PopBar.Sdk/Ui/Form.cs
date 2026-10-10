@@ -28,12 +28,22 @@ public static class Form
         var g = new Grid { MinHeight = 44 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 6, 12, 6) };
-        left.Children.Add(new TextBlock { Text = label });
+        var left = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 6, 12, 6) };
+        left.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
         if (!string.IsNullOrEmpty(hint))
         {
-            var h = new TextBlock { Text = hint, FontSize = 12, Foreground = (Brush?)Res("MutedBrush") ?? Brushes.Gray, TextWrapping = TextWrapping.Wrap };
-            left.Children.Add(h);
+            // Long explanations live in a tooltip behind a small "i" so rows stay compact.
+            var muted = (Brush?)Res("MutedBrush") ?? Brushes.Gray;
+            var i = new Border
+            {
+                Width = 18, Height = 18, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1.2), BorderBrush = muted,
+                Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
+                ToolTip = hint, Cursor = System.Windows.Input.Cursors.Help,
+                Child = new TextBlock { Text = "i", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -1, 0, 0) },
+            };
+            ToolTipService.SetInitialShowDelay(i, 150);
+            ToolTipService.SetShowDuration(i, 20000);
+            left.Children.Add(i);
         }
         g.Children.Add(left);
         control.VerticalAlignment = VerticalAlignment.Center;

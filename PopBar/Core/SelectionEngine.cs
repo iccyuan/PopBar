@@ -132,19 +132,26 @@ internal sealed class SelectionEngine : IDisposable
     private long _pendingTicks;
     private const int PendingWindowMs = 4000;
 
-    private static int RevealKeyVk(string key) => (key ?? "ctrl").ToLowerInvariant() switch
+    /// <summary>Virtual key for a configured reveal key: "ctrl"/"alt"/"shift"/"win" or any WPF Key name (e.g. "F8", "CapsLock").</summary>
+    public static int RevealKeyVk(string? key)
     {
-        "alt" => VK_MENU,
-        "win" => VK_LWIN,
-        _ => VK_CONTROL,
-    };
+        switch ((key ?? "ctrl").ToLowerInvariant())
+        {
+            case "ctrl": return VK_CONTROL;
+            case "alt": return VK_MENU;
+            case "shift": return VK_SHIFT;
+            case "win": return VK_LWIN;
+        }
+        return Enum.TryParse<System.Windows.Input.Key>(key, true, out var k) ? System.Windows.Input.KeyInterop.VirtualKeyFromKey(k) : VK_CONTROL;
+    }
 
     private static bool IsRevealKey(uint vk, int configured) => configured switch
     {
         VK_CONTROL => vk is VK_CONTROL or 0xA2 or 0xA3,   // L/R Ctrl
         VK_MENU => vk is VK_MENU or 0xA4 or 0xA5,         // L/R Alt
+        VK_SHIFT => vk is VK_SHIFT or 0xA0 or 0xA1,       // L/R Shift
         VK_LWIN => vk is VK_LWIN or VK_RWIN,
-        _ => false,
+        _ => vk == (uint)configured,
     };
 
     private void OnKey(uint vk)
