@@ -19,6 +19,16 @@ internal static class ThemeManager
 
     public static event Action<string>? Changed;
 
+    /// <summary>Opacity (percent) of the tint layer over the acrylic blur on the bar and panels. 100 = solid.</summary>
+    public static int BlurOpacity { get; set; } = 88;
+
+    /// <summary>Tint colour for a blurred surface: white-ish in light mode, blue-black in dark mode, alpha from <see cref="BlurOpacity"/>.</summary>
+    public static Color BlurTint(bool dark, bool blurActive)
+    {
+        byte a = blurActive ? (byte)Math.Round(Math.Clamp(BlurOpacity, 40, 100) * 2.55) : (byte)255;
+        return dark ? Color.FromArgb(a, 0x1B, 0x1F, 0x27) : Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
+    }
+
     private static bool _hooked;
 
     public static string Resolve(string? setting) => (setting ?? "system").ToLowerInvariant() switch

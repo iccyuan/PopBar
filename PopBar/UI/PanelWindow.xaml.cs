@@ -46,9 +46,11 @@ public partial class PanelWindow : Window, IPanel
             var ex = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64();
             SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
             bool dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
-            bool blur = Acrylic.Apply(this, BackdropKind.Acrylic, dark, roundCorners: true, tintArgb: dark ? 0xC0202530u : 0xC0FFFFFFu);
-            // Translucent tint over the blur, opaque card without it.
-            Set("PBg", blur ? (dark ? "#B31C212B" : "#B8FFFFFF") : (dark ? "#FF1F2430" : "#FFFFFFFF"));
+            bool blur = Acrylic.Apply(this, BackdropKind.Acrylic, dark, roundCorners: true, tintArgb: dark ? 0xD0202530u : 0xD0FFFFFFu);
+            // Translucent tint over the blur (opacity from settings), opaque card without it.
+            var tint = new SolidColorBrush(ThemeManager.BlurTint(dark, blur));
+            tint.Freeze();
+            Resources["PBg"] = tint;
         };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
     }

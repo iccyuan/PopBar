@@ -61,6 +61,7 @@ public partial class App : Application
         _store.Load();
         _store.Changed += OnConfigChanged;
         ApplyAutoStart(_store.Current.AutoStart);
+        ThemeManager.BlurOpacity = _store.Current.BlurOpacity;
         ThemeManager.Apply(_store.Current.Theme);
 
         _popup = new PopupWindow();
@@ -158,11 +159,18 @@ public partial class App : Application
             if (_enabledItem != null) _enabledItem.Checked = cfg.Enabled;
             _settings?.RefreshFromStore();
             ApplyAutoStart(cfg.AutoStart);
+            ThemeManager.BlurOpacity = cfg.BlurOpacity;
             ThemeManager.Apply(cfg.Theme);
         });
     }
 
     public void ShowSettings(string? pluginId = null)
+    {
+        try { ShowSettingsCore(pluginId); }
+        catch (Exception ex) { Log.Error("open settings failed", ex); }
+    }
+
+    private void ShowSettingsCore(string? pluginId)
     {
         if (_settings == null)
         {

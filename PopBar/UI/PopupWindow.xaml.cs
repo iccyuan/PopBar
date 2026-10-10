@@ -139,14 +139,16 @@ public partial class PopupWindow : Window
 
     private void ApplyTheme(string setting, bool force = false)
     {
-        var theme = ThemeManager.Resolve(setting);
+        var theme = ThemeManager.Resolve(setting) + "/" + ThemeManager.BlurOpacity;
         if (theme == _theme && !force) return;
         _theme = theme;
-        bool light = theme == "light";
+        bool light = ThemeManager.Resolve(setting) == "light";
         bool blur = _hwnd != IntPtr.Zero && Acrylic.Apply(this, BackdropKind.Acrylic, !light, roundCorners: true,
-            tintArgb: light ? 0xB0FFFFFFu : 0xB0202530u);
-        // With a blur backdrop the bar is a translucent tint; without one it must be opaque.
-        SetBrush("BarBrush", blur ? (light ? "#8CFFFFFF" : "#8C1E222B") : (light ? "#FAFFFFFF" : "#FA262B36"));
+            tintArgb: light ? 0xD0FFFFFFu : 0xD0202530u);
+        // With a blur backdrop the bar is a translucent tint (opacity from settings); without one it must be opaque.
+        var tint = new SolidColorBrush(ThemeManager.BlurTint(!light, blur));
+        tint.Freeze();
+        Resources["BarBrush"] = tint;
         SetBrush("BarEdgeBrush", light ? "#33000000" : "#2EFFFFFF");
         SetBrush("BarFgBrush", light ? "#1F2937" : "#F1F3F7");
         SetBrush("BarHoverBrush", light ? "#18000000" : "#2EFFFFFF");

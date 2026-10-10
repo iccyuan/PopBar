@@ -26,6 +26,8 @@ public sealed class AppConfig
     /// <summary>"dark" or "light".</summary>
     public string Theme { get; set; } = "system";
     public bool ShowLabels { get; set; } = true;
+    /// <summary>Opacity (40-100 %) of the tint over the blurred backdrop of the bar and panels.</summary>
+    public int BlurOpacity { get; set; } = 88;
 
     /// <summary>Process names (e.g. "game.exe") where PopBar never shows.</summary>
     public List<string> ExcludedApps { get; set; } = new();

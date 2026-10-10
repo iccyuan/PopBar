@@ -134,6 +134,8 @@ public partial class SettingsWindow : Window
             ThemeCombo.SelectedValue = c.Theme;
             if (ThemeCombo.SelectedIndex < 0) ThemeCombo.SelectedIndex = 0;
             LabelsSw.IsChecked = c.ShowLabels;
+            BlurSlider.Value = Math.Clamp(c.BlurOpacity, 40, 100);
+            BlurValueText.Text = $"{(int)BlurSlider.Value}%";
             ExcludedBox.Text = string.Join(Environment.NewLine, c.ExcludedApps);
             NoClipBox.Text = string.Join(Environment.NewLine, c.NoClipboardApps);
 
@@ -165,6 +167,7 @@ public partial class SettingsWindow : Window
             MaxTextLength = ParseInt(MaxLenBox.Text, 10000, 1, 1_000_000),
             Theme = ThemeCombo.SelectedValue as string ?? "dark",
             ShowLabels = LabelsSw.IsChecked == true,
+            BlurOpacity = (int)BlurSlider.Value,
             ExcludedApps = Lines(ExcludedBox.Text),
             NoClipboardApps = Lines(NoClipBox.Text),
             Actions = _rows.Select(r => r.Def.Clone()).ToList(),
@@ -188,7 +191,8 @@ public partial class SettingsWindow : Window
 
     private void Changed(object sender, RoutedEventArgs e)
     {
-        if (_loading) return;
+        // Controls raise change events while InitializeComponent runs (e.g. Slider coercing its value), before the timer exists.
+        if (_loading || _saveTimer == null) return;
         _saveTimer.Stop();
         _saveTimer.Start();
         StatusText.Text = "正在保存…";
@@ -296,6 +300,12 @@ public partial class SettingsWindow : Window
     }
 
     private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);
+
+    private void BlurSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (BlurValueText != null) BlurValueText.Text = $"{(int)e.NewValue}%";
+        Changed(sender, e);
+    }
 
     private async void FetchModels_Click(object sender, RoutedEventArgs e)
     {
