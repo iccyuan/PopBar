@@ -34,7 +34,13 @@ public sealed class ActionRow : INotifyPropertyChanged
     {
         get
         {
-            var desc = ActionTypes.Describe(Def.Type);
+            // "Open" covers both links and addresses; say which one this row handles.
+            var desc = (Def.Type, Def.Match) switch
+            {
+                (ActionTypes.Open, MatchKinds.Url) => "在浏览器中打开选中的链接",
+                (ActionTypes.Open, MatchKinds.Email) => "用默认邮件程序给选中的地址写邮件",
+                _ => ActionTypes.Describe(Def.Type),
+            };
             var detail = Def.Type switch
             {
                 ActionTypes.Plugin => Def.Ref,
@@ -43,7 +49,7 @@ public sealed class ActionRow : INotifyPropertyChanged
                 ActionTypes.Command => Def.Command + " " + Def.Args,
                 _ => null,
             };
-            var cond = Def.Match switch
+            var cond = Def.Type == ActionTypes.Open ? "" : Def.Match switch
             {
                 MatchKinds.Url => "  · 仅链接",
                 MatchKinds.Email => "  · 仅邮箱",
