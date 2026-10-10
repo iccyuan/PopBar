@@ -422,53 +422,104 @@ internal sealed class CaptureOverlay : Window
         else if (_state == State.Selected) ResetSelection();
     }
 
-    // ------------------------------------------------------------------ chrome
 
-    private Button ToolbarButton(string icon, string tip, Action click, Brush? brush = null)
+    // ------------------------------------------------------------------ chrome (toolbar + style bar)
+
+    private Brush Res(string key, Brush fallback) => (Brush?)TryFindResource(key) ?? fallback;
+    private Brush TextFg => Res("TextBrush", Brushes.Black);
+    private Brush Accent => Res("AccentBrush", Brushes.DodgerBlue);
+    private Brush AccentStrong => Res("AccentHoverBrush", Brushes.RoyalBlue);
+    private Brush AccentSoft => Res("AccentSoftBrush", Brushes.AliceBlue);
+    private Brush Hover => Res("HoverBrush", Brushes.WhiteSmoke);
+
+    private readonly Dictionary<ShotTool, string> _toolIcons = new();
+
+    /// <summary>Flat 36x36 icon button with a rounded hover plate. Active tools are tinted with the accent.</summary>
+    private Button IconBtn(string icon, string tip, Action click, Brush? iconBrush = null)
     {
-        var b = new Button { Width = 34, Height = 34, ToolTip = tip, Focusable = false, Cursor = Cursors.Arrow, Margin = new Thickness(1, 0, 1, 0) };
-        if (TryFindResource("IconButton") is Style st) b.Style = st;
-        b.Content = _host.Ui.Icon(icon, 17, brush);
+        var plate = new Border { CornerRadius = new CornerRadius(8), Background = Brushes.Transparent, Width = 36, Height = 36, RenderTransformOrigin = new Point(0.5, 0.5) };
+        var b = new Button
+        {
+            ToolTip = tip, Focusable = false, Cursor = Cursors.Hand, Margin = new Thickness(1, 0, 1, 0),
+            Template = PlainButtonTemplate(), Content = plate,
+        };
+        plate.Child = Centered(_host.Ui.Icon(icon, 18, iconBrush ?? TextFg));
+        b.MouseEnter += (_, _) => { if (!IsActiveTool(b)) plate.Background = Hover; };
+        b.MouseLeave += (_, _) => { if (!IsActiveTool(b)) plate.Background = Brushes.Transparent; plate.RenderTransform = null; };
+        b.PreviewMouseLeftButtonDown += (_, _) => plate.RenderTransform = new ScaleTransform(0.92, 0.92);
+        b.PreviewMouseLeftButtonUp += (_, _) => plate.RenderTransform = null;
         b.Click += (_, _) => click();
         return b;
     }
 
+    private bool IsActiveTool(Button b) => _toolButtons.TryGetValue(_tool, out var a) && ReferenceEquals(a, b);
+
+    private static FrameworkElement Centered(FrameworkElement e)
+    {
+        e.HorizontalAlignment = HorizontalAlignment.Center;
+        e.VerticalAlignment = VerticalAlignment.Center;
+        return e;
+    }
+
+    private static ControlTemplate PlainButtonTemplate()
+    {
+        var t = new ControlTemplate(typeof(Button));
+        t.VisualTree = new FrameworkElementFactory(typeof(ContentPresenter));
+        return t;
+    }
+
     private void BuildToolbar()
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         void Tool(ShotTool t, string icon, string tip)
         {
-            var b = ToolbarButton(icon, tip, () => SetTool(_tool == t ? ShotTool.None : t));
+            _toolIcons[t] = icon;
+            var b = IconBtn(icon, tip, () => SetTool(_tool == t ? ShotTool.None : t));
             _toolButtons[t] = b;
             panel.Children.Add(b);
         }
-        Tool(ShotTool.Rect, "square", "矩形（按住 Shift 为正方形）");
-        Tool(ShotTool.Ellipse, "circle", "椭圆");
+        Tool(ShotTool.Rect, "square", "矩形（Shift 正方形）");
+        Tool(ShotTool.Ellipse, "circle", "椭圆（Shift 正圆）");
         Tool(ShotTool.Arrow, "move-up-right", "箭头");
         Tool(ShotTool.Pen, "pen", "画笔");
         Tool(ShotTool.Mosaic, "grid", "马赛克");
         Tool(ShotTool.Text, "type", "文字");
         panel.Children.Add(Separator());
-        panel.Children.Add(ToolbarButton("undo", "撤销 (Ctrl+Z)", Undo));
+        panel.Children.Add(IconBtn("undo", "撤销  Ctrl+Z", Undo));
         panel.Children.Add(Separator());
-        panel.Children.Add(ToolbarButton("pin", "贴到屏幕 (Ctrl+T)", Pin));
-        panel.Children.Add(ToolbarButton("download", "保存 (Ctrl+S)", Save));
-        panel.Children.Add(ToolbarButton("x", "取消 (Esc)", Close, new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44))));
-        panel.Children.Add(ToolbarButton("check", "复制并完成 (Enter / 双击)", Copy, (Brush?)TryFindResource("AccentBrush") ?? Brushes.DodgerBlue));
+        panel.Children.Add(IconBtn("pin", "贴到屏幕  Ctrl+T", Pin));
+        panel.Children.Add(IconBtn("download", "保存  Ctrl+S", Save));
+        panel.Children.Add(IconBtn("x", "取消  Esc", Close, new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44))));
+
+        // Primary action: accent pill with a label.
+        var done = new Border { CornerRadius = new CornerRadius(8), Background = Accent, Height = 36, Padding = new Thickness(12, 0, 14, 0), Margin = new Thickness(6, 0, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
+        var doneRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        doneRow.Children.Add(Centered(_host.Ui.Icon("check", 16, Brushes.White)));
+        doneRow.Children.Add(new TextBlock { Text = "完成", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 13.5, Margin = new Thickness(6, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
+        done.Child = doneRow;
+        var doneBtn = new Button { Template = PlainButtonTemplate(), Content = done, Focusable = false, Cursor = Cursors.Hand, ToolTip = "复制到剪贴板  Enter / 双击" };
+        doneBtn.MouseEnter += (_, _) => done.Background = AccentStrong;
+        doneBtn.MouseLeave += (_, _) => { done.Background = Accent; done.RenderTransform = null; };
+        doneBtn.PreviewMouseLeftButtonDown += (_, _) => done.RenderTransform = new ScaleTransform(0.96, 0.96);
+        doneBtn.Click += (_, _) => Copy();
+        panel.Children.Add(doneBtn);
+
         StyleChrome(_toolbar, panel);
         _root.Children.Add(_toolbar);
     }
 
-    private UIElement Separator() => new Rectangle { Width = 1, Height = 20, Margin = new Thickness(4, 0, 4, 0), Fill = (Brush?)TryFindResource("BorderBrush") ?? Brushes.LightGray };
+    private UIElement Separator() => new Rectangle { Width = 1, Height = 22, Margin = new Thickness(7, 0, 7, 0), Fill = Res("BorderBrush", Brushes.LightGray), VerticalAlignment = VerticalAlignment.Center };
 
     private void BuildStyleBar()
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(4, 2, 4, 2) };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         foreach (var w in Widths)
         {
-            double d = 4 + w * 1.3;
-            var dot = new Border { Width = 26, Height = 26, CornerRadius = new CornerRadius(6), Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = w, ToolTip = "粗细" };
-            dot.Child = new Ellipse { Width = d, Height = d, Fill = (Brush?)TryFindResource("TextBrush") ?? Brushes.Black, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            double d = 4 + w * 1.4;
+            var dot = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = w, ToolTip = "粗细", Margin = new Thickness(1, 0, 1, 0) };
+            dot.Child = new Ellipse { Width = d, Height = d, Fill = TextFg, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            dot.MouseEnter += (_, _) => { if ((double)dot.Tag != _width) dot.Background = Hover; };
+            dot.MouseLeave += (_, _) => { if ((double)dot.Tag != _width) dot.Background = Brushes.Transparent; };
             dot.MouseLeftButtonDown += (_, e) => { _width = (double)dot.Tag; RefreshStyleBar(); e.Handled = true; };
             _widthDots.Add(dot);
             panel.Children.Add(dot);
@@ -476,10 +527,12 @@ internal sealed class CaptureOverlay : Window
         panel.Children.Add(Separator());
         foreach (var c in Palette)
         {
-            var sw = new Border { Width = 20, Height = 20, CornerRadius = new CornerRadius(10), Margin = new Thickness(3), Cursor = Cursors.Hand, Background = new SolidColorBrush(c), BorderThickness = new Thickness(2), Tag = c };
-            sw.MouseLeftButtonDown += (_, e) => { _color = (Color)sw.Tag; RefreshStyleBar(); if (_editor != null) _editor.Foreground = new SolidColorBrush(_color); e.Handled = true; };
-            _swatches.Add(sw);
-            panel.Children.Add(sw);
+            // Outer ring shows selection; inner disc is the colour (hairline keeps white visible).
+            var disc = new Ellipse { Width = 18, Height = 18, Fill = new SolidColorBrush(c), Stroke = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)), StrokeThickness = 1 };
+            var ring = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent, Margin = new Thickness(1, 0, 1, 0), Cursor = Cursors.Hand, Tag = c, Background = Brushes.Transparent, Child = Centered(disc) };
+            ring.MouseLeftButtonDown += (_, e) => { _color = (Color)ring.Tag; RefreshStyleBar(); if (_editor != null) _editor.Foreground = new SolidColorBrush(_color); e.Handled = true; };
+            _swatches.Add(ring);
+            panel.Children.Add(ring);
         }
         StyleChrome(_styleBar, panel);
         _root.Children.Add(_styleBar);
@@ -489,10 +542,12 @@ internal sealed class CaptureOverlay : Window
     private void StyleChrome(Border b, UIElement child)
     {
         b.Child = child;
-        b.Padding = new Thickness(4);
-        b.CornerRadius = new CornerRadius(10);
-        b.Background = (Brush?)TryFindResource("CardBrush") ?? Brushes.White;
-        b.Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 3, Direction = 270, Opacity = 0.3 };
+        b.Padding = new Thickness(6);
+        b.CornerRadius = new CornerRadius(12);
+        b.Background = Res("CardBrush", Brushes.White);
+        b.BorderBrush = Res("BorderBrush", Brushes.Gainsboro);
+        b.BorderThickness = new Thickness(1);
+        b.Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 4, Direction = 270, Opacity = 0.22 };
         b.Visibility = Visibility.Collapsed;
         b.Cursor = Cursors.Arrow;
         RenderOptions.SetClearTypeHint(b, ClearTypeHint.Enabled);
@@ -500,19 +555,26 @@ internal sealed class CaptureOverlay : Window
 
     private void RefreshStyleBar()
     {
-        var accent = (Brush?)TryFindResource("AccentBrush") ?? Brushes.DodgerBlue;
-        var soft = (Brush?)TryFindResource("AccentSoftBrush") ?? Brushes.AliceBlue;
-        foreach (var d in _widthDots) d.Background = (double)d.Tag == _width ? soft : Brushes.Transparent;
-        foreach (var s in _swatches)
-            s.BorderBrush = (Color)s.Tag == _color ? accent : new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));
+        foreach (var d in _widthDots)
+        {
+            bool on = (double)d.Tag == _width;
+            d.Background = on ? AccentSoft : Brushes.Transparent;
+            if (d.Child is Ellipse e) e.Fill = on ? AccentStrong : TextFg;
+        }
+        foreach (var s in _swatches) s.BorderBrush = (Color)s.Tag == _color ? Accent : Brushes.Transparent;
     }
 
     private void SetTool(ShotTool t)
     {
         if (_editor != null) CommitText();
         _tool = t;
-        var soft = (Brush?)TryFindResource("AccentSoftBrush") ?? Brushes.AliceBlue;
-        foreach (var (tool, b) in _toolButtons) b.Background = tool == t ? soft : Brushes.Transparent;
+        foreach (var (tool, b) in _toolButtons)
+        {
+            bool on = tool == t;
+            var plate = (Border)b.Content;
+            plate.Background = on ? AccentSoft : Brushes.Transparent;
+            plate.Child = Centered(_host.Ui.Icon(_toolIcons[tool], 18, on ? AccentStrong : TextFg));
+        }
         UpdateVisuals();
     }
 
