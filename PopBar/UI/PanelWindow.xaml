@@ -7,8 +7,8 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="True"
         ResizeMode="NoResize" SizeToContent="Height" Width="440"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" RenderOptions.ClearTypeHint="Enabled"
-        FontFamily="Microsoft YaHei UI, Segoe UI">
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" RenderOptions.ClearTypeHint="Enabled" TextOptions.TextHintingMode="Fixed"
+        FontFamily="Segoe UI, Microsoft YaHei UI">
     <Window.Resources>
         <SolidColorBrush x:Key="PBg" Color="#CCFFFFFF"/>
         <SolidColorBrush x:Key="PBorder" Color="#22000000"/>
@@ -42,7 +42,7 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="Foreground" Value="{DynamicResource PFg}"/>
-            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Margin" Value="0,0,6,0"/>
             <Setter Property="Template">
@@ -80,7 +80,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <ui:IconImage x:Name="TitleIcon" Size="17" Brush="{DynamicResource PAccent}" Margin="16,0,8,0" VerticalAlignment="Center"/>
-                <TextBlock x:Name="TitleText" Grid.Column="1" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PFg}" TextTrimming="CharacterEllipsis"/>
+                <TextBlock x:Name="TitleText" Grid.Column="1" VerticalAlignment="Center" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource PFg}" TextTrimming="CharacterEllipsis"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0">
                     <Button x:Name="PinBtn" Style="{StaticResource PIconBtn}" ToolTip="固定（点击外部不关闭）" Click="Pin_Click">
                         <ui:IconImage x:Name="PinIcon" Icon="pin" Size="14" Brush="{DynamicResource PMuted}"/>
@@ -107,7 +107,7 @@
                     <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
                 </Border>
                 <Grid>
-                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
+                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="14"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
                              CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}"
                              TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" IsReadOnlyCaretVisible="True"

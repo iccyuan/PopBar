@@ -95,8 +95,8 @@ internal static class ThemeManager
             Set("NavBrush", blur ? "#3A1B1F28" : "#FF1B1F28");
             Set("CardBrush", blur ? "#B81F2430" : "#FF1F2430");
             Set("BorderBrush", "#FF2D3442");
-            Set("TextBrush", "#FFE6E9EF");
-            Set("MutedBrush", "#FF9AA3B2");
+            Set("TextBrush", "#FFF3F4F6");
+            Set("MutedBrush", "#FFA6AFBD");
             Set("AccentBrush", "#FF5B9BFF");
             Set("AccentHoverBrush", "#FF7CB0FF");
             Set("AccentSoftBrush", "#FF243552");
@@ -116,8 +116,8 @@ internal static class ThemeManager
             Set("NavBrush", blur ? "#66FFFFFF" : "#FFFFFFFF");
             Set("CardBrush", blur ? "#C4FFFFFF" : "#FFFFFFFF");
             Set("BorderBrush", "#FFE5E7EB");
-            Set("TextBrush", "#FF1F2937");
-            Set("MutedBrush", "#FF6B7280");
+            Set("TextBrush", "#FF111827");
+            Set("MutedBrush", "#FF4B5563");
             Set("AccentBrush", "#FF3B82F6");
             Set("AccentHoverBrush", "#FF2563EB");
             Set("AccentSoftBrush", "#FFE8EFFF");
