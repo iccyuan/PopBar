@@ -71,6 +71,7 @@
     <Style TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="13.5"/>
+        <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource InputBorderBrush}"/>
@@ -101,6 +102,7 @@
     </Style>
     <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="Template">
@@ -135,23 +137,24 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
-                    <Border x:Name="Track" Width="44" Height="24" CornerRadius="12" Background="{DynamicResource SwitchOffBrush}">
-                        <Ellipse x:Name="Thumb" Width="18" Height="18" Fill="White" HorizontalAlignment="Left">
+                    <Border x:Name="Track" Width="40" Height="22" CornerRadius="11" Background="{DynamicResource SwitchOffBrush}" BorderBrush="{DynamicResource SwitchOffBrush}" BorderThickness="1">
+                        <Ellipse x:Name="Thumb" Width="16" Height="16" Fill="White" HorizontalAlignment="Left" VerticalAlignment="Center">
                             <Ellipse.RenderTransform>
-                                <TranslateTransform x:Name="ThumbX" X="3"/>
+                                <TranslateTransform x:Name="ThumbX" X="2"/>
                             </Ellipse.RenderTransform>
                             <Ellipse.Effect>
-                                <DropShadowEffect BlurRadius="4" ShadowDepth="1" Opacity="0.3"/>
+                                <DropShadowEffect BlurRadius="3" ShadowDepth="1" Opacity="0.25"/>
                             </Ellipse.Effect>
                         </Ellipse>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Track" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="ThumbX" Storyboard.TargetProperty="X" To="23" Duration="0:0:0.15">
+                                        <DoubleAnimation Storyboard.TargetName="ThumbX" Storyboard.TargetProperty="X" To="20" Duration="0:0:0.16">
                                             <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>
@@ -160,7 +163,7 @@
                             <Trigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="ThumbX" Storyboard.TargetProperty="X" To="3" Duration="0:0:0.15">
+                                        <DoubleAnimation Storyboard.TargetName="ThumbX" Storyboard.TargetProperty="X" To="2" Duration="0:0:0.16">
                                             <DoubleAnimation.EasingFunction><CubicEase EasingMode="EaseOut"/></DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
                                     </Storyboard>

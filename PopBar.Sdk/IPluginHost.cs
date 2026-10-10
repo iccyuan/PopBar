@@ -15,6 +15,8 @@ public interface IPluginHost
     ILlmService Llm { get; }
     /// <summary>UI thread dispatcher for building WPF elements.</summary>
     Dispatcher Dispatcher { get; }
+    /// <summary>Host-styled controls for settings views (key / hotkey capture, app picker, icons...).</summary>
+    IHostUi Ui { get; }
     /// <summary>"dark" or "light" - current bar theme.</summary>
     string Theme { get; }
     /// <summary>Directory for plugin data files (%AppData%\PopBar\plugins\{id}\).</summary>

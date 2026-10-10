@@ -104,45 +104,42 @@ public sealed class AiPlugin : IPopBarPlugin
     public FrameworkElement? CreateSettingsView()
     {
         void Save() => _host.Storage.Set(_cfg);
-
+        var ui = _host.Ui;
         var list = new StackPanel();
+
+        bool Edit(Prompt p, bool isNew)
+        {
+            var draft = new Prompt { Id = p.Id, Label = p.Label, Icon = p.Icon, System = p.System, Template = p.Template, Enabled = p.Enabled };
+            var content = Form.Stack(
+                Form.Row("名称", Form.TextBox(draft.Label, 240, v => draft.Label = v)),
+                Form.Row("图标", ui.IconPicker(draft.Icon, v => draft.Icon = v)),
+                Form.Row("系统提示", Form.TextBox(draft.System, 320, v => draft.System = v, multiline: true), "留空用默认助手提示"),
+                Form.Row("用户模板", Form.TextBox(draft.Template, 320, v => draft.Template = v, multiline: true), "{text} = 选中内容"));
+            if (!ui.EditDialog(isNew ? "添加提示词按钮" : "编辑提示词按钮", content)) return false;
+            if (string.IsNullOrWhiteSpace(draft.Label)) return false;
+            p.Label = draft.Label.Trim(); p.Icon = draft.Icon; p.System = draft.System; p.Template = draft.Template;
+            return true;
+        }
+
         void Rebuild()
         {
             list.Children.Clear();
             foreach (var p in _cfg.Prompts)
             {
                 var prompt = p;
-                var header = new Grid();
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var label = Form.TextBox(prompt.Label, 160, v => { prompt.Label = v; Save(); });
-                header.Children.Add(label);
-                var toggle = Form.Toggle(prompt.Enabled, v => { prompt.Enabled = v; Save(); });
-                toggle.Margin = new Thickness(12, 0, 12, 0);
-                Grid.SetColumn(toggle, 1);
-                header.Children.Add(toggle);
-                var del = Form.Button("删除", () => { _cfg.Prompts.Remove(prompt); Save(); Rebuild(); });
-                del.Margin = new Thickness(0);
-                Grid.SetColumn(del, 2);
-                header.Children.Add(del);
-
-                var body = Form.Stack(
-                    header,
-                    Form.Hint("系统提示（可留空用默认）"),
-                    Form.TextBox(prompt.System, 520, v => { prompt.System = v; Save(); }, multiline: true),
-                    Form.Hint("用户提示模板，{text} = 选中内容"),
-                    Form.TextBox(prompt.Template, 520, v => { prompt.Template = v; Save(); }, multiline: true));
-                body.Margin = new Thickness(0, 8, 0, 8);
-                list.Children.Add(Form.Card(body));
+                list.Children.Add(Form.ListRow(prompt.Label, Summary(prompt), prompt.Enabled,
+                    on => { prompt.Enabled = on; Save(); },
+                    () => { if (Edit(prompt, false)) { Save(); Rebuild(); } },
+                    () => { _cfg.Prompts.Remove(prompt); Save(); Rebuild(); },
+                    ui, prompt.Icon));
             }
         }
         Rebuild();
 
-        var add = Form.Button("＋ 添加提示词按钮", () =>
+        var add = Form.Button("＋ 添加提示词", () =>
         {
-            _cfg.Prompts.Add(new Prompt { Label = "新按钮", System = DefaultSystem, Template = "{text}" });
-            Save(); Rebuild();
+            var p = new Prompt { Label = "", System = DefaultSystem, Template = "{text}" };
+            if (Edit(p, true)) { _cfg.Prompts.Add(p); Save(); Rebuild(); }
         }, accent: true);
 
         return Form.Stack(
@@ -150,9 +147,16 @@ public sealed class AiPlugin : IPopBarPlugin
                 Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, _cfg.Effort, v => { _cfg.Effort = v; Save(); }, 180), "对应模型的 effort 参数"),
                 Form.Row("最大输出 tokens", Form.TextBox(_cfg.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { _cfg.MaxTokens = n; Save(); } }))
             ),
-            Form.Section("提示词按钮（改动后重启 PopBar 生效到悬浮条）"),
+            Form.Section("提示词按钮"),
             list,
-            Form.Buttons(add));
+            Form.Buttons(add),
+            Form.Hint("新增或删除按钮后重启 PopBar 才会同步到操作条。"));
+    }
+
+    private static string Summary(Prompt p)
+    {
+        var t = p.Template.Replace("\r", " ").Replace("\n", " ").Trim();
+        return t.Length > 60 ? t[..60] + "…" : t;
     }
 
     public void Dispose() { }

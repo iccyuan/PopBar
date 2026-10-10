@@ -122,6 +122,77 @@ public static class Form
         return b;
     }
 
+    /// <summary>
+    /// One compact list row (title + subtitle, enable switch, edit / delete) in the same look as PopBar's action list.
+    /// Pass <paramref name="ui"/> to get icon buttons; without it the buttons are text.
+    /// </summary>
+    public static Border ListRow(string title, string? subtitle, bool enabled, Action<bool>? onToggle, Action? onEdit, Action? onDelete, IHostUi? ui = null, string? icon = null)
+    {
+        var g = new Grid();
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        if (ui != null && icon != null)
+        {
+            var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+            box.SetResourceReference(Border.BackgroundProperty, "AccentSoftBrush");
+            var ic = ui.Icon(icon, 16);
+            ic.HorizontalAlignment = HorizontalAlignment.Center; ic.VerticalAlignment = VerticalAlignment.Center;
+            box.Child = ic;
+            g.Children.Add(box);
+        }
+
+        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        if (!string.IsNullOrEmpty(subtitle))
+        {
+            var sub = new TextBlock { Text = subtitle, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
+            if (Res("Muted") is Style ms) sub.Style = ms; else sub.Foreground = Brushes.Gray;
+            text.Children.Add(sub);
+        }
+        Grid.SetColumn(text, 1);
+        g.Children.Add(text);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
+        if (onEdit != null) buttons.Children.Add(IconOrTextButton(ui, "pencil", "编辑", onEdit));
+        if (onDelete != null) buttons.Children.Add(IconOrTextButton(ui, "trash", "删除", onDelete, danger: true));
+        Grid.SetColumn(buttons, 2);
+        g.Children.Add(buttons);
+
+        if (onToggle != null)
+        {
+            var sw = Toggle(enabled, onToggle);
+            sw.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(sw, 3);
+            g.Children.Add(sw);
+        }
+
+        var row = new Border { Child = g, Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 8) };
+        if (Res("Card") is Style s) row.Style = s;
+        return row;
+    }
+
+    private static Button IconOrTextButton(IHostUi? ui, string icon, string text, Action onClick, bool danger = false)
+    {
+        var b = new Button();
+        if (ui != null)
+        {
+            if (Res("IconButton") is Style s) b.Style = s;
+            var brush = (Brush?)Res(danger ? "DangerBrush" : "MutedBrush") ?? Brushes.Gray;
+            b.Content = ui.Icon(icon, 14, brush);
+            b.ToolTip = text;
+        }
+        else
+        {
+            b.Content = text;
+            b.Margin = new Thickness(0, 0, 6, 0);
+        }
+        b.Click += (_, _) => onClick();
+        return b;
+    }
+
     public static StackPanel Buttons(params UIElement[] buttons)
     {
         var p = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 8) };

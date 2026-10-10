@@ -156,12 +156,13 @@ public sealed class OcrPlugin : IPopBarPlugin
         void Save() => _host.Storage.Set(_cfg);
         return Form.Stack(
             Form.Card(
-                Form.Row("快捷键", Form.TextBox(_cfg.Hotkey, 160, v =>
+                Form.Row("快捷键", _host.Ui.HotkeyBox(_cfg.Hotkey, v =>
                 {
-                    _cfg.Hotkey = v.Trim(); Save();
+                    _cfg.Hotkey = v; Save();
                     _host.UnregisterHotkey("capture");
-                    if (_cfg.Hotkey.Length > 0) _host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync());
-                }), "如 Ctrl+Alt+O；托盘菜单里也有入口"),
+                    if (_cfg.Hotkey.Length > 0 && !_host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync()))
+                        _host.Log.Warn($"hotkey {_cfg.Hotkey} unavailable");
+                }), "点击后按下组合键；托盘菜单里也有入口"),
                 Form.Row("识别语言", Form.TextBox(_cfg.Language, 160, v => { _cfg.Language = v.Trim(); Save(); }), "留空按系统语言；可填 zh-Hans-CN、en-US、ja 等（需已安装对应语言包）"),
                 Form.Row("显示结果面板", Form.Toggle(_cfg.ShowPanel, v => { _cfg.ShowPanel = v; Save(); }), "关闭后只弹出操作条"),
                 Form.Row("英文按行合并为段落", Form.Toggle(_cfg.JoinLines, v => { _cfg.JoinLines = v; Save(); }))

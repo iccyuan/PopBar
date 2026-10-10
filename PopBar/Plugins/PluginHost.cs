@@ -34,13 +34,14 @@ internal sealed class HostServices
 }
 
 /// <summary>Tracks open panels so outside clicks can close the unpinned ones.</summary>
-internal sealed class PanelRegistry
+internal sealed class PanelRegistry : IPanelRegistry
 {
     private readonly List<PanelWindow> _open = new();
     private readonly object _gate = new();
 
     /// <summary>While true the engine ignores mouse selections (a region-capture overlay is up).</summary>
-    public volatile bool SuppressCapture;
+    private volatile bool _suppress;
+    public bool SuppressCapture { get => _suppress; set => _suppress = value; }
 
     public void Add(PanelWindow p)
     {
@@ -90,6 +91,7 @@ internal sealed class PluginHost : IPluginHost
     public HttpClient Http => _s.Http;
     public ILlmService Llm => _s.Llm;
     public Dispatcher Dispatcher => _s.Dispatcher;
+    public IHostUi Ui { get; } = new HostUi();
     public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
 

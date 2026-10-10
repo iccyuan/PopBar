@@ -88,7 +88,7 @@
                                     </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <ComboBox x:Name="ShowModeCombo" Width="150" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="ShowMode_Changed"/>
-                                    <Button x:Name="ShowKeyBtn" MinWidth="90" Margin="8,0,0,0" Content="Ctrl" ToolTip="点击后按下想用的键" Click="ShowKeyBtn_Click"/>
+                                    <ui:KeyCaptureBox x:Name="ShowKeyBox" Mode="Single" Margin="8,0,0,0"/>
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>

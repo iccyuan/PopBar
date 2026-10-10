@@ -79,11 +79,7 @@ public partial class SettingsWindow : Window
         _llm = llm;
         InitializeComponent();
 
-        LlmProtocolCombo.ItemsSource = new List<KeyValuePair<string, string>>
-        {
-            new("anthropic", "Anthropic（官方 SDK）"),
-            new("openai", "OpenAI 兼容"),
-        };
+        LlmProtocolCombo.ItemsSource = _llm.Providers.Select(p => new KeyValuePair<string, string>(p.Id, p.Name)).ToList();
         PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir;
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
@@ -100,7 +96,7 @@ public partial class SettingsWindow : Window
             new("auto", "选中后自动显示"),
             new("key", "按键后显示"),
         };
-        PreviewKeyDown += OnPreviewKeyDownForCapture;
+        ShowKeyBox.GestureChanged += g => { _showKey = g; Changed(ShowKeyBox, new RoutedEventArgs()); };
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
             new("system", "跟随系统"),
@@ -137,8 +133,8 @@ public partial class SettingsWindow : Window
             ShowModeCombo.SelectedValue = c.ShowMode;
             if (ShowModeCombo.SelectedIndex < 0) ShowModeCombo.SelectedIndex = 0;
             _showKey = string.IsNullOrWhiteSpace(c.ShowKey) ? "ctrl" : c.ShowKey;
-            ShowKeyBtn.Content = KeyDisplayName(_showKey);
-            ShowKeyBtn.IsEnabled = c.ShowMode == "key";
+            ShowKeyBox.Gesture = _showKey;
+            ShowKeyBox.IsEnabled = c.ShowMode == "key";
             DragSw.IsChecked = c.TriggerOnDrag;
             DblSw.IsChecked = c.TriggerOnDoubleClick;
             ShiftSw.IsChecked = c.TriggerOnShiftClick;
@@ -324,11 +320,6 @@ public partial class SettingsWindow : Window
     private void RenderAppList(StackPanel host, List<string> items)
     {
         host.Children.Clear();
-        if (items.Count == 0)
-        {
-            host.Children.Add(new TextBlock { Text = "（空）", Style = (Style)FindResource("Muted"), Margin = new Thickness(2, 0, 0, 4) });
-            return;
-        }
         foreach (var exe in items)
         {
             var name = exe;
@@ -356,18 +347,7 @@ public partial class SettingsWindow : Window
     private void ProcessPick_Opened(object sender, EventArgs e)
     {
         if (sender is not ComboBox combo) return;
-        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        Native.NativeMethods.EnumWindows((h, _) =>
-        {
-            if (!Native.NativeMethods.IsWindowVisible(h)) return true;
-            var title = Native.NativeMethods.GetWindowTitle(h);
-            if (string.IsNullOrWhiteSpace(title)) return true;
-            var exe = Native.NativeMethods.GetWindowProcessName(h);
-            if (exe.Length == 0 || exe.Equals("PopBar.exe", StringComparison.OrdinalIgnoreCase)) return true;
-            if (!seen.ContainsKey(exe)) seen[exe] = title.Length > 40 ? title[..40] + "…" : title;
-            return true;
-        }, IntPtr.Zero);
-        combo.ItemsSource = seen.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).Select(k => new AppPick(k.Key, $"{k.Key}  —  {k.Value}")).ToList();
+        combo.ItemsSource = RunningApps.List().Select(a => new AppPick(a.Exe, $"{a.Exe}  —  {a.Title}")).ToList();
     }
 
     private void AddApp(ComboBox picker, List<string> list)
@@ -395,51 +375,11 @@ public partial class SettingsWindow : Window
     private void BrowseExcluded_Click(object sender, RoutedEventArgs e) => BrowseApp(_excluded);
     private void BrowseNoClip_Click(object sender, RoutedEventArgs e) => BrowseApp(_noClip);
 
-    // ------------------------------------------------------------------ reveal-key capture
-
     private string _showKey = "ctrl";
-    private bool _capturingKey;
-
-    private static string KeyDisplayName(string key) => key.ToLowerInvariant() switch
-    {
-        "ctrl" => "Ctrl", "alt" => "Alt", "shift" => "Shift", "win" => "Win", _ => key,
-    };
-
-    private void ShowKeyBtn_Click(object sender, RoutedEventArgs e)
-    {
-        _capturingKey = true;
-        ShowKeyBtn.Content = "按下按键…";
-        ShowKeyBtn.Focus();
-    }
-
-    private void OnPreviewKeyDownForCapture(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (!_capturingKey) return;
-        var key = e.Key switch
-        {
-            System.Windows.Input.Key.System => e.SystemKey,
-            System.Windows.Input.Key.ImeProcessed => e.ImeProcessedKey, // Chinese IME swallows letter keys otherwise
-            _ => e.Key,
-        };
-        if (key == System.Windows.Input.Key.Escape) { _capturingKey = false; ShowKeyBtn.Content = KeyDisplayName(_showKey); e.Handled = true; return; }
-        string name = key switch
-        {
-            System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl => "ctrl",
-            System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt => "alt",
-            System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift => "shift",
-            System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin => "win",
-            _ => key.ToString(),
-        };
-        _showKey = name;
-        _capturingKey = false;
-        ShowKeyBtn.Content = KeyDisplayName(name);
-        e.Handled = true;
-        Changed(sender, e);
-    }
 
     private void ShowMode_Changed(object sender, RoutedEventArgs e)
     {
-        if (ShowKeyBtn != null) ShowKeyBtn.IsEnabled = (ShowModeCombo.SelectedValue as string) == "key";
+        if (ShowKeyBox != null) ShowKeyBox.IsEnabled = (ShowModeCombo.SelectedValue as string) == "key";
         Changed(sender, e);
     }
 

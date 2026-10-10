@@ -14,11 +14,12 @@ using Rectangle = System.Windows.Shapes.Rectangle;
 namespace PopBar.UI;
 
 /// <summary>The floating bar. Never takes focus; acrylic backdrop; positioned in physical pixels next to the mouse-up point.</summary>
-public partial class PopupWindow : Window
+public partial class PopupWindow : Window, IPopupPresenter
 {
     public event Action<ActionDefinition, Selection>? ActionClicked;
     internal event Action<RECT>? Shown;
     public event Action? Hidden;
+    event Action<RECT>? IPopupPresenter.Shown { add => Shown += value; remove => Shown -= value; }
 
     private IntPtr _hwnd;
     private Selection _selection = new("", IntPtr.Zero, 0, 0);

@@ -4,7 +4,6 @@ using PopBar.Actions;
 using PopBar.Config;
 using PopBar.Plugins;
 using PopBar.Sdk;
-using PopBar.UI;
 using static PopBar.Native.NativeMethods;
 
 namespace PopBar.Core;
@@ -19,10 +18,10 @@ internal sealed class SelectionEngine : IDisposable
     private const int DoubleClickSlopPx = 4;
 
     private readonly ConfigStore _store;
-    private readonly PopupWindow _popup;
+    private readonly IPopupPresenter _popup;
     private readonly Dispatcher _ui;
     private readonly PluginManager _plugins;
-    private readonly PanelRegistry _panels;
+    private readonly IPanelRegistry _panels;
     private readonly InputHook _hook = new();
     private readonly TextCapture _capture = new();
     private readonly BlockingCollection<Action> _jobs = new();
@@ -40,7 +39,7 @@ internal sealed class SelectionEngine : IDisposable
     private volatile bool _popupVisible;
     private RECT _popupRect;
 
-    public SelectionEngine(ConfigStore store, PopupWindow popup, Dispatcher ui, PluginManager plugins, PanelRegistry panels)
+    public SelectionEngine(ConfigStore store, IPopupPresenter popup, Dispatcher ui, PluginManager plugins, IPanelRegistry panels)
     {
         _store = store;
         _popup = popup;

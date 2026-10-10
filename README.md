@@ -95,6 +95,31 @@ public sealed class HelloPlugin : IPopBarPlugin
 
 第三方插件在独立的 `AssemblyLoadContext` 里加载，只与宿主共享 `PopBar.Sdk`；其他依赖随 DLL 一起放。
 
+## 架构分层
+
+```
+PopBar.Sdk   契约层：IPopBarPlugin / IPluginHost / IPanel / ILlmService + ILlmProvider / IHostUi / Ui.Form
+   ▲ 只依赖 WPF 基础类型，不依赖主程序
+Core         引擎与服务：SelectionEngine（依赖 IPopupPresenter / IPanelRegistry 接口，不引用窗口类）、
+             TextCapture（ITextCaptureStrategy 策略链：UIA → 剪贴板）、LlmService（ILlmProvider 注册表）、
+             ThemeManager、InputHook、ClipboardBackup、InputSender
+Plugins      PluginManager（发现/加载/动作同步）、PluginHost + HostUi（IPluginHost / IHostUi 实现）、
+             Builtin/*（内置插件，与第三方同契约）
+UI           WPF 实现：PopupWindow（实现 IPopupPresenter）、PanelWindow、SettingsWindow、EditDialog、
+             IconImage / KeyCaptureBox / InfoTip 等控件
+App          组合根：装配以上各层、托盘、单实例、热键
+```
+
+扩展点一览：
+
+| 要扩展什么 | 实现接口 | 注册方式 |
+|---|---|---|
+| 操作条按钮 / 面板功能 | `IPopBarPlugin` + `PluginAction` | DLL 放 plugins 目录，或内置列表 |
+| AI 模型提供商 | `ILlmProvider` | `host.Llm.RegisterProvider(...)`（内置：Anthropic、OpenAI 兼容、Ollama、DeepSeek） |
+| 取词方式 | `ITextCaptureStrategy` | `TextCapture` 构造时传入策略链 |
+| 弹条/面板呈现 | `IPopupPresenter` / `IPanelRegistry` | `SelectionEngine` 构造注入 |
+| 插件设置页控件 | `IHostUi`（按键/快捷键录制、运行中程序、图标选择、文件选择、编辑对话框）+ `Form.ListRow` | 插件在 `CreateSettingsView` 里直接用 |
+
 ## 目录
 
 ```

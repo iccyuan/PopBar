@@ -104,7 +104,33 @@ public sealed class SendToPlugin : IPopBarPlugin
     public FrameworkElement? CreateSettingsView()
     {
         void Save() => _host.Storage.Set(_cfg);
+        var ui = _host.Ui;
         var list = new StackPanel();
+
+        bool Edit(Target t, bool isNew)
+        {
+            var d = new Target { Id = t.Id, Label = t.Label, Icon = t.Icon, Mode = t.Mode, Program = t.Program, Args = t.Args, LaunchIfMissing = t.LaunchIfMissing, Enabled = t.Enabled };
+            var programBox = Form.TextBox(d.Program, 240, v => d.Program = v.Trim());
+            var programRow = new StackPanel { Orientation = Orientation.Horizontal };
+            programRow.Children.Add(programBox);
+            var pick = ui.AppPicker(exe => { d.Program = exe; programBox.Text = exe; }, 36);
+            pick.Margin = new Thickness(6, 0, 0, 0); pick.ToolTip = "从运行中的程序选择";
+            programRow.Children.Add(pick);
+            var browse = ui.FileBrowse("浏览…", "程序 (*.exe)|*.exe", path => { d.Program = path; programBox.Text = path; });
+            browse.Margin = new Thickness(6, 0, 0, 0);
+            programRow.Children.Add(browse);
+            var content = Form.Stack(
+                Form.Row("名称", Form.TextBox(d.Label, 240, v => d.Label = v)),
+                Form.Row("图标", ui.IconPicker(d.Icon, v => d.Icon = v)),
+                Form.Row("方式", Form.Combo(new[] { ("paste", "粘贴到程序窗口"), ("launch", "带参数启动程序"), ("url", "打开 URL 协议") }, d.Mode, v => d.Mode = v, 200)),
+                Form.Row("程序", programRow, "粘贴方式填进程名（notepad.exe）；启动方式填可执行文件路径"),
+                Form.Row("参数 / URL", Form.TextBox(d.Args, 320, v => d.Args = v), "{text} = 选中内容"),
+                Form.Row("找不到窗口时启动", Form.Toggle(d.LaunchIfMissing, v => d.LaunchIfMissing = v)));
+            if (!ui.EditDialog(isNew ? "添加发送目标" : "编辑发送目标", content, 600)) return false;
+            if (string.IsNullOrWhiteSpace(d.Label)) return false;
+            t.Label = d.Label.Trim(); t.Icon = d.Icon; t.Mode = d.Mode; t.Program = d.Program; t.Args = d.Args; t.LaunchIfMissing = d.LaunchIfMissing;
+            return true;
+        }
 
         void Rebuild()
         {
@@ -112,34 +138,20 @@ public sealed class SendToPlugin : IPopBarPlugin
             foreach (var t in _cfg.Targets)
             {
                 var target = t;
-                var head = new Grid();
-                head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                head.Children.Add(Form.TextBox(target.Label, 160, v => { target.Label = v; Save(); }));
-                var toggle = Form.Toggle(target.Enabled, v => { target.Enabled = v; Save(); });
-                toggle.Margin = new Thickness(12, 0, 12, 0);
-                Grid.SetColumn(toggle, 1); head.Children.Add(toggle);
-                var del = Form.Button("删除", () => { _cfg.Targets.Remove(target); Save(); Rebuild(); });
-                del.Margin = new Thickness(0);
-                Grid.SetColumn(del, 2); head.Children.Add(del);
-
-                var body = Form.Stack(
-                    head,
-                    Form.Row("方式", Form.Combo(new[] { ("paste", "粘贴到程序窗口"), ("launch", "带参数启动程序"), ("url", "打开 URL 协议") }, target.Mode, v => { target.Mode = v; Save(); }, 200)),
-                    Form.Row("程序", Form.TextBox(target.Program, 300, v => { target.Program = v.Trim(); Save(); }), "粘贴方式填进程名（notepad.exe）；启动方式填可执行文件路径"),
-                    Form.Row("参数 / URL", Form.TextBox(target.Args, 300, v => { target.Args = v; Save(); }), "{text} = 选中内容"),
-                    Form.Row("找不到窗口时启动程序", Form.Toggle(target.LaunchIfMissing, v => { target.LaunchIfMissing = v; Save(); })));
-                body.Margin = new Thickness(0, 8, 0, 4);
-                list.Children.Add(Form.Card(body));
+                var sub = target.Mode switch { "launch" => "启动 " + target.Program, "url" => target.Args, _ => "粘贴到 " + target.Program };
+                list.Children.Add(Form.ListRow(target.Label, sub, target.Enabled,
+                    on => { target.Enabled = on; Save(); },
+                    () => { if (Edit(target, false)) { Save(); Rebuild(); } },
+                    () => { _cfg.Targets.Remove(target); Save(); Rebuild(); },
+                    ui, target.Icon));
             }
         }
         Rebuild();
 
         return Form.Stack(
-            Form.Hint("目标按钮会出现在悬浮条上（新目标需重启 PopBar 后出现，顺序在“动作”页调整）。"),
             list,
-            Form.Buttons(Form.Button("＋ 添加目标", () => { _cfg.Targets.Add(new Target { Label = "新目标" }); Save(); Rebuild(); }, accent: true)));
+            Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { _cfg.Targets.Add(t); Save(); Rebuild(); } }, accent: true)),
+            Form.Hint("新增或删除目标后重启 PopBar 才会同步到操作条；顺序在「动作」页调整。"));
     }
 
     public void Dispose() { }
