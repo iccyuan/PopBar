@@ -272,7 +272,7 @@ public partial class SettingsWindow : Window
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "sendto" => "external-link", _ => "puzzle" };
+            var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "external-link", _ => "puzzle" };
             var iconImg = new IconImage { Icon = iconName, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
             head.Children.Add(iconBox);

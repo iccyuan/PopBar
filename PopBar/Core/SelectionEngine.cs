@@ -195,6 +195,9 @@ internal sealed class SelectionEngine : IDisposable
 
         IntPtr source = GetForegroundWindow();
         if (source == IntPtr.Zero) return;
+        // Never treat our own windows (settings, panels, plugin overlays) as a selection source.
+        GetWindowThreadProcessId(source, out uint srcPid);
+        if (srcPid == (uint)Environment.ProcessId) return;
         if (cfg.ExcludedApps.Count > 0)
         {
             var proc = GetWindowProcessName(source);

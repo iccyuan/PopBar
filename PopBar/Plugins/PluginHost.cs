@@ -40,8 +40,11 @@ internal sealed class PanelRegistry : IPanelRegistry
     private readonly object _gate = new();
 
     /// <summary>While true the engine ignores mouse selections (a region-capture overlay is up).</summary>
-    private volatile bool _suppress;
-    public bool SuppressCapture { get => _suppress; set => _suppress = value; }
+    private int _suppress;
+    /// <summary>True while at least one suppressor is active (reference counted).</summary>
+    public bool SuppressCapture => Volatile.Read(ref _suppress) > 0;
+    public void Suppress() => Interlocked.Increment(ref _suppress);
+    public void Release() { if (Interlocked.Decrement(ref _suppress) < 0) Interlocked.Exchange(ref _suppress, 0); }
 
     public void Add(PanelWindow p)
     {
@@ -110,7 +113,7 @@ internal sealed class PluginHost : IPluginHost
 
     public async Task<RegionCapture?> CaptureScreenRegionAsync()
     {
-        _s.Panels.SuppressCapture = true;
+        _s.Panels.Suppress();
         try
         {
             var task = _s.Dispatcher.Invoke(() =>
@@ -124,8 +127,21 @@ internal sealed class PluginHost : IPluginHost
         finally
         {
             // Small grace period so the mouse-up that ended the drag is not treated as a selection.
-            _ = Task.Delay(300).ContinueWith(_ => _s.Panels.SuppressCapture = false);
+            _ = Task.Delay(300).ContinueWith(_ => _s.Panels.Release());
         }
+    }
+
+    public IDisposable SuppressSelection()
+    {
+        _s.Panels.Suppress();
+        return new Releaser(() => _ = Task.Delay(300).ContinueWith(_ => _s.Panels.Release()));
+    }
+
+    private sealed class Releaser : IDisposable
+    {
+        private Action? _a;
+        public Releaser(Action a) => _a = a;
+        public void Dispose() => Interlocked.Exchange(ref _a, null)?.Invoke();
     }
 
     public void OpenSettings() => _s.OpenSettings(_pluginId);

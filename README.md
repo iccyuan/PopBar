@@ -48,6 +48,7 @@ WH_MOUSE_LL / WH_KEYBOARD_LL  ──► SelectionEngine（钩子线程里只做�
 | 翻译 `translate` | 浮动面板内直接显示译文；Google（免费，走系统代理）或 AI 模型两种后端；源语言已是目标语言时自动改译备用语言 | 目标语言、备用语言、服务 |
 | AI 助手 `ai` | 解释 / 总结 / 润色，流式输出到面板；每个提示词一个按钮，可自定义系统提示和模板 | 提示词列表、effort、最大 tokens |
 | 屏幕 OCR `ocr` | 热键（默认 Ctrl+Alt+O）或托盘菜单 → 框选屏幕区域 → Windows 内置 OCR → 弹出操作栏 + 可编辑结果面板 | 热键、识别语言、是否显示面板 |
+| 截图 `screenshot` | 对标 Snipaste：F1 冻结屏幕截图，悬停自动识别窗口、单击选中，拖动框选，八向手柄调整、方向键微调；放大镜取色（C 复制色值）；矩形 / 椭圆 / 箭头 / 画笔 / 马赛克 / 文字标注，撤销；Enter·双击复制、Ctrl+S 保存、Ctrl+T 贴图。F3 把剪贴板图片或文字贴到屏幕：拖动、滚轮缩放、Ctrl+滚轮透明度、双击关闭 | 热键、保存目录、放大镜、窗口识别 |
 | 发送到应用 `sendto` | 把选中内容粘贴进指定进程的窗口（找不到可自动启动）、带参数启动程序、或打开 URL 协议（如 `obsidian://`） | 目标列表 |
 
 AI 模型在 **设置 → 插件 → AI 模型服务** 统一配置：协议 `anthropic`（官方 SDK，默认模型 `claude-opus-5-5`）或 `openai`（任何 OpenAI 兼容的 `/chat/completions`：LiteLLM、Ollama、DeepSeek……）。

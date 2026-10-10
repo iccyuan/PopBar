@@ -29,6 +29,11 @@ public interface IPluginHost
     void ShowPopup(SelectionContext context);
     /// <summary>Let the user drag a rectangle on screen; returns PNG bytes + screen rect, or null if cancelled.</summary>
     Task<RegionCapture?> CaptureScreenRegionAsync();
+    /// <summary>
+    /// Pause PopBar's selection detection (e.g. while your own full-screen overlay handles mouse drags).
+    /// Dispose the returned token to resume. Nested calls are counted.
+    /// </summary>
+    IDisposable SuppressSelection();
     /// <summary>Open the settings window on this plugin's section.</summary>
     void OpenSettings();
 

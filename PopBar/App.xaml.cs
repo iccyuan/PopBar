@@ -7,6 +7,7 @@ using PopBar.Config;
 using PopBar.Core;
 using PopBar.Plugins;
 using PopBar.Plugins.Builtin;
+using PopBar.Plugins.Builtin.Screenshot;
 using PopBar.Sdk;
 using PopBar.UI;
 using WinForms = System.Windows.Forms;
@@ -86,7 +87,7 @@ public partial class App : Application
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         ActionRunner.Plugins = _plugins;
-        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new SendToPlugin() });
+        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin() });
 
         _engine = new SelectionEngine(_store, _popup, Dispatcher, _plugins, _panels);
         _engine.Start();
