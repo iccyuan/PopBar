@@ -8,11 +8,13 @@ using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
 using Windows.Storage.Streams;
+using OcrResult = PopBar.Sdk.OcrResult;
+using OcrLine = PopBar.Sdk.OcrLine;
 
 namespace PopBar.Plugins.Builtin;
 
 /// <summary>Screen OCR with the Windows built-in engine: hotkey / tray → drag a region → text goes to the bar + a panel.</summary>
-public sealed class OcrPlugin : IPopBarPlugin
+public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
 {
     public sealed class Settings
     {
@@ -36,6 +38,7 @@ public sealed class OcrPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
+        host.Services.Provide<IOcrEngine>(this);
         host.AddTrayMenuItem("capture", "屏幕 OCR 取词", () => _ = CaptureAsync());
         if (!string.IsNullOrWhiteSpace(_cfg.Hotkey) && !host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync()))
             host.Log.Warn($"hotkey {_cfg.Hotkey} unavailable");
@@ -54,7 +57,7 @@ public sealed class OcrPlugin : IPopBarPlugin
             if (region == null) { _host.Log.Info("capture cancelled"); return; }
             var sw = System.Diagnostics.Stopwatch.StartNew();
             try { Directory.CreateDirectory(_host.DataDir); File.WriteAllBytes(Path.Combine(_host.DataDir, "last-capture.png"), region.Png); } catch { }
-            var text = await RecognizeAsync(region.Png);
+            var text = (await RecognizeAsync(region.Png)).Text;
             _host.Log.Info($"recognized {text.Length} chars from {region.Width}x{region.Height} in {sw.ElapsedMilliseconds}ms");
             if (string.IsNullOrWhiteSpace(text))
             {
@@ -81,7 +84,8 @@ public sealed class OcrPlugin : IPopBarPlugin
         finally { Interlocked.Exchange(ref _running, 0); }
     }
 
-    private async Task<string> RecognizeAsync(byte[] png)
+    /// <summary>Recognize text; line boxes are mapped back to <paramref name="png"/>'s own pixel coordinates.</summary>
+    public async Task<OcrResult> RecognizeAsync(byte[] png, CancellationToken ct = default)
     {
         OcrEngine? engine = null;
         if (!string.IsNullOrWhiteSpace(_cfg.Language))
@@ -92,15 +96,17 @@ public sealed class OcrPlugin : IPopBarPlugin
         if (engine == null) throw new InvalidOperationException("系统没有可用的 OCR 语言包（设置 → 时间和语言 → 语言 → 添加语言并安装“光学字符识别”）。");
         _host.Log.Info($"engine language {engine.RecognizerLanguage.LanguageTag}; available: {string.Join(",", OcrEngine.AvailableRecognizerLanguages.Select(l => l.LanguageTag))}");
 
-        png = Preprocess(png);
+        (png, double scale, int pad) = Preprocess(png);
         using var stream = new InMemoryRandomAccessStream();
         await stream.WriteAsync(png.AsBuffer());
         stream.Seek(0);
         var decoder = await BitmapDecoder.CreateAsync(stream);
         using var bitmap = await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
         var result = await engine.RecognizeAsync(bitmap);
+        ct.ThrowIfCancellationRequested();
 
         var sb = new StringBuilder();
+        var lines = new List<OcrLine>();
         foreach (var line in result.Lines)
         {
             // CJK engines emit one "word" per character: join those without spaces, but keep
@@ -116,11 +122,15 @@ public sealed class OcrPlugin : IPopBarPlugin
                 prev = t;
             }
             var s = lineText.ToString();
+            var box = line.Words.Select(w => w.BoundingRect)
+                .Aggregate(Rect.Empty, (acc, r) => Rect.Union(acc, new Rect(r.X, r.Y, r.Width, r.Height)));
+            if (!box.IsEmpty)
+                lines.Add(new OcrLine(s, new Rect((box.X - pad) / scale, (box.Y - pad) / scale, box.Width / scale, box.Height / scale)));
             sb.Append(s);
             bool lineIsCjk = s.Count(IsCjk) > s.Length / 3;
             sb.Append(_cfg.JoinLines && !lineIsCjk ? ' ' : '\n');
         }
-        return sb.ToString().Trim();
+        return new OcrResult(sb.ToString().Trim(), lines);
     }
 
     private static bool IsCjk(char c) => (c >= 0x4E00 && c <= 0x9FFF) || (c >= 0x3400 && c <= 0x4DBF) || (c >= 0x3000 && c <= 0x303F) || (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0x3040 && c <= 0x30FF);
@@ -129,14 +139,14 @@ public sealed class OcrPlugin : IPopBarPlugin
     /// The Windows engine returns nothing for thin strips of small text. Give it a white margin and
     /// upscale small captures (bicubic) so the text is at least ~20px tall.
     /// </summary>
-    private static byte[] Preprocess(byte[] png)
+    private static (byte[] Png, double Scale, int Pad) Preprocess(byte[] png)
     {
         using var src = System.Drawing.Image.FromStream(new MemoryStream(png));
         const int pad = 32;
         const int minHeight = 160;
         double scale = Math.Clamp(Math.Ceiling((double)minHeight / src.Height), 1, 3);
         int w = (int)(src.Width * scale), h = (int)(src.Height * scale);
-        if (scale == 1 && w > 2400) return png; // already big: leave as is (engine limit is 2600px)
+        if (scale == 1 && w > 2400) return (png, 1, 0); // already big: leave as is (engine limit is 2600px)
         using var dst = new System.Drawing.Bitmap(w + 2 * pad, h + 2 * pad);
         using (var g = System.Drawing.Graphics.FromImage(dst))
         {
@@ -146,7 +156,7 @@ public sealed class OcrPlugin : IPopBarPlugin
         }
         using var ms = new MemoryStream();
         dst.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-        return ms.ToArray();
+        return (ms.ToArray(), scale, pad);
     }
 
     // ------------------------------------------------------------------ settings

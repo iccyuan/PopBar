@@ -23,6 +23,7 @@ internal sealed class HostServices
     public required Action<string> OpenSettings { get; init; }
     public required Func<string, SelectionContext, Task> RunAction { get; init; }
     public required PanelRegistry Panels { get; init; }
+    public ServiceRegistry Services { get; } = new();
 
     public static HttpClient CreateHttp()
     {
@@ -30,6 +31,23 @@ internal sealed class HostServices
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("PopBar/0.2 (+https://github.com/iccyuan/PopBar)");
         return http;
+    }
+}
+
+/// <summary>Process-wide registry behind <see cref="IPluginHost.Services"/>: one implementation per contract type.</summary>
+internal sealed class ServiceRegistry : IServiceRegistry
+{
+    private readonly Dictionary<Type, object> _map = new();
+
+    public void Provide<T>(T service) where T : class
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        lock (_map) _map[typeof(T)] = service;
+    }
+
+    public T? Get<T>() where T : class
+    {
+        lock (_map) return _map.TryGetValue(typeof(T), out var s) ? (T)s : null;
     }
 }
 
@@ -97,6 +115,7 @@ internal sealed class PluginHost : IPluginHost
     public IHostUi Ui { get; } = new HostUi();
     public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
+    public IServiceRegistry Services => _s.Services;
 
     public IPanel ShowPanel(PanelOptions options)
     {

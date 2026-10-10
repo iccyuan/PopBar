@@ -8,7 +8,7 @@ using PopBar.Sdk.Ui;
 namespace PopBar.Plugins.Builtin;
 
 /// <summary>Embedded translation panel. Providers: Google (free endpoint), Microsoft (Edge token), or the configured LLM.</summary>
-public sealed class TranslatePlugin : IPopBarPlugin
+public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
 {
     public sealed class Settings
     {
@@ -30,7 +30,29 @@ public sealed class TranslatePlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
+        host.Services.Provide<ITextTranslator>(this);
     }
+
+    /// <summary>Non-streaming translation for other plugins (screen translate...), same provider and language rules.</summary>
+    public async Task<TranslationResult> TranslateAsync(string text, string? targetLang = null, CancellationToken ct = default)
+    {
+        string target = targetLang ?? (LooksLike(text, _cfg.TargetLang) ? _cfg.AltLang : _cfg.TargetLang);
+        if (_cfg.Provider == "llm")
+        {
+            var sb = new StringBuilder();
+            await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), ct)) sb.Append(chunk);
+            return new TranslationResult(sb.ToString().Trim(), "auto", target, _host.Llm.ModelName);
+        }
+        var (result, detected) = await GoogleAsync(text, target, ct);
+        return new TranslationResult(result, detected, target, "Google");
+    }
+
+    private static LlmRequest LlmRequestFor(string text, string target) => new()
+    {
+        System = "You are a professional translator. Translate the user's text into the requested language. Output only the translation, no explanations, keep formatting and line breaks.",
+        User = $"Target language: {target}\n\n{text}",
+        Effort = "low",
+    };
 
     public IReadOnlyList<PluginAction> GetActions() => new[]
     {
@@ -63,13 +85,7 @@ public sealed class TranslatePlugin : IPopBarPlugin
                 case "llm":
                 {
                     panel.SetStatus($"→ {target} · {_host.Llm.ModelName}");
-                    var req = new LlmRequest
-                    {
-                        System = "You are a professional translator. Translate the user's text into the requested language. Output only the translation, no explanations, keep formatting.",
-                        User = $"Target language: {target}\n\n{text}",
-                        Effort = "low",
-                    };
-                    await foreach (var chunk in _host.Llm.StreamAsync(req, linked.Token)) panel.AppendText(chunk);
+                    await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), linked.Token)) panel.AppendText(chunk);
                     break;
                 }
                 default:

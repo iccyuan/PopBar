@@ -21,6 +21,8 @@ public interface IPluginHost
     string Theme { get; }
     /// <summary>Directory for plugin data files (%AppData%\PopBar\plugins\{id}\).</summary>
     string DataDir { get; }
+    /// <summary>Capabilities shared between plugins (translator, OCR...). See <see cref="IServiceRegistry"/>.</summary>
+    IServiceRegistry Services { get; }
 
     // ---- UI ----
     /// <summary>Open a floating result panel anchored near the selection. Returns on the calling thread; the panel is created on the UI thread.</summary>

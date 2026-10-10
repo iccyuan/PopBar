@@ -117,7 +117,7 @@ internal sealed class PluginManager : IDisposable
         {
             foreach (var m in missing)
             {
-                var def = new ActionDefinition { Id = m.Id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = m.Id, Label = m.A.Label, Icon = m.A.Icon, Enabled = true };
+                var def = new ActionDefinition { Id = m.Id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = m.Id, Label = m.A.Label, Icon = m.A.Icon, Enabled = m.A.EnabledByDefault };
                 // The translation panel sits right after search, where the stock bar used to have "翻译".
                 int search = m.Id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "search") : -1;
                 if (search >= 0)

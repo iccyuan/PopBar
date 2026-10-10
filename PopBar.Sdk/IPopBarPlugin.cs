@@ -36,6 +36,8 @@ public sealed class PluginAction
     public string Icon { get; init; } = "circle";
     /// <summary>One line shown under the action in settings, e.g. "粘贴到 notepad.exe". Optional.</summary>
     public string? Description { get; init; }
+    /// <summary>Whether the button is switched on when it is first added to the bar. Niche actions can start off.</summary>
+    public bool EnabledByDefault { get; init; } = true;
     /// <summary>Return false to hide the button for this selection. Must be fast (runs on the capture thread).</summary>
     public Func<SelectionContext, bool>? IsApplicable { get; init; }
     /// <summary>Runs on a worker thread. Use <see cref="IPluginHost"/> for anything UI related.</summary>
