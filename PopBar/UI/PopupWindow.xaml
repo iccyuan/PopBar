@@ -82,7 +82,7 @@
                 <TranslateTransform x:Name="Slide"/>
             </TransformGroup>
         </Grid.RenderTransform>
-        <Border x:Name="Bar" Background="{DynamicResource BarBrush}" BorderBrush="{DynamicResource BarEdgeBrush}" BorderThickness="1" CornerRadius="10" Padding="5,4">
+        <Border x:Name="Bar" Background="{DynamicResource BarBrush}" CornerRadius="10" Padding="5,4">
             <StackPanel x:Name="Buttons" Orientation="Horizontal"/>
         </Border>
     </Grid>
