@@ -162,7 +162,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 Form.Row("显示放大镜", Form.Toggle(_cfg.ShowMagnifier, v => { _cfg.ShowMagnifier = v; Save(); })),
                 Form.Row("自动识别窗口", Form.Toggle(_cfg.DetectWindows, v => { _cfg.DetectWindows = v; Save(); }), "鼠标悬停时高亮窗口，单击直接选中")),
             Form.Hint("截图中：拖动框选，单击选中窗口；Enter / Ctrl+C / 双击 复制，Ctrl+S 保存，Ctrl+T 贴图，Ctrl+Z 撤销，方向键微调，Esc / 右键 取消，C 复制取色。"),
-            Form.Hint("贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 关闭，右键更多。"));
+            Form.Hint("贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，悬停或右键更多操作。"));
     }
 
     public void Dispose() { }

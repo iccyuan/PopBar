@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using PopBar.Sdk;
@@ -12,18 +13,24 @@ namespace PopBar.Plugins.Builtin.Screenshot;
 
 /// <summary>
 /// An image pinned on top of everything (Snipaste "贴图"): drag to move, wheel to zoom, Ctrl+wheel for opacity,
-/// double-click or Esc to close, right-click for copy / save / original size / close.
+/// double-click or Esc to close, hover strip and right-click menu for copy / save / original size / close.
 /// </summary>
 internal sealed class PinWindow : Window
 {
-    private const double Shadow = 12; // DIP reserved around the image for the drop shadow
+    private const double Shadow = 16; // DIP reserved around the image for the drop shadow
+    private const double Radius = 6;
+
+    private static readonly Brush Glass = Frozen(Color.FromArgb(0xD9, 0x17, 0x1B, 0x24));
 
     private readonly IPluginHost _host;
     private readonly BitmapSource _image;
     private readonly Image _view = new() { Stretch = Stretch.Fill };
-    private readonly Border _frame = new();
-    private readonly Border _zoomTag = new() { CornerRadius = new CornerRadius(4), Padding = new Thickness(6, 2, 6, 2), Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x11, 0x18, 0x27)), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(6), Visibility = Visibility.Collapsed, IsHitTestVisible = false };
-    private readonly TextBlock _zoomText = new() { Foreground = Brushes.White, FontSize = 11.5 };
+    private readonly Grid _stage = new();
+    private readonly Border _shadow = new();
+    private readonly Border _ring = new() { BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(Radius), IsHitTestVisible = false, Opacity = 0 };
+    private readonly Border _bar = new() { CornerRadius = new CornerRadius(8), Background = Glass, Padding = new Thickness(3), Margin = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Opacity = 0, IsHitTestVisible = false };
+    private readonly Border _zoomTag = new() { CornerRadius = new CornerRadius(11), Padding = new Thickness(10, 3, 10, 4), Background = Glass, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8), Opacity = 0, IsHitTestVisible = false };
+    private readonly TextBlock _zoomText = new() { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Medium };
     private readonly System.Windows.Threading.DispatcherTimer _tagTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
     private double _zoom = 1;
     private double _s = 1;
@@ -45,18 +52,28 @@ internal sealed class PinWindow : Window
 
         _view.Source = image;
         RenderOptions.SetBitmapScalingMode(_view, BitmapScalingMode.HighQuality);
-        var accent = (Brush?)Application.Current?.TryFindResource("AccentBrush") ?? Brushes.DodgerBlue;
-        _frame.Child = new Grid { Children = { _view, _zoomTag } };
-        _zoomTag.Child = _zoomText;
-        _frame.BorderThickness = new Thickness(1);
-        _frame.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0));
-        _frame.Effect = new DropShadowEffect { BlurRadius = 16, ShadowDepth = 3, Direction = 270, Opacity = 0.35 };
-        _frame.Margin = new Thickness(Shadow);
-        MouseEnter += (_, _) => _frame.BorderBrush = accent;
-        MouseLeave += (_, _) => _frame.BorderBrush = new SolidColorBrush(Color.FromArgb(70, 0, 0, 0));
-        Content = _frame;
+        _view.SizeChanged += (_, _) => _view.Clip = new RectangleGeometry(new Rect(_view.RenderSize), Radius, Radius);
 
-        _tagTimer.Tick += (_, _) => { _tagTimer.Stop(); _zoomTag.Visibility = Visibility.Collapsed; };
+        // The shadow is cast by a separate plate so the image itself never goes through an effect (stays pixel-exact).
+        _shadow.CornerRadius = new CornerRadius(Radius);
+        _shadow.Background = Brushes.White;
+        _shadow.Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 4, Direction = 270, Opacity = 0.32 };
+        _ring.BorderBrush = (Brush?)Application.Current?.TryFindResource("AccentBrush") ?? Brushes.DodgerBlue;
+        _zoomTag.Child = _zoomText;
+        BuildBar();
+
+        _stage.Margin = new Thickness(Shadow);
+        _stage.Children.Add(_shadow);
+        _stage.Children.Add(_view);
+        _stage.Children.Add(new Border { CornerRadius = new CornerRadius(Radius), BorderThickness = new Thickness(1), BorderBrush = Frozen(Color.FromArgb(40, 0, 0, 0)), IsHitTestVisible = false });
+        _stage.Children.Add(_ring);
+        _stage.Children.Add(_bar);
+        _stage.Children.Add(_zoomTag);
+        Content = _stage;
+
+        MouseEnter += (_, _) => SetHover(true);
+        MouseLeave += (_, _) => SetHover(false);
+        _tagTimer.Tick += (_, _) => { _tagTimer.Stop(); Fade(_zoomTag, 0, 180); };
 
         // Size and place from the target monitor DPI before the first layout; snap to exact pixels once rendered.
         // (Calling SetWindowPos with SHOWWINDOW before a layered window has rendered leaves it empty and unsized.)
@@ -86,7 +103,45 @@ internal sealed class PinWindow : Window
             else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) Save();
         };
         ContextMenu = BuildMenu();
+        // Destroy, not hide: drop the bitmap so a closed pin frees its memory right away.
+        Closed += (_, _) => { _tagTimer.Stop(); _view.Source = null; ContextMenu = null; };
     }
+
+    private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+
+    /// <summary>Floating action strip shown on hover (top-right, dark glass so it reads over any image).</summary>
+    private void BuildBar()
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(BarButton("copy", "复制  Ctrl+C", Copy));
+        row.Children.Add(BarButton("download", "另存为  Ctrl+S", Save));
+        row.Children.Add(BarButton("x", "销毁  Esc", Close));
+        _bar.Child = row;
+    }
+
+    private Button BarButton(string icon, string tip, Action click)
+    {
+        var plate = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(6), Background = Brushes.Transparent, Child = _host.Ui.Icon(icon, 15, Brushes.White) };
+        var t = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
+        var b = new Button { Template = t, Content = plate, ToolTip = tip, Focusable = false, Cursor = Cursors.Hand };
+        var hover = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+        b.MouseEnter += (_, _) => plate.Background = hover;
+        b.MouseLeave += (_, _) => plate.Background = Brushes.Transparent;
+        b.Click += (_, _) => click();
+        return b;
+    }
+
+    private void SetHover(bool on)
+    {
+        Fade(_ring, on ? 1 : 0, 140);
+        // Hide the strip when the image is too small to host it without covering everything.
+        bool bar = on && _view.Width >= 130 && _view.Height >= 56;
+        _bar.IsHitTestVisible = bar;
+        Fade(_bar, bar ? 1 : 0, 140);
+    }
+
+    private static void Fade(UIElement e, double to, int ms) =>
+        e.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new QuadraticEase() });
 
     /// <summary>Image size in DIP so that 100 % zoom shows it 1:1 in physical pixels.</summary>
     private void ApplyZoom()
@@ -99,8 +154,8 @@ internal sealed class PinWindow : Window
     {
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            _frame.Opacity = Math.Clamp(_frame.Opacity + (e.Delta > 0 ? 0.1 : -0.1), 0.2, 1);
-            ShowTag($"不透明度 {(int)Math.Round(_frame.Opacity * 100)}%");
+            _stage.Opacity = Math.Clamp(_stage.Opacity + (e.Delta > 0 ? 0.1 : -0.1), 0.2, 1);
+            ShowTag($"不透明度 {(int)Math.Round(_stage.Opacity * 100)}%");
         }
         else
         {
@@ -115,19 +170,26 @@ internal sealed class PinWindow : Window
     private void ShowTag(string text)
     {
         _zoomText.Text = text;
-        _zoomTag.Visibility = Visibility.Visible;
+        _zoomTag.BeginAnimation(OpacityProperty, null);
+        _zoomTag.Opacity = 1;
         _tagTimer.Stop(); _tagTimer.Start();
     }
 
     private ContextMenu BuildMenu()
     {
         var m = new ContextMenu();
-        void Add(string header, Action a) { var i = new MenuItem { Header = header }; i.Click += (_, _) => a(); m.Items.Add(i); }
-        Add("复制图片", Copy);
-        Add("另存为…", Save);
-        Add("原始大小", () => { _zoom = 1; _frame.Opacity = 1; ApplyZoom(); });
+        var muted = (Brush?)Application.Current?.TryFindResource("MutedBrush") ?? Brushes.Gray;
+        void Add(string icon, string header, string gesture, Action a)
+        {
+            var i = new MenuItem { Header = header, InputGestureText = gesture, Icon = _host.Ui.Icon(icon, 15, muted) };
+            i.Click += (_, _) => a();
+            m.Items.Add(i);
+        }
+        Add("copy", "复制图片", "Ctrl+C", Copy);
+        Add("download", "另存为…", "Ctrl+S", Save);
+        Add("search", "原始大小", "100%", () => { _zoom = 1; _stage.Opacity = 1; ApplyZoom(); ShowTag("100%"); });
         m.Items.Add(new Separator());
-        Add("关闭", Close);
+        Add("x", "销毁", "Esc", Close);
         return m;
     }
 

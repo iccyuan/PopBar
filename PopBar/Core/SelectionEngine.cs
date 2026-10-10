@@ -153,6 +153,9 @@ internal sealed class SelectionEngine : IDisposable
         _ => vk == (uint)configured,
     };
 
+    private static bool IsModifier(uint vk) =>
+        vk is VK_SHIFT or VK_CONTROL or VK_MENU or VK_LWIN or VK_RWIN or (>= 0xA0 and <= 0xA5);
+
     private void OnKey(uint vk)
     {
         var cfg = _store.Current;
@@ -171,6 +174,9 @@ internal sealed class SelectionEngine : IDisposable
             }
             _pending = null;
         }
+        // Bare modifiers never dismiss: holding Ctrl auto-repeats key-downs, which would hide the bar
+        // right after a Ctrl+double-click shows it.
+        if (IsModifier(vk)) return;
         if (_popupVisible) RequestHide();
         Interlocked.Increment(ref _seq);
     }
