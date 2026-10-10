@@ -106,7 +106,8 @@
                 <Border x:Name="SourceBox" CornerRadius="8" Background="{DynamicResource PSource}" Padding="10,6" Margin="0,0,0,10" Visibility="Collapsed">
                     <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
                 </Border>
-                <Grid>
+                <ContentControl x:Name="CustomHost" Visibility="Collapsed" Focusable="False"/>
+                <Grid x:Name="TextArea">
                     <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
                              CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}"

@@ -79,4 +79,12 @@ public sealed class PanelOptions
     public double Width { get; init; } = 440;
     /// <summary>Allow the user to edit the result text (e.g. OCR output).</summary>
     public bool Editable { get; init; }
+    /// <summary>Close when the user clicks outside the panel (unless pinned). Default true.</summary>
+    public bool CloseOnOutsideClick { get; init; } = true;
+    /// <summary>Start pinned (outside clicks never close it).</summary>
+    public bool Pinned { get; init; }
+    /// <summary>Show the built-in text result area. Set false when you supply your own content via <see cref="IPanel.SetContent"/>.</summary>
+    public bool ShowTextArea { get; init; } = true;
+    /// <summary>Maximum height of the body before it scrolls (DIP).</summary>
+    public double MaxBodyHeight { get; init; } = 420;
 }

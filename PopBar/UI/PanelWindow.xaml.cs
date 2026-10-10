@@ -25,7 +25,12 @@ public partial class PanelWindow : Window, IPanel
     event Action? IPanel.Closed { add => PanelClosed += value; remove => PanelClosed -= value; }
     public CancellationToken Cancellation => _cts.Token;
     public bool IsOpen => !_closed;
-    public bool IsPinned => _pinned;
+    public bool IsPinned => _pinned || !_opt.CloseOnOutsideClick;
+    public bool Pinned
+    {
+        get => _pinned;
+        set => Ui(() => { _pinned = value; PinIcon.Brush = _pinned ? (Brush)Resources["PAccent"] : (Brush)Resources["PMuted"]; });
+    }
     public string Text => Dispatcher.CheckAccess() ? ResultBox.Text : Dispatcher.Invoke(() => ResultBox.Text);
 
     public PanelWindow(PanelOptions opt, string theme)
@@ -42,6 +47,10 @@ public partial class PanelWindow : Window, IPanel
             SourceBox.Visibility = Visibility.Visible;
         }
         ResultBox.IsReadOnly = !opt.Editable;
+        ResultBox.MaxHeight = opt.MaxBodyHeight;
+        TextArea.Visibility = opt.ShowTextArea ? Visibility.Visible : Visibility.Collapsed;
+        if (opt.Pinned) { _pinned = true; PinIcon.Brush = (Brush)Resources["PAccent"]; }
+        if (!opt.CloseOnOutsideClick) PinBtn.Visibility = Visibility.Collapsed;
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
@@ -123,11 +132,10 @@ public partial class PanelWindow : Window, IPanel
 
     public bool ContainsScreenPoint(int x, int y)
     {
-        if (_closed || _hwnd == IntPtr.Zero) return false;
-        var (_, dpi) = GetMonitorAt(x, y);
-        double scale = dpi / 96.0;
-        var p = PointFromScreen(new Point(x / scale, y / scale));
-        return p.X >= 0 && p.Y >= 0 && p.X <= ActualWidth && p.Y <= ActualHeight;
+        // Hook coordinates are physical pixels; compare against the physical window rect (no DIP conversion).
+        if (_closed || _hwnd == IntPtr.Zero || !IsVisible) return false;
+        if (!GetWindowRect(_hwnd, out var r)) return false;
+        return r.Contains(x, y);
     }
 
     private void ApplyTheme(string theme)
@@ -198,6 +206,18 @@ public partial class PanelWindow : Window, IPanel
     {
         if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
+
+    public void SetContent(Func<FrameworkElement> factory) => Ui(() =>
+    {
+        try
+        {
+            var el = factory();
+            CustomHost.Content = new ScrollViewer { Content = el, MaxHeight = _opt.MaxBodyHeight, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            CustomHost.Visibility = Visibility.Visible;
+            TextArea.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex) { Log.Error("panel SetContent", ex); }
+    });
 
     private void Pin_Click(object sender, RoutedEventArgs e)
     {

@@ -26,6 +26,10 @@ public sealed class ActionRow : INotifyPropertyChanged
         get => Def.Enabled;
         set { Def.Enabled = value; OnChanged(nameof(Enabled)); }
     }
+    private bool _isDragging;
+    /// <summary>The row being dragged is dimmed so the drop slot is obvious.</summary>
+    public bool IsDragging { get => _isDragging; set { _isDragging = value; OnChanged(nameof(DragOpacity)); } }
+    public double DragOpacity => _isDragging ? 0.45 : 1.0;
     public string Summary
     {
         get
@@ -267,6 +271,7 @@ public partial class SettingsWindow : Window
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "sendto" => "external-link", _ => "puzzle" };
             var iconImg = new IconImage { Icon = iconName, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
@@ -282,20 +287,38 @@ public partial class SettingsWindow : Window
             var toggle = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = !_disabledPlugins.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
             toggle.Checked += (s, e) => { _disabledPlugins.Remove(plugin.Id); Changed(s, e); };
             toggle.Unchecked += (s, e) => { _disabledPlugins.Add(plugin.Id); Changed(s, e); };
-            Grid.SetColumn(toggle, 2);
+            Grid.SetColumn(toggle, 3);
             head.Children.Add(toggle);
             stack.Children.Add(head);
 
+            FrameworkElement? view = null;
             if (l.Error == null)
             {
-                FrameworkElement? view = null;
                 try { view = plugin.CreateSettingsView(); }
                 catch (Exception ex) { Log.Error($"plugin {plugin.Id} settings view", ex); }
-                if (view != null)
+            }
+            if (view != null)
+            {
+                // Gear button in the header (left of the switch) toggles an in-card settings area.
+                var muted = (Brush)FindResource("MutedBrush");
+                var accent = (Brush)FindResource("AccentHoverBrush");
+                var gearIcon = new IconImage { Icon = "settings", Size = 16, Brush = muted };
+                var gear = new Button { Style = (Style)FindResource("IconButton"), Width = 32, Height = 32, Content = gearIcon, ToolTip = "设置", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 4, 0) };
+                Grid.SetColumn(gear, 2);
+                head.Children.Add(gear);
+
+                var body = new StackPanel { Visibility = Visibility.Collapsed };
+                body.Children.Add(new System.Windows.Shapes.Rectangle { Height = 1, Fill = (Brush)FindResource("BorderBrush"), Margin = new Thickness(0, 12, 0, 12) });
+                body.Children.Add(view);
+                stack.Children.Add(body);
+
+                gear.Click += (_, _) =>
                 {
-                    var expander = new Expander { Header = "设置", Margin = new Thickness(0, 8, 0, 0), Content = view, IsExpanded = false };
-                    stack.Children.Add(expander);
-                }
+                    bool open = body.Visibility != Visibility.Visible;
+                    body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+                    gearIcon.Brush = open ? accent : muted;
+                    gear.Background = open ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
+                };
             }
             PluginList.Children.Add(card);
         }
@@ -375,6 +398,14 @@ public partial class SettingsWindow : Window
     private void BrowseExcluded_Click(object sender, RoutedEventArgs e) => BrowseApp(_excluded);
     private void BrowseNoClip_Click(object sender, RoutedEventArgs e) => BrowseApp(_noClip);
 
+    private void ResetNoClip_Click(object sender, RoutedEventArgs e)
+    {
+        _noClip.Clear();
+        _noClip.AddRange(new AppConfig().NoClipboardApps);
+        RenderAppLists();
+        Changed(sender, e);
+    }
+
     private string _showKey = "ctrl";
 
     private void ShowMode_Changed(object sender, RoutedEventArgs e)
@@ -432,18 +463,49 @@ public partial class SettingsWindow : Window
 
     private ActionRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as ActionRow;
 
-    private void MoveUp_Click(object sender, RoutedEventArgs e)
+    // ---- drag to reorder ----
+
+    private ActionRow? _dragRow;
+
+    private void DragHandle_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        var r = RowOf(sender); if (r == null) return;
-        int i = _rows.IndexOf(r);
-        if (i > 0) { _rows.Move(i, i - 1); Changed(sender, e); }
+        var row = RowOf(sender); if (row == null) return;
+        _dragRow = row;
+        row.IsDragging = true;
+        try { DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(typeof(ActionRow), row), DragDropEffects.Move); }
+        finally
+        {
+            row.IsDragging = false;
+            _dragRow = null;
+        }
+        e.Handled = true;
     }
 
-    private void MoveDown_Click(object sender, RoutedEventArgs e)
+    /// <summary>Live reorder: move the dragged row to the slot under the cursor as it moves.</summary>
+    private void ActionsList_DragOver(object sender, DragEventArgs e)
     {
-        var r = RowOf(sender); if (r == null) return;
-        int i = _rows.IndexOf(r);
-        if (i >= 0 && i < _rows.Count - 1) { _rows.Move(i, i + 1); Changed(sender, e); }
+        e.Effects = DragDropEffects.None;
+        if (_dragRow == null) return;
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        var target = RowAtPoint(e.GetPosition(ActionsList));
+        if (target == null || ReferenceEquals(target, _dragRow)) return;
+        int from = _rows.IndexOf(_dragRow), to = _rows.IndexOf(target);
+        if (from >= 0 && to >= 0 && from != to) _rows.Move(from, to);
+    }
+
+    private void ActionsList_Drop(object sender, DragEventArgs e)
+    {
+        if (_dragRow == null) return;
+        e.Handled = true;
+        Changed(sender, e);
+    }
+
+    private ActionRow? RowAtPoint(Point p)
+    {
+        var hit = ActionsList.InputHitTest(p) as DependencyObject;
+        while (hit != null && hit is not ListBoxItem) hit = VisualTreeHelper.GetParent(hit);
+        return (hit as ListBoxItem)?.DataContext as ActionRow;
     }
 
     private void EditAction_Click(object sender, RoutedEventArgs e)

@@ -18,6 +18,10 @@ public interface IPanel
     void SetBusy(bool busy);
     /// <summary>Add a footer button; the callback receives the current text.</summary>
     void AddButton(string label, Action<string> onClick, string? icon = null);
+    /// <summary>Replace the body with any WPF content (lists, images, forms...). Built on the UI thread via the factory.</summary>
+    void SetContent(Func<System.Windows.FrameworkElement> factory);
+    /// <summary>Pin / unpin (pinned panels ignore outside clicks).</summary>
+    bool Pinned { get; set; }
     void Close();
 
     event Action? Closed;

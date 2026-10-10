@@ -203,6 +203,7 @@
                                 <ComboBox x:Name="NoClipPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
                                 <Button Content="添加" Margin="8,0,0,0" Click="AddNoClip_Click"/>
                                 <Button Content="浏览 exe…" Margin="8,0,0,0" Click="BrowseNoClip_Click"/>
+                                <Button Content="恢复默认" Margin="8,0,0,0" Click="ResetNoClip_Click" ToolTip="恢复为内置的终端 / 远程桌面 / 虚拟机列表"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -217,33 +218,31 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource H1}" Text="动作" Margin="0"/>
                     </DockPanel>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="按此顺序显示在操作条上，上下箭头调整顺序。"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="按此顺序显示在操作条上，按住左侧手柄拖动排序。"/>
 
-                    <ListBox x:Name="ActionsList" Style="{StaticResource PlainList}">
+                    <ListBox x:Name="ActionsList" Style="{StaticResource PlainList}" AllowDrop="True" DragOver="ActionsList_DragOver" Drop="ActionsList_Drop">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource Card}" Padding="14,10">
+                                <Border Style="{StaticResource Card}" Padding="6,10,14,10" Opacity="{Binding DragOpacity}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="36" Height="36" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
+                                        <Border Grid.Column="0" Width="24" Height="36" Background="Transparent" Cursor="SizeAll" ToolTip="拖动排序" VerticalAlignment="Center" Margin="0,0,6,0" PreviewMouseLeftButtonDown="DragHandle_MouseDown">
+                                            <ui:IconImage Icon="grip-vertical" Size="16" Brush="{DynamicResource MutedBrush}"/>
+                                        </Border>
+                                        <Border Grid.Column="1" Width="36" Height="36" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                             <ui:IconImage Icon="{Binding Def.Icon}" Size="18" Brush="{DynamicResource AccentHoverBrush}"/>
                                         </Border>
-                                        <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                                        <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
                                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                                            <Button Style="{StaticResource IconButton}" ToolTip="上移" Click="MoveUp_Click">
-                                                <ui:IconImage Icon="arrow-up" Size="14" Brush="{DynamicResource MutedBrush}"/>
-                                            </Button>
-                                            <Button Style="{StaticResource IconButton}" ToolTip="下移" Click="MoveDown_Click">
-                                                <ui:IconImage Icon="arrow-down" Size="14" Brush="{DynamicResource MutedBrush}"/>
-                                            </Button>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                                             <Button Style="{StaticResource IconButton}" ToolTip="编辑" Click="EditAction_Click" Visibility="{Binding EditVisibility}">
                                                 <ui:IconImage Icon="pencil" Size="14" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
@@ -251,7 +250,7 @@
                                                 <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
                                             </Button>
                                         </StackPanel>
-                                        <CheckBox Grid.Column="3" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                                        <CheckBox Grid.Column="4" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
