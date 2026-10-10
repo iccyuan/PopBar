@@ -24,6 +24,7 @@ internal sealed class SelectionEngine : IDisposable
     private readonly IPanelRegistry _panels;
     private readonly InputHook _hook = new();
     private readonly TextCapture _capture = new();
+    private readonly EditableProbe _editable = new();
     private readonly BlockingCollection<Action> _jobs = new();
     private readonly Thread _worker;
 
@@ -243,10 +244,15 @@ internal sealed class SelectionEngine : IDisposable
     private List<ActionDefinition> ResolveActions(Selection sel, AppConfig cfg)
     {
         SelectionContext? ctx = null;
+        bool? canPaste = null;
         var result = new List<ActionDefinition>();
         foreach (var a in cfg.Actions)
         {
             if (!a.Enabled) continue;
+            // Paste only makes sense with text on the clipboard and an editable field under the selection.
+            if (a.Type == ActionTypes.Paste
+                && !(canPaste ??= IsClipboardFormatAvailable(CF_UNICODETEXT) && _editable.IsEditable(sel.SourceWindow)))
+                continue;
             if (a.IsPlugin)
             {
                 ctx ??= sel.ToContext();
