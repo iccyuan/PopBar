@@ -172,7 +172,8 @@ internal sealed class SelectionEngine : IDisposable
         _ui.InvokeAsync(() =>
         {
             if (seq != Volatile.Read(ref _seq)) return;
-            _popup.ShowFor(sel, actions, cfg);
+            try { _popup.ShowFor(sel, actions, cfg); }
+            catch (Exception ex) { Log.Error("popup show failed", ex); } // InvokeAsync would swallow it otherwise
         }, DispatcherPriority.Send);
     }
 

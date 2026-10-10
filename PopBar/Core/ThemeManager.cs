@@ -22,11 +22,21 @@ internal static class ThemeManager
     /// <summary>Opacity (percent) of the tint layer over the acrylic blur on the bar and panels. 100 = solid.</summary>
     public static int BlurOpacity { get; set; } = 88;
 
-    /// <summary>Tint colour for a blurred surface: white-ish in light mode, blue-black in dark mode, alpha from <see cref="BlurOpacity"/>.</summary>
+    /// <summary>
+    /// WPF overlay colour for a blurred surface. When the composition acrylic is active the tint is painted by
+    /// DWM (see <see cref="BlurTintAbgr"/>) and the WPF layer stays transparent; otherwise an opaque card colour.
+    /// </summary>
     public static Color BlurTint(bool dark, bool blurActive)
     {
         byte a = blurActive ? (byte)Math.Round(Math.Clamp(BlurOpacity, 40, 100) * 2.55) : (byte)255;
-        return dark ? Color.FromArgb(a, 0x1B, 0x1F, 0x27) : Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
+        return dark ? Color.FromArgb(a, 0x1C, 0x21, 0x2B) : Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
+    }
+
+    /// <summary>Accent-policy tint (0xAABBGGRR): white-ish in light mode, blue-black in dark mode, alpha from <see cref="BlurOpacity"/>.</summary>
+    public static uint BlurTintAbgr(bool dark)
+    {
+        uint a = (uint)Math.Round(Math.Clamp(BlurOpacity, 40, 100) * 2.55);
+        return dark ? (a << 24) | 0x00271F1Bu : (a << 24) | 0x00FFFFFFu;
     }
 
     private static bool _hooked;

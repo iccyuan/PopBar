@@ -45,13 +45,18 @@ internal static class Acrylic
     private struct AccentPolicy { public int AccentState, AccentFlags; public uint GradientColor; public int AnimationId; }
     [StructLayout(LayoutKind.Sequential)]
     private struct WindowCompositionAttributeData { public int Attribute; public IntPtr Data; public int SizeOfData; }
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
     private const int WCA_ACCENT_POLICY = 19;
     private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
 
-    /// <summary>Apply a blurred backdrop. <paramref name="tintArgb"/> is only used by the Win10 fallback (0xAABBGGRR).</summary>
-    public static bool Apply(Window window, BackdropKind kind, bool dark, bool roundCorners = true, uint tintArgb = 0x40000000)
+    /// <summary>
+    /// Apply a blurred backdrop. Mica goes through the DWM system backdrop (needs an active window).
+    /// Acrylic uses the composition accent policy: the DWM "transient window" backdrop only renders for
+    /// active windows and falls back to a flat grey for our never-activated bar, whereas the accent policy
+    /// blurs regardless of activation and takes an explicit tint (<paramref name="tintAbgr"/>, 0xAABBGGRR).
+    /// </summary>
+    public static bool Apply(Window window, BackdropKind kind, bool dark, bool roundCorners = true, uint tintAbgr = 0x40000000)
     {
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero) return false;
@@ -62,16 +67,23 @@ internal static class Acrylic
 
             if (SystemBackdropSupported)
             {
-                var m = new MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
-                DwmExtendFrameIntoClientArea(hwnd, ref m);
                 int corner = roundCorners ? DWMWCP_ROUND : DWMWCP_DONOTROUND;
                 DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
-                int type = kind == BackdropKind.Mica ? DWMSBT_MAINWINDOW : DWMSBT_TRANSIENTWINDOW;
-                return DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref type, sizeof(int)) == 0;
+                if (kind == BackdropKind.Mica)
+                {
+                    // Mica needs the frame extended over the client area (WindowChrome does it too; harmless twice).
+                    var m = new MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+                    DwmExtendFrameIntoClientArea(hwnd, ref m);
+                    int type = DWMSBT_MAINWINDOW;
+                    return DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref type, sizeof(int)) == 0;
+                }
+                // Acrylic: do NOT extend the frame - on Windows 11 an extended frame without a system backdrop is
+                // painted with an opaque frame colour, which would hide the accent blur underneath.
             }
 
             if (Build >= 17134)
             {
+                uint tintArgb = tintAbgr;
                 var policy = new AccentPolicy { AccentState = ACCENT_ENABLE_ACRYLICBLURBEHIND, AccentFlags = 2, GradientColor = tintArgb };
                 int size = Marshal.SizeOf(policy);
                 IntPtr p = Marshal.AllocHGlobal(size);
@@ -79,7 +91,9 @@ internal static class Acrylic
                 {
                     Marshal.StructureToPtr(policy, p, false);
                     var data = new WindowCompositionAttributeData { Attribute = WCA_ACCENT_POLICY, Data = p, SizeOfData = size };
-                    return SetWindowCompositionAttribute(hwnd, ref data) != 0;
+                    int ok = SetWindowCompositionAttribute(hwnd, ref data);
+                    Log.Info($"accent acrylic on 0x{hwnd.ToInt64():X}: result={ok} err={Marshal.GetLastWin32Error()} tint=0x{tintArgb:X8}");
+                    return ok != 0;
                 }
                 finally { Marshal.FreeHGlobal(p); }
             }

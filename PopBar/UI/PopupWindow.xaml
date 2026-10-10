@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="PopBar"
         WindowStyle="None"
-        AllowsTransparency="False"
+        AllowsTransparency="True"
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
@@ -15,17 +15,13 @@
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType">
-    <!-- Glass frame everywhere: the client area becomes transparent so the DWM acrylic backdrop shows through. -->
-    <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="0" GlassFrameThickness="-1" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
-    </WindowChrome.WindowChrome>
     <Window.Resources>
-        <SolidColorBrush x:Key="BarBrush" Color="#A6232833"/>
-        <SolidColorBrush x:Key="BarEdgeBrush" Color="#26FFFFFF"/>
-        <SolidColorBrush x:Key="BarFgBrush" Color="#F1F3F7"/>
-        <SolidColorBrush x:Key="BarHoverBrush" Color="#2EFFFFFF"/>
-        <SolidColorBrush x:Key="BarPressedBrush" Color="#45FFFFFF"/>
-        <SolidColorBrush x:Key="BarSepBrush" Color="#22FFFFFF"/>
+        <SolidColorBrush x:Key="BarBrush" Color="#E0FFFFFF"/>
+        <SolidColorBrush x:Key="BarFgBrush" Color="#1F2937"/>
+        <SolidColorBrush x:Key="BarHoverBrush" Color="#18000000"/>
+        <SolidColorBrush x:Key="BarPressedBrush" Color="#26000000"/>
+        <SolidColorBrush x:Key="BarSepBrush" Color="#1A000000"/>
+        <Color x:Key="BarHoverColor">#18000000</Color>
 
         <Style x:Key="BarButton" TargetType="Button">
             <Setter Property="Focusable" Value="False"/>
@@ -49,7 +45,7 @@
                                 <Trigger.EnterActions>
                                     <BeginStoryboard>
                                         <Storyboard>
-                                            <ColorAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="Background.Color" To="#2EFFFFFF" Duration="0:0:0.12"/>
+                                            <ColorAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="Background.Color" To="#287C8799" Duration="0:0:0.12"/>
                                         </Storyboard>
                                     </BeginStoryboard>
                                 </Trigger.EnterActions>
@@ -75,13 +71,23 @@
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="Root" Opacity="0" RenderTransformOrigin="0.5,1">
+    <!-- 16px margin reserves room for the soft shadow (layered window: we draw our own). -->
+    <Grid x:Name="Root" Margin="16" Opacity="0" RenderTransformOrigin="0.5,1">
         <Grid.RenderTransform>
             <TransformGroup>
                 <ScaleTransform x:Name="Zoom" ScaleX="0.96" ScaleY="0.96"/>
                 <TranslateTransform x:Name="Slide"/>
             </TransformGroup>
         </Grid.RenderTransform>
+        <!-- shadow caster: its opaque body is fully covered by the (opaque) glass snapshot, only the shadow shows -->
+        <Border x:Name="Shadow" CornerRadius="10" Background="#FF1E232D">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="22" ShadowDepth="5" Direction="270" Opacity="0.4" Color="#000000"/>
+            </Border.Effect>
+        </Border>
+        <!-- blurred screenshot of what is underneath (set from code) -->
+        <Border x:Name="Glass" CornerRadius="10"/>
+        <!-- translucent tint on top of the glass, then the buttons -->
         <Border x:Name="Bar" Background="{DynamicResource BarBrush}" CornerRadius="10" Padding="5,4">
             <StackPanel x:Name="Buttons" Orientation="Horizontal"/>
         </Border>

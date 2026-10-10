@@ -56,6 +56,8 @@ public partial class PopupWindow : Window
     {
         Left = -20000; Top = -20000;
         Show();
+        // The accent policy only sticks reliably once the layered surface exists; re-apply after the first show.
+        ApplyTheme(ThemeManager.Setting, force: true);
         Hide();
     }
 
@@ -70,20 +72,27 @@ public partial class PopupWindow : Window
 
         var (work, dpi) = GetMonitorAt(x, y);
         double scale = dpi / 96.0;
-        var size = MeasureRoot();
+        var size = MeasureRoot();            // includes the 16 DIP shadow margin on every side
+        double margin = Root.Margin.Left;
         int w = (int)Math.Ceiling(size.Width * scale);
         int h = (int)Math.Ceiling(size.Height * scale);
-        int gap = (int)Math.Round(10 * scale);
-        bool above = y - h - gap >= work.Top;
-        int px = Math.Clamp(x - w / 2, work.Left, Math.Max(work.Left, work.Right - w));
-        int py = above ? y - h - gap : y + (int)Math.Round(16 * scale);
-        py = Math.Clamp(py, work.Top, Math.Max(work.Top, work.Bottom - h));
+        int m = (int)Math.Round(margin * scale);
+        int gap = (int)Math.Round(8 * scale);
+        bool above = y - (h - m) - gap >= work.Top;
+        int px = Math.Clamp(x - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
+        int py = above ? y - h + m - gap : y - m + (int)Math.Round(16 * scale);
+        py = Math.Clamp(py, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
+
+        // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
+        if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
+        Glass.Background = ThemeManager.BlurOpacity < 100 ? FrostedGlass.Brush(px + m, py + m, w - 2 * m, h - 2 * m) : null;
+        ApplyTint(Glass.Background != null);
 
         Root.Opacity = 0;
         if (!IsVisible) Show();
         SetWindowPos(_hwnd, HWND_TOPMOST, px, py, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         _visible = true;
-        Shown?.Invoke(new RECT { Left = px, Top = py, Right = px + w, Bottom = py + h });
+        Shown?.Invoke(new RECT { Left = px + m, Top = py + m, Right = px + w - m, Bottom = py + h - m });
 
         // If the window hopped to a monitor with a different DPI, WPF re-lays out; re-apply the final rect once.
         Dispatcher.InvokeAsync(() =>
@@ -93,10 +102,10 @@ public partial class PopupWindow : Window
             int h2 = (int)Math.Ceiling(Root.DesiredSize.Height * scale);
             if (w2 != w || h2 != h)
             {
-                int px2 = Math.Clamp(x - w2 / 2, work.Left, Math.Max(work.Left, work.Right - w2));
-                int py2 = above ? y - h2 - gap : py;
+                int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
+                int py2 = above ? y - h2 + m - gap : py;
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-                Shown?.Invoke(new RECT { Left = px2, Top = py2, Right = px2 + w2, Bottom = py2 + h2 });
+                Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
             }
             Animate(above);
         }, DispatcherPriority.Loaded);
@@ -139,21 +148,23 @@ public partial class PopupWindow : Window
 
     private void ApplyTheme(string setting, bool force = false)
     {
-        var theme = ThemeManager.Resolve(setting) + "/" + ThemeManager.BlurOpacity;
+        var theme = ThemeManager.Resolve(setting);
         if (theme == _theme && !force) return;
         _theme = theme;
-        bool light = ThemeManager.Resolve(setting) == "light";
-        bool blur = _hwnd != IntPtr.Zero && Acrylic.Apply(this, BackdropKind.Acrylic, !light, roundCorners: true,
-            tintArgb: light ? 0xD0FFFFFFu : 0xD0202530u);
-        // With a blur backdrop the bar is a translucent tint (opacity from settings); without one it must be opaque.
-        var tint = new SolidColorBrush(ThemeManager.BlurTint(!light, blur));
-        tint.Freeze();
-        Resources["BarBrush"] = tint;
-        SetBrush("BarEdgeBrush", light ? "#33000000" : "#2EFFFFFF");
+        bool light = theme == "light";
         SetBrush("BarFgBrush", light ? "#1F2937" : "#F1F3F7");
         SetBrush("BarHoverBrush", light ? "#18000000" : "#2EFFFFFF");
         SetBrush("BarPressedBrush", light ? "#26000000" : "#45FFFFFF");
         SetBrush("BarSepBrush", light ? "#1A000000" : "#22FFFFFF");
+        Shadow.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(light ? "#FFFFFFFF" : "#FF1E232D"));
+    }
+
+    /// <summary>Tint layer over the glass snapshot: translucent when a snapshot exists, opaque otherwise.</summary>
+    private void ApplyTint(bool glass)
+    {
+        var tint = new SolidColorBrush(ThemeManager.BlurTint(_theme == "dark", glass));
+        tint.Freeze();
+        Resources["BarBrush"] = tint;
     }
 
     private void SetBrush(string key, string color)

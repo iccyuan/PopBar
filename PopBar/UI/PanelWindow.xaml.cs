@@ -16,6 +16,7 @@ public partial class PanelWindow : Window, IPanel
     private readonly PanelOptions _opt;
     private bool _pinned;
     private bool _closed;
+    private bool _dark;
     private IntPtr _hwnd;
 
     /// <summary>Raised once when the panel goes away (distinct from Window.Closed, which is EventHandler-typed).</summary>
@@ -45,12 +46,6 @@ public partial class PanelWindow : Window, IPanel
             _hwnd = new WindowInteropHelper(this).Handle;
             var ex = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64();
             SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
-            bool dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
-            bool blur = Acrylic.Apply(this, BackdropKind.Acrylic, dark, roundCorners: true, tintArgb: dark ? 0xD0202530u : 0xD0FFFFFFu);
-            // Translucent tint over the blur (opacity from settings), opaque card without it.
-            var tint = new SolidColorBrush(ThemeManager.BlurTint(dark, blur));
-            tint.Freeze();
-            Resources["PBg"] = tint;
         };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
     }
@@ -60,17 +55,56 @@ public partial class PanelWindow : Window, IPanel
     {
         var (work, dpi) = GetMonitorAt(anchorX, anchorY);
         double scale = dpi / 96.0;
-        // Measure first so the initial placement is right.
+        int m = (int)Math.Round(Root.Margin.Left * scale);
+        // Measure first so the initial placement is right (DesiredSize includes the shadow margin).
         Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         int w = (int)Math.Ceiling(Width * scale);
-        int h = (int)Math.Ceiling(Math.Max(DesiredSize.Height, 160) * scale);
-        int x = Math.Clamp(anchorX - w / 2, work.Left, Math.Max(work.Left, work.Right - w));
-        int y = anchorY + (int)(18 * scale);
-        if (y + h > work.Bottom) y = Math.Max(work.Top, anchorY - h - (int)(18 * scale));
+        int h = (int)Math.Ceiling(Math.Max(DesiredSize.Height, 180) * scale);
+        int x = Math.Clamp(anchorX - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
+        int y = anchorY + (int)(18 * scale) - m;
+        if (y + h - m > work.Bottom) y = Math.Max(work.Top - m, anchorY - h - (int)(18 * scale) + m);
+        _scale = scale;
+        CaptureGlass(x + m, y + m, w - 2 * m, h - 2 * m);
         Left = x / scale; Top = y / scale; // DIP relative to the primary monitor; corrected below with SetWindowPos
         Show();
         SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
         Activate();
+    }
+
+    private double _scale = 1;
+
+    /// <summary>Blur the screen under the card. Captures extra height so the panel can grow while streaming.</summary>
+    private void CaptureGlass(int px, int py, int pw, int ph)
+    {
+        if (ThemeManager.BlurOpacity >= 100) { Glass.Background = null; ApplyTint(false); return; }
+        int extra = (int)(420 * _scale);
+        var img = FrostedGlass.Capture(px, py, pw, ph + extra);
+        if (img == null) { Glass.Background = null; ApplyTint(false); return; }
+        var brush = new ImageBrush(img) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top, ViewportUnits = BrushMappingMode.Absolute, ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, pw, ph + extra), Viewport = new Rect(0, 0, pw / _scale, (ph + extra) / _scale) };
+        brush.Freeze();
+        Glass.Background = brush;
+        ApplyTint(true);
+    }
+
+    private void ApplyTint(bool glass)
+    {
+        var tint = new SolidColorBrush(ThemeManager.BlurTint(_dark, glass));
+        tint.Freeze();
+        Resources["PBg"] = tint;
+    }
+
+    /// <summary>After a drag the background underneath changed: hide for one frame, re-snapshot, show.</summary>
+    private async void RefreshGlassAfterMove()
+    {
+        if (_closed || _hwnd == IntPtr.Zero || ThemeManager.BlurOpacity >= 100) return;
+        Root.Opacity = 0;
+        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+        await Task.Delay(30);
+        if (_closed) return;
+        GetWindowRect(_hwnd, out var r);
+        int m = (int)Math.Round(Root.Margin.Left * _scale);
+        CaptureGlass(r.Left + m, r.Top + m, r.Width - 2 * m, r.Height - 2 * m);
+        Root.Opacity = 1;
     }
 
     public bool ContainsScreenPoint(int x, int y)
@@ -85,7 +119,9 @@ public partial class PanelWindow : Window, IPanel
     private void ApplyTheme(string theme)
     {
         bool dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+        _dark = dark;
         Set("PBg", dark ? "#FF1F2430" : "#FFFFFFFF");
+        Shadow.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dark ? "#FF1E232D" : "#FFFFFFFF"));
         Set("PBorder", dark ? "#2EFFFFFF" : "#22000000");
         Set("PFg", dark ? "#FFECEFF4" : "#FF1F2937");
         Set("PMuted", dark ? "#FF9AA3B2" : "#FF6B7280");
@@ -146,7 +182,7 @@ public partial class PanelWindow : Window, IPanel
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        if (e.ButtonState == MouseButtonState.Pressed) { DragMove(); RefreshGlassAfterMove(); }
     }
 
     private void Pin_Click(object sender, RoutedEventArgs e)
