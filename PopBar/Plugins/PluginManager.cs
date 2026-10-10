@@ -118,13 +118,10 @@ internal sealed class PluginManager : IDisposable
             foreach (var m in missing)
             {
                 var def = new ActionDefinition { Id = m.Id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = m.Id, Label = m.A.Label, Icon = m.A.Icon, Enabled = true };
-                // The embedded translation panel supersedes the legacy "open Google Translate" URL action: take its slot.
-                int legacy = m.Id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "translate" && a.Type == ActionTypes.Url) : -1;
-                if (legacy >= 0)
-                {
-                    c.Actions[legacy].Enabled = false;
-                    c.Actions.Insert(legacy, def);
-                }
+                // The translation panel sits right after search, where the stock bar used to have "翻译".
+                int search = m.Id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "search") : -1;
+                if (search >= 0)
+                    c.Actions.Insert(search + 1, def);
                 else if (m.Id == "ai:explain" && c.Actions.FindIndex(a => a.Ref == "translate:panel") is var t && t >= 0)
                     c.Actions.Insert(t + 1, def);
                 else

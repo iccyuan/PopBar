@@ -55,6 +55,14 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 2;
                         migrated = true;
                     }
+                    if (cfg.ConfigVersion < 3)
+                    {
+                        // v0.3: the translate plugin's panel replaces the stock "open Google Translate" URL action.
+                        cfg.Actions.RemoveAll(a => a.Id == "translate" && a.Type == Actions.ActionTypes.Url
+                            && (a.Url ?? "").Contains("translate.google.", StringComparison.OrdinalIgnoreCase));
+                        cfg.ConfigVersion = 3;
+                        migrated = true;
+                    }
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();

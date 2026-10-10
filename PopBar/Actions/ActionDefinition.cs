@@ -103,7 +103,6 @@ public static class DefaultActions
     {
         new() { Id = "copy", Label = "复制", Icon = "copy", Type = ActionTypes.Copy },
         new() { Id = "search", Label = "搜索", Icon = "search", Type = ActionTypes.Url, Url = "https://www.google.com/search?q={text}" },
-        new() { Id = "translate", Label = "翻译", Icon = "languages", Type = ActionTypes.Url, Url = "https://translate.google.com/?sl=auto&tl=zh-CN&text={text}&op=translate" },
         new() { Id = "open", Label = "打开链接", Icon = "external-link", Type = ActionTypes.Open, Match = MatchKinds.Url },
         new() { Id = "mail", Label = "发邮件", Icon = "mail", Type = ActionTypes.Open, Match = MatchKinds.Email },
         new() { Id = "paste", Label = "粘贴", Icon = "clipboard-paste", Type = ActionTypes.Paste },
