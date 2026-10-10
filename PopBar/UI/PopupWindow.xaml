@@ -13,8 +13,7 @@
         SizeToContent="WidthAndHeight"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Ideal"
-        TextOptions.TextRenderingMode="ClearType">
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType" RenderOptions.ClearTypeHint="Enabled">
     <Window.Resources>
         <SolidColorBrush x:Key="BarBrush" Color="#E0FFFFFF"/>
         <SolidColorBrush x:Key="BarFgBrush" Color="#1F2937"/>
