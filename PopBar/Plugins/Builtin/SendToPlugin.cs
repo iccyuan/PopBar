@@ -63,8 +63,16 @@ public sealed class SendToPlugin : IPopBarPlugin
     public IReadOnlyList<PluginAction> GetActions() => _cfg.Targets.Where(t => t.Enabled).Select(t => new PluginAction
     {
         Id = t.Id, Label = t.Label, Icon = t.Icon,
+        Description = Describe(t),
         Execute = (ctx, _) => { Send(t, ctx); return Task.CompletedTask; },
     }).ToList();
+
+    private static string Describe(Target t) => t.Mode switch
+    {
+        "launch" => "启动 " + System.IO.Path.GetFileName(t.Program) + " 并传入选中内容",
+        "url" => "打开 " + t.Args,
+        _ => "粘贴到 " + t.Program,
+    };
 
     private void Send(Target t, SelectionContext ctx)
     {

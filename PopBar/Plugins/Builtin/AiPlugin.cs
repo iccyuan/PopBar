@@ -53,9 +53,20 @@ public sealed class AiPlugin : IPopBarPlugin
     public IReadOnlyList<PluginAction> GetActions() => _cfg.Prompts.Where(p => p.Enabled).Select(p => new PluginAction
     {
         Id = p.Id, Label = p.Label, Icon = p.Icon,
+        Description = Describe(p),
         IsApplicable = ctx => ctx.Text.Trim().Length > 0 && ctx.Text.Length <= 20000,
         Execute = (ctx, ct) => RunAsync(p, ctx, ct),
     }).ToList();
+
+    /// <summary>"AI · " plus the gist of the prompt (template minus {text}, else the system prompt).</summary>
+    private static string Describe(Prompt p)
+    {
+        var gist = p.Template.Replace("{text}", "").Trim();
+        if (gist.Length == 0) gist = p.System.Trim();
+        gist = gist.Split('\n', '（', '(', '，', ',', '。')[0].TrimEnd('：', ':');
+        if (gist.Length > 36) gist = gist[..36] + "…";
+        return gist.Length == 0 ? "AI 处理选中内容" : "AI · " + gist;
+    }
 
     private async Task RunAsync(Prompt prompt, SelectionContext ctx, CancellationToken ct)
     {

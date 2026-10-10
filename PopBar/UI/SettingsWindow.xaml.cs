@@ -17,6 +17,9 @@ public sealed class ActionRow : INotifyPropertyChanged
     public ActionDefinition Def { get; }
     public ActionRow(ActionDefinition def) => Def = def;
 
+    /// <summary>Resolves a plugin action ref ("sendto:notepad") to the plugin's own description, if any.</summary>
+    internal static Func<string, string?>? PluginDescription;
+
     public string Label => string.IsNullOrWhiteSpace(Def.Label) ? "(未命名)" : Def.Label;
     public Geometry IconGeometry => Icons.Get(Def.Icon);
     /// <summary>Plugin actions are configured inside their plugin; the generic editor does not apply.</summary>
@@ -35,16 +38,19 @@ public sealed class ActionRow : INotifyPropertyChanged
         get
         {
             // "Open" covers both links and addresses; say which one this row handles.
+            if (Def.IsPlugin && PluginDescription?.Invoke(Def.Ref ?? "") is { Length: > 0 } pd) return pd;
             var desc = (Def.Type, Def.Match) switch
             {
                 (ActionTypes.Open, MatchKinds.Url) => "在浏览器中打开选中的链接",
                 (ActionTypes.Open, MatchKinds.Email) => "用默认邮件程序给选中的地址写邮件",
+                (ActionTypes.Url, _) when Uri.TryCreate(Def.Url?.Replace("{text}", "x"), UriKind.Absolute, out var u) && u.Host.Length > 0
+                    => "在 " + u.Host + " 中打开选中内容",
                 _ => ActionTypes.Describe(Def.Type),
             };
             var detail = Def.Type switch
             {
                 ActionTypes.Plugin => Def.Ref,
-                ActionTypes.Url => Def.Url,
+                ActionTypes.Url when !desc.StartsWith("在 ") => Def.Url,
                 ActionTypes.Transform => Def.Op + (string.IsNullOrEmpty(Def.Template) ? "" : "  " + Def.Template),
                 ActionTypes.Command => Def.Command + " " + Def.Args,
                 _ => null,
@@ -87,6 +93,7 @@ public partial class SettingsWindow : Window
         _store = store;
         _plugins = plugins;
         _llm = llm;
+        ActionRow.PluginDescription = id => _plugins.TryGet(id, out _, out var a) ? a.Description : null;
         InitializeComponent();
 
         LlmProtocolCombo.ItemsSource = _llm.Providers.Select(p => new KeyValuePair<string, string>(p.Id, p.Name)).ToList();

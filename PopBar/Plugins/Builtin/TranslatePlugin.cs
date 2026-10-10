@@ -37,6 +37,7 @@ public sealed class TranslatePlugin : IPopBarPlugin
         new PluginAction
         {
             Id = "panel", Label = "翻译", Icon = "languages",
+            Description = "在浮动面板中翻译选中内容",
             IsApplicable = ctx => ctx.Text.Trim().Length > 0 && ctx.Text.Length <= 5000,
             Execute = RunAsync,
         },

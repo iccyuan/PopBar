@@ -34,6 +34,8 @@ public sealed class PluginAction
     public required string Label { get; init; }
     /// <summary>Icon name from PopBar's built-in icon set (lucide names such as "languages", "sparkles").</summary>
     public string Icon { get; init; } = "circle";
+    /// <summary>One line shown under the action in settings, e.g. "粘贴到 notepad.exe". Optional.</summary>
+    public string? Description { get; init; }
     /// <summary>Return false to hide the button for this selection. Must be fast (runs on the capture thread).</summary>
     public Func<SelectionContext, bool>? IsApplicable { get; init; }
     /// <summary>Runs on a worker thread. Use <see cref="IPluginHost"/> for anything UI related.</summary>
