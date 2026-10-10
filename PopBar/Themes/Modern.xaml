@@ -192,6 +192,26 @@
     </Style>
 
     <!-- ===== inputs ===== -->
+    <!-- TextBox and PasswordBox share one look: same border, radius, padding and hover/focus states. -->
+    <ControlTemplate x:Key="InputTemplate" TargetType="Control">
+        <Border x:Name="Bd" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True">
+            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                          HorizontalScrollBarVisibility="{TemplateBinding ScrollViewer.HorizontalScrollBarVisibility}"
+                          VerticalScrollBarVisibility="{TemplateBinding ScrollViewer.VerticalScrollBarVisibility}"/>
+        </Border>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.5"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
     <Style TargetType="TextBox">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="MinHeight" Value="34"/>
@@ -204,18 +224,10 @@
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
-        <Style.Resources>
-            <Style TargetType="Border">
-                <Setter Property="CornerRadius" Value="8"/>
-            </Style>
-        </Style.Resources>
-        <Style.Triggers>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Template" Value="{StaticResource InputTemplate}"/>
     </Style>
     <Style TargetType="PasswordBox">
+        <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="MinHeight" Value="34"/>
         <Setter Property="FontSize" Value="13.5"/>
@@ -226,16 +238,7 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="8,5"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
-        <Style.Resources>
-            <Style TargetType="Border">
-                <Setter Property="CornerRadius" Value="8"/>
-            </Style>
-        </Style.Resources>
-        <Style.Triggers>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}"/>
-            </Trigger>
-        </Style.Triggers>
+        <Setter Property="Template" Value="{StaticResource InputTemplate}"/>
     </Style>
 
     <!-- ===== combobox ===== -->
@@ -274,7 +277,7 @@
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                           Margin="{TemplateBinding Padding}" VerticalAlignment="Center" HorizontalAlignment="Left"
                                           TextElement.Foreground="{TemplateBinding Foreground}"/>
-                        <TextBox x:Name="PART_EditableTextBox" Template="{StaticResource ComboEditableTextBox}" Visibility="Hidden"
+                        <TextBox x:Name="PART_EditableTextBox" Template="{StaticResource ComboEditableTextBox}" Visibility="Hidden" Padding="0" MinHeight="0"
                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
                                  Foreground="{TemplateBinding Foreground}" CaretBrush="{DynamicResource TextBrush}" IsReadOnly="{TemplateBinding IsReadOnly}"/>
                         <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True"
