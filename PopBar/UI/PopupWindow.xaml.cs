@@ -198,8 +198,8 @@ public partial class PopupWindow : Window
             {
                 content.Children.Add(new TextBlock
                 {
-                    Text = a.Label, Foreground = fg, FontSize = 13,
-                    FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"),
+                    Text = a.Label, Foreground = fg, FontSize = 13.5,
+                    FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"),
                     Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
                 });
             }

@@ -22,14 +22,14 @@
     <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#C7CCD6"/>
 
-    <FontFamily x:Key="UiFont">Segoe UI, Microsoft YaHei UI, sans-serif</FontFamily>
-    <FontFamily x:Key="DisplayFont">Segoe UI, Microsoft YaHei UI, sans-serif</FontFamily>
+    <FontFamily x:Key="UiFont">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="DisplayFont">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
 
     <!-- ===== text ===== -->
     <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
-        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontSize" Value="15"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
     <Style x:Key="H1" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
