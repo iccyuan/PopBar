@@ -120,15 +120,14 @@ public partial class PopupWindow : Window
 
     private void Animate(bool above)
     {
+        // Short and subtle: a 90ms fade with a 3px rise. No zoom - scaling text made the entrance look wobbly.
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         Root.RenderTransformOrigin = new Point(0.5, above ? 1 : 0);
-        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(130)) { EasingFunction = ease };
-        var slide = new DoubleAnimation(above ? 5 : -5, 0, TimeSpan.FromMilliseconds(170)) { EasingFunction = ease };
-        var zoom = new DoubleAnimation(0.96, 1, TimeSpan.FromMilliseconds(170)) { EasingFunction = ease };
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(90)) { EasingFunction = ease };
+        var slide = new DoubleAnimation(above ? 3 : -3, 0, TimeSpan.FromMilliseconds(110)) { EasingFunction = ease };
+        Zoom.ScaleX = 1; Zoom.ScaleY = 1;
         Root.BeginAnimation(OpacityProperty, fade);
         Slide.BeginAnimation(TranslateTransform.YProperty, slide);
-        Zoom.BeginAnimation(ScaleTransform.ScaleXProperty, zoom);
-        Zoom.BeginAnimation(ScaleTransform.ScaleYProperty, zoom);
     }
 
     public void HideNow()

@@ -91,6 +91,17 @@ public partial class SettingsWindow : Window
             new("always", "总是"),
             new("off", "关闭"),
         };
+        ShowModeCombo.ItemsSource = new List<KeyValuePair<string, string>>
+        {
+            new("auto", "选中后自动显示"),
+            new("key", "按键后显示"),
+        };
+        ShowKeyCombo.ItemsSource = new List<KeyValuePair<string, string>>
+        {
+            new("ctrl", "Ctrl"),
+            new("alt", "Alt"),
+            new("win", "Win"),
+        };
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
             new("system", "跟随系统"),
@@ -124,6 +135,11 @@ public partial class SettingsWindow : Window
         {
             EnabledSw.IsChecked = c.Enabled;
             AutoStartSw.IsChecked = c.AutoStart;
+            ShowModeCombo.SelectedValue = c.ShowMode;
+            if (ShowModeCombo.SelectedIndex < 0) ShowModeCombo.SelectedIndex = 0;
+            ShowKeyCombo.SelectedValue = c.ShowKey;
+            if (ShowKeyCombo.SelectedIndex < 0) ShowKeyCombo.SelectedIndex = 0;
+            ShowKeyCombo.IsEnabled = c.ShowMode == "key";
             DragSw.IsChecked = c.TriggerOnDrag;
             DblSw.IsChecked = c.TriggerOnDoubleClick;
             ShiftSw.IsChecked = c.TriggerOnShiftClick;
@@ -159,6 +175,8 @@ public partial class SettingsWindow : Window
         {
             Enabled = EnabledSw.IsChecked == true,
             AutoStart = AutoStartSw.IsChecked == true,
+            ShowMode = ShowModeCombo.SelectedValue as string ?? "auto",
+            ShowKey = ShowKeyCombo.SelectedValue as string ?? "ctrl",
             TriggerOnDrag = DragSw.IsChecked == true,
             TriggerOnDoubleClick = DblSw.IsChecked == true,
             TriggerOnShiftClick = ShiftSw.IsChecked == true,
@@ -297,6 +315,12 @@ public partial class SettingsWindow : Window
     {
         try { Process.Start(new ProcessStartInfo("https://github.com/iccyuan/PopBar") { UseShellExecute = true }); }
         catch (Exception ex) { Log.Error("open repo", ex); }
+    }
+
+    private void ShowMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (ShowKeyCombo != null) ShowKeyCombo.IsEnabled = (ShowModeCombo.SelectedValue as string) == "key";
+        Changed(sender, e);
     }
 
     private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);

@@ -85,6 +85,7 @@ internal sealed class SelectionEngine : IDisposable
             case WM_LBUTTONDOWN:
                 if (_popupVisible && _popupRect.Contains(x, y)) { _downInPopup = true; return; }
                 _downInPopup = false;
+                _pending = null;
                 if (_popupVisible) RequestHide();
                 NotifyOutsideClick(x, y);
                 _downX = x; _downY = y; _downTicks = now;
@@ -125,8 +126,45 @@ internal sealed class SelectionEngine : IDisposable
         }
     }
 
+    // --- "press a key to show" mode: the last captured selection waits here for the reveal key ---
+    private Selection? _pending;
+    private List<ActionDefinition>? _pendingActions;
+    private long _pendingTicks;
+    private const int PendingWindowMs = 4000;
+
+    private static int RevealKeyVk(string key) => (key ?? "ctrl").ToLowerInvariant() switch
+    {
+        "alt" => VK_MENU,
+        "win" => VK_LWIN,
+        _ => VK_CONTROL,
+    };
+
+    private static bool IsRevealKey(uint vk, int configured) => configured switch
+    {
+        VK_CONTROL => vk is VK_CONTROL or 0xA2 or 0xA3,   // L/R Ctrl
+        VK_MENU => vk is VK_MENU or 0xA4 or 0xA5,         // L/R Alt
+        VK_LWIN => vk is VK_LWIN or VK_RWIN,
+        _ => false,
+    };
+
     private void OnKey(uint vk)
     {
+        var cfg = _store.Current;
+        if (cfg.ShowMode == "key" && _pending != null && IsRevealKey(vk, RevealKeyVk(cfg.ShowKey)))
+        {
+            if (Environment.TickCount64 - _pendingTicks <= PendingWindowMs)
+            {
+                var sel = _pending; var acts = _pendingActions!;
+                _pending = null;
+                _ui.InvokeAsync(() =>
+                {
+                    try { _popup.ShowFor(sel, acts, cfg); }
+                    catch (Exception ex) { Log.Error("popup show failed", ex); }
+                }, DispatcherPriority.Send);
+                return; // the reveal key must not hide what it just revealed
+            }
+            _pending = null;
+        }
         if (_popupVisible) RequestHide();
         Interlocked.Increment(ref _seq);
     }
@@ -168,6 +206,15 @@ internal sealed class SelectionEngine : IDisposable
         var actions = ResolveActions(sel, cfg);
         if (actions.Count == 0) return;
         Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms");
+
+        if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))
+        {
+            // Wait for the reveal key (see OnKey) instead of popping up right away.
+            _pendingActions = actions;
+            _pendingTicks = Environment.TickCount64;
+            _pending = sel;
+            return;
+        }
 
         _ui.InvokeAsync(() =>
         {

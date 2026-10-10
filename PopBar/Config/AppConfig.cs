@@ -12,6 +12,11 @@ public sealed class AppConfig
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
 
+    /// <summary>"auto" = bar appears right after a selection; "key" = only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds).</summary>
+    public string ShowMode { get; set; } = "auto";
+    /// <summary>ctrl | alt | win — the key that reveals the bar in "key" mode.</summary>
+    public string ShowKey { get; set; } = "ctrl";
+
     public bool TriggerOnDrag { get; set; } = true;
     public bool TriggerOnDoubleClick { get; set; } = true;
     public bool TriggerOnShiftClick { get; set; } = true;

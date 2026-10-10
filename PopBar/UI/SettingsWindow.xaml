@@ -78,6 +78,21 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="显示方式"/>
+                                    <TextBlock Style="{StaticResource Muted}" Text="“按键后显示”：选中时按住该键，或选中后 4 秒内按一下，操作条才出现"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ComboBox x:Name="ShowModeCombo" Width="150" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="ShowMode_Changed"/>
+                                    <ComboBox x:Name="ShowKeyCombo" Width="90" Margin="8,0,0,0" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
                                 <TextBlock Text="鼠标拖动选择文本" VerticalAlignment="Center"/>
                                 <CheckBox x:Name="DragSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                             </Grid>

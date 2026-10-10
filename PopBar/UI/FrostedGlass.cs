@@ -50,6 +50,46 @@ internal static class FrostedGlass
         }
     }
 
+    /// <summary>
+    /// Blurred, down-scaled snapshot of a large screen rect (e.g. a whole monitor) so a movable window can slide a
+    /// viewbox over it instead of re-capturing. Blurring at half resolution is 4x cheaper and looks identical.
+    /// </summary>
+    public static BitmapSource? CaptureScaled(int x, int y, int w, int h, double downscale = 0.5, double radius = 18)
+    {
+        if (w <= 0 || h <= 0) return null;
+        try
+        {
+            int pad = (int)Math.Ceiling(radius * 1.5 / downscale);
+            int cx = x - pad, cy = y - pad, cw = w + 2 * pad, ch = h + 2 * pad;
+            BitmapSource src;
+            using (var bmp = new Drawing.Bitmap(cw, ch, Drawing.Imaging.PixelFormat.Format32bppPArgb))
+            {
+                using (var g = Drawing.Graphics.FromImage(bmp)) g.CopyFromScreen(cx, cy, 0, 0, bmp.Size);
+                var data = bmp.LockBits(new Drawing.Rectangle(0, 0, cw, ch), Drawing.Imaging.ImageLockMode.ReadOnly, Drawing.Imaging.PixelFormat.Format32bppPArgb);
+                try { src = BitmapSource.Create(cw, ch, 96, 96, PixelFormats.Pbgra32, null, data.Scan0, data.Stride * ch, data.Stride); }
+                finally { bmp.UnlockBits(data); }
+            }
+            src.Freeze();
+
+            int sw = (int)Math.Ceiling(cw * downscale), sh = (int)Math.Ceiling(ch * downscale);
+            var image = new Image { Source = src, Stretch = Stretch.Fill, Width = sw, Height = sh, Effect = new BlurEffect { Radius = radius, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance } };
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.Linear);
+            image.Measure(new Size(sw, sh));
+            image.Arrange(new Rect(0, 0, sw, sh));
+            var rtb = new RenderTargetBitmap(sw, sh, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(image);
+            int sp = (int)Math.Round(pad * downscale);
+            var cropped = new CroppedBitmap(rtb, new Int32Rect(sp, sp, Math.Max(1, sw - 2 * sp), Math.Max(1, sh - 2 * sp)));
+            cropped.Freeze();
+            return cropped;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("frosted capture (scaled) failed: " + ex.Message);
+            return null;
+        }
+    }
+
     /// <summary>Convenience: an ImageBrush ready for a Border background (null when capture failed).</summary>
     public static ImageBrush? Brush(int x, int y, int w, int h, double radius = 36)
     {

@@ -39,6 +39,7 @@ WH_MOUSE_LL / WH_KEYBOARD_LL  ──► SelectionEngine（钩子线程里只做�
 - **替换粘贴**：备份剪贴板 → 写入结果 → `AttachThreadInput` + `SetForegroundWindow` 还焦点给源窗口 → Ctrl+V → 还原剪贴板。
 - **钩子**只忽略 PopBar 自己注入（`dwExtraInfo` 打标）的按键，远程桌面、AutoHotkey 等注入输入照常触发。
 - **消失时机**：操作栏在外部点击、滚轮、任意按键后消失；面板在外部点击时关闭，可用图钉固定。
+- **显示方式**：默认选中即弹；可改为「按键后显示」——选中时按住 Ctrl/Alt/Win，或选中后 4 秒内按一下该键才出现，适合不想被频繁打扰的场景。
 
 ## 内置插件
 

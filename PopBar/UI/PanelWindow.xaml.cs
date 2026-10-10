@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using PopBar.Core;
 using PopBar.Sdk;
 using static PopBar.Native.NativeMethods;
@@ -64,26 +65,53 @@ public partial class PanelWindow : Window, IPanel
         int y = anchorY + (int)(18 * scale) - m;
         if (y + h - m > work.Bottom) y = Math.Max(work.Top - m, anchorY - h - (int)(18 * scale) + m);
         _scale = scale;
-        CaptureGlass(x + m, y + m, w - 2 * m, h - 2 * m);
+        CaptureMonitorGlass(work);
         Left = x / scale; Top = y / scale; // DIP relative to the primary monitor; corrected below with SetWindowPos
         Show();
         SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        UpdateGlassViewbox();
         Activate();
+        LocationChanged += (_, _) => UpdateGlassViewbox();
+        Glass.SizeChanged += (_, _) => UpdateGlassViewbox();
     }
 
     private double _scale = 1;
+    private BitmapSource? _glassImage;
+    private int _glassX, _glassY;
+    private const double GlassDownscale = 0.5;
 
-    /// <summary>Blur the screen under the card. Captures extra height so the panel can grow while streaming.</summary>
-    private void CaptureGlass(int px, int py, int pw, int ph)
+    /// <summary>
+    /// One blurred snapshot of the whole work area (half resolution) taken while the panel is still hidden.
+    /// Dragging or growing the panel then only moves the brush viewbox - no re-capture, no flicker.
+    /// </summary>
+    private void CaptureMonitorGlass(RECT work)
     {
+        _glassImage = null;
         if (ThemeManager.BlurOpacity >= 100) { Glass.Background = null; ApplyTint(false); return; }
-        int extra = (int)(420 * _scale);
-        var img = FrostedGlass.Capture(px, py, pw, ph + extra);
-        if (img == null) { Glass.Background = null; ApplyTint(false); return; }
-        var brush = new ImageBrush(img) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top, ViewportUnits = BrushMappingMode.Absolute, ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(0, 0, pw, ph + extra), Viewport = new Rect(0, 0, pw / _scale, (ph + extra) / _scale) };
+        _glassImage = FrostedGlass.CaptureScaled(work.Left, work.Top, work.Width, work.Height, GlassDownscale, 18);
+        _glassX = work.Left; _glassY = work.Top;
+        if (_glassImage == null) { Glass.Background = null; ApplyTint(false); return; }
+        ApplyTint(true);
+    }
+
+    /// <summary>Point the brush at the part of the snapshot that lies under the card right now.</summary>
+    private void UpdateGlassViewbox()
+    {
+        if (_glassImage == null || _closed || _hwnd == IntPtr.Zero) return;
+        GetWindowRect(_hwnd, out var r);
+        int m = (int)Math.Round(Root.Margin.Left * _scale);
+        double gx = (r.Left + m - _glassX) * GlassDownscale;
+        double gy = (r.Top + m - _glassY) * GlassDownscale;
+        double gw = Math.Max(1, (r.Width - 2 * m) * GlassDownscale);
+        double gh = Math.Max(1, (r.Height - 2 * m) * GlassDownscale);
+        var brush = new ImageBrush(_glassImage)
+        {
+            Stretch = Stretch.Fill,
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = new Rect(gx, gy, gw, gh),
+        };
         brush.Freeze();
         Glass.Background = brush;
-        ApplyTint(true);
     }
 
     private void ApplyTint(bool glass)
@@ -91,20 +119,6 @@ public partial class PanelWindow : Window, IPanel
         var tint = new SolidColorBrush(ThemeManager.BlurTint(_dark, glass));
         tint.Freeze();
         Resources["PBg"] = tint;
-    }
-
-    /// <summary>After a drag the background underneath changed: hide for one frame, re-snapshot, show.</summary>
-    private async void RefreshGlassAfterMove()
-    {
-        if (_closed || _hwnd == IntPtr.Zero || ThemeManager.BlurOpacity >= 100) return;
-        Root.Opacity = 0;
-        await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-        await Task.Delay(30);
-        if (_closed) return;
-        GetWindowRect(_hwnd, out var r);
-        int m = (int)Math.Round(Root.Margin.Left * _scale);
-        CaptureGlass(r.Left + m, r.Top + m, r.Width - 2 * m, r.Height - 2 * m);
-        Root.Opacity = 1;
     }
 
     public bool ContainsScreenPoint(int x, int y)
@@ -182,7 +196,7 @@ public partial class PanelWindow : Window, IPanel
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed) { DragMove(); RefreshGlassAfterMove(); }
+        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
     }
 
     private void Pin_Click(object sender, RoutedEventArgs e)
