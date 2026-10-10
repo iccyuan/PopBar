@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using PopBar.Actions;
 using PopBar.Config;
+using PopBar.Core;
 
 namespace PopBar.UI;
 
@@ -18,6 +19,8 @@ public sealed class ActionRow : INotifyPropertyChanged
 
     public string Label => string.IsNullOrWhiteSpace(Def.Label) ? "(未命名)" : Def.Label;
     public Geometry IconGeometry => Icons.Get(Def.Icon);
+    /// <summary>Plugin actions are configured inside their plugin; the generic editor does not apply.</summary>
+    public Visibility EditVisibility => Def.IsPlugin ? Visibility.Collapsed : Visibility.Visible;
     public bool Enabled
     {
         get => Def.Enabled;
@@ -30,6 +33,7 @@ public sealed class ActionRow : INotifyPropertyChanged
             var desc = ActionTypes.Describe(Def.Type);
             var detail = Def.Type switch
             {
+                ActionTypes.Plugin => Def.Ref,
                 ActionTypes.Url => Def.Url,
                 ActionTypes.Transform => Def.Op + (string.IsNullOrEmpty(Def.Template) ? "" : "  " + Def.Template),
                 ActionTypes.Command => Def.Command + " " + Def.Args,
@@ -77,6 +81,8 @@ public partial class SettingsWindow : Window
             new("openai", "OpenAI 兼容"),
         };
         PluginDirText.Text = "第三方插件放在 " + Plugins.PluginStorage.PluginsDir + "\\<插件名>\\*.dll，重启后加载。";
+        // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
+        LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
         BuildPluginList();
 
         FallbackCombo.ItemsSource = new List<KeyValuePair<string, string>>
@@ -87,9 +93,13 @@ public partial class SettingsWindow : Window
         };
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
+            new("system", "跟随系统"),
             new("dark", "深色"),
             new("light", "浅色"),
         };
+        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        ThemeManager.Changed += OnThemeChanged;
+        Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
         ActionsList.ItemsSource = _rows;
 
         var ver = typeof(SettingsWindow).Assembly.GetName().Version;
@@ -164,7 +174,7 @@ public partial class SettingsWindow : Window
                 Protocol = LlmProtocolCombo.SelectedValue as string ?? "anthropic",
                 BaseUrl = LlmBaseUrlBox.Text.Trim(),
                 ApiKey = LlmKeyBox.Password.Trim(),
-                Model = LlmModelBox.Text.Trim(),
+                Model = (LlmModelBox.Text ?? "").Trim(),
             },
         };
         return c;
@@ -235,9 +245,20 @@ public partial class SettingsWindow : Window
             card.Child = stack;
 
             var head = new Grid();
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "sendto" => "external-link", _ => "puzzle" };
+            var iconCanvas = new Canvas { Width = 24, Height = 24, LayoutTransform = new ScaleTransform(0.75, 0.75) };
+            iconCanvas.Children.Add(new System.Windows.Shapes.Path
+            {
+                Data = Icons.Get(iconName), Stroke = (Brush)FindResource("AccentHoverBrush"), StrokeThickness = 2,
+                StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            });
+            var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconCanvas, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
+            head.Children.Add(iconBox);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(info, 1);
             var title = new TextBlock { FontWeight = FontWeights.SemiBold };
             title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
             title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
@@ -247,7 +268,7 @@ public partial class SettingsWindow : Window
             var toggle = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = !_disabledPlugins.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
             toggle.Checked += (s, e) => { _disabledPlugins.Remove(plugin.Id); Changed(s, e); };
             toggle.Unchecked += (s, e) => { _disabledPlugins.Add(plugin.Id); Changed(s, e); };
-            Grid.SetColumn(toggle, 1);
+            Grid.SetColumn(toggle, 2);
             head.Children.Add(toggle);
             stack.Children.Add(head);
 
@@ -266,7 +287,37 @@ public partial class SettingsWindow : Window
         }
     }
 
+    private void OnThemeChanged(string effective) => Dispatcher.InvokeAsync(() => ThemeManager.ApplyTitleBar(this));
+
+    private void OpenRepo_Click(object sender, RoutedEventArgs e)
+    {
+        try { Process.Start(new ProcessStartInfo("https://github.com/iccyuan/PopBar") { UseShellExecute = true }); }
+        catch (Exception ex) { Log.Error("open repo", ex); }
+    }
+
     private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);
+
+    private async void FetchModels_Click(object sender, RoutedEventArgs e)
+    {
+        if (_saveTimer.IsEnabled) { _saveTimer.Stop(); SaveNow(); }
+        var current = (LlmModelBox.Text ?? "").Trim();
+        LlmTestResult.Text = "获取模型列表…";
+        try
+        {
+            var models = await _llm.ListModelsAsync();
+            _loading = true;
+            LlmModelBox.ItemsSource = models;
+            LlmModelBox.Text = current;
+            _loading = false;
+            LlmTestResult.Text = models.Count == 0 ? "接口没有返回任何模型" : $"获取到 {models.Count} 个模型，从下拉框选择";
+            if (models.Count > 0) LlmModelBox.IsDropDownOpen = true;
+        }
+        catch (Exception ex)
+        {
+            _loading = false;
+            LlmTestResult.Text = "获取失败：" + ex.Message;
+        }
+    }
 
     private async void LlmTest_Click(object sender, RoutedEventArgs e)
     {

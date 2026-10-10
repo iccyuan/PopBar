@@ -3,12 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="编辑动作" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        Background="{StaticResource BgBrush}" FontFamily="{StaticResource UiFont}"
+        Background="{DynamicResource BgBrush}" FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
     <Window.Resources>
         <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Margin" Value="0,10,0,5"/>
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
     </Window.Resources>
@@ -33,7 +33,7 @@
                                     <Canvas.LayoutTransform>
                                         <ScaleTransform ScaleX="0.7" ScaleY="0.7"/>
                                     </Canvas.LayoutTransform>
-                                    <Path Data="{Binding Geometry}" Stroke="{StaticResource TextBrush}" StrokeThickness="2"
+                                    <Path Data="{Binding Geometry}" Stroke="{DynamicResource TextBrush}" StrokeThickness="2"
                                           StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                 </Canvas>
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
@@ -93,7 +93,7 @@
             </StackPanel>
         </Grid>
 
-        <TextBlock x:Name="ErrorText" Foreground="{StaticResource DangerBrush}" Margin="0,10,0,0" Visibility="Collapsed"/>
+        <TextBlock x:Name="ErrorText" Foreground="{DynamicResource DangerBrush}" Margin="0,10,0,0" Visibility="Collapsed"/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="取消" IsCancel="True" Margin="0,0,8,0" MinWidth="80"/>

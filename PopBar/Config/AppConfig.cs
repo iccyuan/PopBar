@@ -6,6 +6,9 @@ namespace PopBar.Config;
 /// <summary>User configuration, persisted as JSON in %AppData%\PopBar\config.json.</summary>
 public sealed class AppConfig
 {
+    /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
+    public int ConfigVersion { get; set; } = 2;
+
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
 
@@ -21,7 +24,7 @@ public sealed class AppConfig
     public int MaxTextLength { get; set; } = 10000;
 
     /// <summary>"dark" or "light".</summary>
-    public string Theme { get; set; } = "dark";
+    public string Theme { get; set; } = "system";
     public bool ShowLabels { get; set; } = true;
 
     /// <summary>Process names (e.g. "game.exe") where PopBar never shows.</summary>

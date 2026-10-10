@@ -90,7 +90,7 @@ internal sealed class PluginHost : IPluginHost
     public HttpClient Http => _s.Http;
     public ILlmService Llm => _s.Llm;
     public Dispatcher Dispatcher => _s.Dispatcher;
-    public string Theme => _s.Store.Current.Theme;
+    public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
 
     public IPanel ShowPanel(PanelOptions options)

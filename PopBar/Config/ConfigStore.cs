@@ -42,9 +42,22 @@ public sealed class ConfigStore
                 if (File.Exists(FilePath))
                 {
                     var json = File.ReadAllText(FilePath);
-                    _current = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
-                    if (_current.Actions.Count == 0) _current.Actions = Actions.DefaultActions.Create();
+                    // Files written before ConfigVersion existed deserialize as 0 and get migrated below.
+                    var cfg = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+                    if (!json.Contains("\"configVersion\"", StringComparison.OrdinalIgnoreCase)) cfg.ConfigVersion = 0;
+                    if (cfg.Actions.Count == 0) cfg.Actions = Actions.DefaultActions.Create();
+                    bool migrated = false;
+                    if (cfg.ConfigVersion < 2)
+                    {
+                        // v0.2: theme follows the system by default; the stock upper/lower buttons were dropped.
+                        if (cfg.Theme == "dark") cfg.Theme = "system";
+                        cfg.Actions.RemoveAll(a => a.Type == Actions.ActionTypes.Transform && a.Id is "upper" or "lower");
+                        cfg.ConfigVersion = 2;
+                        migrated = true;
+                    }
+                    _current = cfg;
                     IsFirstRun = false;
+                    if (migrated) SaveLocked();
                     return;
                 }
             }

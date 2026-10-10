@@ -61,6 +61,7 @@ public partial class App : Application
         _store.Load();
         _store.Changed += OnConfigChanged;
         ApplyAutoStart(_store.Current.AutoStart);
+        ThemeManager.Apply(_store.Current.Theme);
 
         _popup = new PopupWindow();
         _popup.Preload();
@@ -157,6 +158,7 @@ public partial class App : Application
             if (_enabledItem != null) _enabledItem.Checked = cfg.Enabled;
             _settings?.RefreshFromStore();
             ApplyAutoStart(cfg.AutoStart);
+            ThemeManager.Apply(cfg.Theme);
         });
     }
 

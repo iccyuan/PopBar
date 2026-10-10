@@ -154,8 +154,9 @@ public partial class PopupWindow : Window
 
     // ------------------------------------------------------------------ content
 
-    private void ApplyTheme(string theme)
+    private void ApplyTheme(string setting)
     {
+        var theme = ThemeManager.Resolve(setting);
         if (theme == _theme) return;
         _theme = theme;
         bool light = string.Equals(theme, "light", StringComparison.OrdinalIgnoreCase);

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Anthropic;
 using Anthropic.Models.Messages;
+using Anthropic.Models.Models;
 using PopBar.Config;
 using PopBar.Sdk;
 
@@ -65,6 +66,39 @@ internal sealed class LlmService : ILlmService
         {
             if (ev.TryPickContentBlockDelta(out var delta) && delta.Delta.TryPickText(out var text) && text.Text.Length > 0)
                 yield return text.Text;
+        }
+    }
+
+    // ------------------------------------------------------------------ model listing
+
+    public async Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
+    {
+        var cfg = Cfg;
+        if (string.Equals(cfg.Protocol, "openai", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(cfg.BaseUrl)) throw new InvalidOperationException("请先填写接口地址。");
+            var url = cfg.BaseUrl.TrimEnd('/');
+            if (url.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase)) url = url[..^"/chat/completions".Length];
+            using var msg = new HttpRequestMessage(HttpMethod.Get, url + "/models");
+            if (!string.IsNullOrWhiteSpace(cfg.ApiKey)) msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.ApiKey);
+            using var resp = await _http.SendAsync(msg, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode) throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {Truncate(body, 300)}");
+            using var doc = JsonDocument.Parse(body);
+            var list = new List<string>();
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+                foreach (var m in data.EnumerateArray())
+                    if (m.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String) list.Add(id.GetString()!);
+            list.Sort(StringComparer.OrdinalIgnoreCase);
+            return list;
+        }
+        else
+        {
+            var client = string.IsNullOrWhiteSpace(cfg.BaseUrl)
+                ? new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(cfg.ApiKey) ? null : cfg.ApiKey }
+                : new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(cfg.ApiKey) ? null : cfg.ApiKey, BaseUrl = cfg.BaseUrl.TrimEnd('/') };
+            var page = await client.Models.List(new ModelListParams { Limit = 1000 }, cancellationToken: ct);
+            return page.Items.Select(m => m.ID.ToString()).ToList();
         }
     }
 

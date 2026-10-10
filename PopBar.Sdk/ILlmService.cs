@@ -10,6 +10,9 @@ public interface ILlmService
     /// <summary>Stream the assistant reply as text chunks.</summary>
     IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default);
 
+    /// <summary>Model ids the configured backend offers (Anthropic Models API or OpenAI-compatible GET /models).</summary>
+    Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default);
+
     /// <summary>Convenience: collect the whole reply.</summary>
     async Task<string> CompleteAsync(LlmRequest request, CancellationToken ct = default)
     {
