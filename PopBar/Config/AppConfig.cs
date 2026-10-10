@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 3;
+    public int ConfigVersion { get; set; } = 4;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;

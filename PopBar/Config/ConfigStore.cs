@@ -63,6 +63,17 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 3;
                         migrated = true;
                     }
+                    if (cfg.ConfigVersion < 4)
+                    {
+                        // v0.3: the stock send-to target is a generic "发送到" (Notepad by default), not "记事本".
+                        foreach (var a in cfg.Actions.Where(a => a.Ref == "sendto:notepad" && a.Label == "记事本"))
+                        {
+                            a.Label = "发送到";
+                            if (a.Icon == "type") a.Icon = "send";
+                        }
+                        cfg.ConfigVersion = 4;
+                        migrated = true;
+                    }
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();

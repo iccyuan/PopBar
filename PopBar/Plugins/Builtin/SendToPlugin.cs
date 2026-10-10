@@ -40,7 +40,8 @@ public sealed class SendToPlugin : IPopBarPlugin
 
     public static List<Target> DefaultTargets() => new()
     {
-        new() { Id = "notepad", Label = "记事本", Icon = "type", Mode = "paste", Program = "notepad.exe" },
+        // The stock target is a generic "send to" whose program defaults to Notepad; users repoint it in settings.
+        new() { Id = "notepad", Label = "发送到", Icon = "send", Mode = "paste", Program = "notepad.exe" },
         new() { Id = "vscode", Label = "VS Code", Icon = "terminal", Mode = "paste", Program = "Code.exe", LaunchIfMissing = false, Enabled = false },
         new() { Id = "obsidian", Label = "Obsidian", Icon = "bookmark", Mode = "url", Args = "obsidian://new?content={text}", Enabled = false },
     };
@@ -50,6 +51,13 @@ public sealed class SendToPlugin : IPopBarPlugin
         _host = host;
         _cfg = host.Storage.Get<Settings>();
         if (_cfg.Targets.Count == 0) { _cfg.Targets = DefaultTargets(); host.Storage.Set(_cfg); }
+        // Older installs named the stock target after Notepad itself.
+        if (_cfg.Targets.FirstOrDefault(t => t.Id == "notepad" && t.Label == "记事本") is { } legacy)
+        {
+            legacy.Label = "发送到";
+            if (legacy.Icon == "type") legacy.Icon = "send";
+            host.Storage.Set(_cfg);
+        }
     }
 
     public IReadOnlyList<PluginAction> GetActions() => _cfg.Targets.Where(t => t.Enabled).Select(t => new PluginAction
