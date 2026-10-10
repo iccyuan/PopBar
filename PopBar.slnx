@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/HelloPlugin/HelloPlugin.csproj" />
+  </Folder>
+  <Project Path="PopBar.Sdk/PopBar.Sdk.csproj" />
+  <Project Path="PopBar/PopBar.csproj" />
+</Solution>

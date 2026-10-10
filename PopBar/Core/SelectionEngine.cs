@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Windows.Threading;
 using PopBar.Actions;
 using PopBar.Config;
+using PopBar.Plugins;
+using PopBar.Sdk;
 using PopBar.UI;
 using static PopBar.Native.NativeMethods;
 
@@ -19,6 +21,8 @@ internal sealed class SelectionEngine : IDisposable
     private readonly ConfigStore _store;
     private readonly PopupWindow _popup;
     private readonly Dispatcher _ui;
+    private readonly PluginManager _plugins;
+    private readonly PanelRegistry _panels;
     private readonly InputHook _hook = new();
     private readonly TextCapture _capture = new();
     private readonly BlockingCollection<Action> _jobs = new();
@@ -36,14 +40,16 @@ internal sealed class SelectionEngine : IDisposable
     private volatile bool _popupVisible;
     private RECT _popupRect;
 
-    public SelectionEngine(ConfigStore store, PopupWindow popup, Dispatcher ui)
+    public SelectionEngine(ConfigStore store, PopupWindow popup, Dispatcher ui, PluginManager plugins, PanelRegistry panels)
     {
         _store = store;
         _popup = popup;
         _ui = ui;
+        _plugins = plugins;
+        _panels = panels;
         _hook.Mouse += OnMouse;
         _hook.KeyDown += OnKey;
-        _popup.ActionClicked += (a, text, src) => Enqueue(() => ActionRunner.Run(a, text, src));
+        _popup.ActionClicked += (a, sel) => Enqueue(() => ActionRunner.Run(a, sel));
         _popup.Shown += r => { _popupRect = r; _popupVisible = true; };
         _popup.Hidden += () => _popupVisible = false;
 
@@ -80,6 +86,7 @@ internal sealed class SelectionEngine : IDisposable
                 if (_popupVisible && _popupRect.Contains(x, y)) { _downInPopup = true; return; }
                 _downInPopup = false;
                 if (_popupVisible) RequestHide();
+                NotifyOutsideClick(x, y);
                 _downX = x; _downY = y; _downTicks = now;
                 Interlocked.Increment(ref _seq);
                 break;
@@ -87,6 +94,7 @@ internal sealed class SelectionEngine : IDisposable
             case WM_RBUTTONDOWN:
             case WM_MBUTTONDOWN:
                 if (_popupVisible && !_popupRect.Contains(x, y)) RequestHide();
+                NotifyOutsideClick(x, y);
                 Interlocked.Increment(ref _seq);
                 break;
 
@@ -100,9 +108,10 @@ internal sealed class SelectionEngine : IDisposable
                 bool shift = !drag && IsKeyDown(VK_SHIFT);
                 _lastUpX = x; _lastUpY = y; _lastUpTicks = now;
 
-                if (!cfg.Enabled) return;
+                if (!cfg.Enabled || _panels.SuppressCapture) return;
                 bool trigger = (drag && cfg.TriggerOnDrag) || (dbl && cfg.TriggerOnDoubleClick) || (shift && cfg.TriggerOnShiftClick);
                 if (!trigger) return;
+                if (_panels.ContainsPoint(x, y)) return; // selecting inside one of our own panels
 
                 int seq = Volatile.Read(ref _seq);
                 Enqueue(() => CaptureJob(seq, x, y, dbl, now, cfg));
@@ -130,6 +139,8 @@ internal sealed class SelectionEngine : IDisposable
         _ui.InvokeAsync(_popup.HideNow, DispatcherPriority.Send);
     }
 
+    private void NotifyOutsideClick(int x, int y) => _ui.InvokeAsync(() => _panels.OnOutsideClick(x, y));
+
     // ------------------------------------------------------------------ worker
 
     private void CaptureJob(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg)
@@ -153,15 +164,45 @@ internal sealed class SelectionEngine : IDisposable
         if (string.IsNullOrWhiteSpace(text)) return;
         if (text.Length > cfg.MaxTextLength) return;
 
-        var actions = cfg.Actions.Where(a => a.Enabled && Matchers.Matches(a, text)).ToList();
+        var sel = new Selection(text, source, x, y);
+        var actions = ResolveActions(sel, cfg);
         if (actions.Count == 0) return;
         Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms");
 
         _ui.InvokeAsync(() =>
         {
             if (seq != Volatile.Read(ref _seq)) return;
-            _popup.ShowFor(text, x, y, source, actions, cfg);
+            _popup.ShowFor(sel, actions, cfg);
         }, DispatcherPriority.Send);
+    }
+
+    /// <summary>Config actions that apply to this selection (built-in matchers + plugin predicates).</summary>
+    private List<ActionDefinition> ResolveActions(Selection sel, AppConfig cfg)
+    {
+        SelectionContext? ctx = null;
+        var result = new List<ActionDefinition>();
+        foreach (var a in cfg.Actions)
+        {
+            if (!a.Enabled) continue;
+            if (a.IsPlugin)
+            {
+                ctx ??= sel.ToContext();
+                if (_plugins.IsApplicable(a, ctx, cfg)) result.Add(a);
+            }
+            else if (Matchers.Matches(a, sel.Text)) result.Add(a);
+        }
+        return result;
+    }
+
+    /// <summary>Show the bar for text that did not come from a mouse selection (e.g. OCR). Any thread.</summary>
+    public void ShowExternal(SelectionContext ctx)
+    {
+        var cfg = _store.Current;
+        var sel = Selection.FromContext(ctx);
+        var actions = ResolveActions(sel, cfg);
+        if (actions.Count == 0) return;
+        Interlocked.Increment(ref _seq);
+        _ui.InvokeAsync(() => _popup.ShowFor(sel, actions, cfg), DispatcherPriority.Send);
     }
 
     public void Dispose()

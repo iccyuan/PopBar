@@ -24,6 +24,7 @@
                 <StackPanel DockPanel.Dock="Top">
                     <RadioButton x:Name="NavGeneral" Style="{StaticResource NavItem}" Content="通用" IsChecked="True" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavActions" Style="{StaticResource NavItem}" Content="动作" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavPlugins" Style="{StaticResource NavItem}" Content="插件" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="关于" Checked="Nav_Checked"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Style="{StaticResource Muted}" Margin="8,0,0,0" Text=""/>
@@ -189,6 +190,71 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                </StackPanel>
+
+                <!-- ===== Plugins ===== -->
+                <StackPanel x:Name="PanelPlugins" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource H1}" Text="插件"/>
+
+                    <TextBlock Style="{StaticResource H2}" Text="AI 模型服务（翻译的 AI 模式、AI 助手共用）" Margin="4,0,0,8"/>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="协议"/>
+                                    <TextBlock Style="{StaticResource Muted}" Text="Anthropic 走官方 SDK；OpenAI 兼容可接 LiteLLM、Ollama、DeepSeek 等任何 /chat/completions 接口"/>
+                                </StackPanel>
+                                <ComboBox x:Name="LlmProtocolCombo" Grid.Column="1" Width="220" VerticalAlignment="Center"
+                                          DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Llm_Changed"/>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="接口地址"/>
+                                    <TextBlock Style="{StaticResource Muted}" Text="Anthropic 留空即官方；OpenAI 兼容填到 /v1 为止，如 http://localhost:4000/v1"/>
+                                </StackPanel>
+                                <TextBox x:Name="LlmBaseUrlBox" Grid.Column="1" Width="320" Height="34" VerticalAlignment="Center" TextChanged="Llm_Changed"/>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="API Key" VerticalAlignment="Center"/>
+                                <PasswordBox x:Name="LlmKeyBox" Grid.Column="1" Width="320" Height="34" VerticalAlignment="Center" Padding="8,0" VerticalContentAlignment="Center" PasswordChanged="Llm_Changed"/>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="模型"/>
+                                    <TextBlock Style="{StaticResource Muted}" Text="Anthropic 默认 claude-opus-5-5；OpenAI 兼容填服务端的模型名"/>
+                                </StackPanel>
+                                <TextBox x:Name="LlmModelBox" Grid.Column="1" Width="320" Height="34" VerticalAlignment="Center" TextChanged="Llm_Changed"/>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <TextBlock x:Name="LlmTestResult" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,120,0"/>
+                                <Button Content="测试连接" HorizontalAlignment="Right" VerticalAlignment="Center" Click="LlmTest_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource H2}" Text="已安装的插件"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" x:Name="PluginDirText"/>
+                    <StackPanel x:Name="PluginList"/>
                 </StackPanel>
 
                 <!-- ===== About ===== -->

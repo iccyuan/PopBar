@@ -6,12 +6,22 @@ namespace PopBar.Actions;
 /// <summary>Executes an action against the captured selection. Runs on a worker thread, never on the UI thread.</summary>
 internal static class ActionRunner
 {
-    public static void Run(ActionDefinition a, string text, IntPtr sourceHwnd)
+    /// <summary>Set by App at startup; plugin-typed actions are routed here.</summary>
+    public static Plugins.PluginManager? Plugins { get; set; }
+
+    public static void Run(ActionDefinition a, Selection sel)
     {
+        string text = sel.Text;
+        IntPtr sourceHwnd = sel.SourceWindow;
         try
         {
             switch ((a.Type ?? "").ToLowerInvariant())
             {
+                case ActionTypes.Plugin:
+                    if (a.Ref != null && Plugins != null)
+                        Plugins.ExecuteAsync(a.Ref, sel.ToContext()).GetAwaiter().GetResult();
+                    break;
+
                 case ActionTypes.Copy:
                     InputSender.CopyToClipboard(text);
                     break;

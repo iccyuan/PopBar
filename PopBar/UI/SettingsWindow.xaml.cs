@@ -57,14 +57,27 @@ public sealed class ActionRow : INotifyPropertyChanged
 public partial class SettingsWindow : Window
 {
     private readonly ConfigStore _store;
+    private readonly Plugins.PluginManager _plugins;
+    private readonly Sdk.ILlmService _llm;
     private readonly ObservableCollection<ActionRow> _rows = new();
     private readonly DispatcherTimer _saveTimer;
+    private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
     private bool _loading;
 
-    public SettingsWindow(ConfigStore store)
+    internal SettingsWindow(ConfigStore store, Plugins.PluginManager plugins, Sdk.ILlmService llm)
     {
         _store = store;
+        _plugins = plugins;
+        _llm = llm;
         InitializeComponent();
+
+        LlmProtocolCombo.ItemsSource = new List<KeyValuePair<string, string>>
+        {
+            new("anthropic", "Anthropic（官方 SDK）"),
+            new("openai", "OpenAI 兼容"),
+        };
+        PluginDirText.Text = "第三方插件放在 " + Plugins.PluginStorage.PluginsDir + "\\<插件名>\\*.dll，重启后加载。";
+        BuildPluginList();
 
         FallbackCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
@@ -114,6 +127,14 @@ public partial class SettingsWindow : Window
             ExcludedBox.Text = string.Join(Environment.NewLine, c.ExcludedApps);
             NoClipBox.Text = string.Join(Environment.NewLine, c.NoClipboardApps);
 
+            LlmProtocolCombo.SelectedValue = c.Llm.Protocol;
+            if (LlmProtocolCombo.SelectedIndex < 0) LlmProtocolCombo.SelectedIndex = 0;
+            LlmBaseUrlBox.Text = c.Llm.BaseUrl;
+            LlmKeyBox.Password = c.Llm.ApiKey;
+            LlmModelBox.Text = c.Llm.Model;
+            _disabledPlugins.Clear();
+            foreach (var id in c.DisabledPlugins) _disabledPlugins.Add(id);
+
             _rows.Clear();
             foreach (var a in c.Actions) _rows.Add(new ActionRow(a.Clone()));
         }
@@ -137,6 +158,14 @@ public partial class SettingsWindow : Window
             ExcludedApps = Lines(ExcludedBox.Text),
             NoClipboardApps = Lines(NoClipBox.Text),
             Actions = _rows.Select(r => r.Def.Clone()).ToList(),
+            DisabledPlugins = _disabledPlugins.ToList(),
+            Llm = new LlmConfig
+            {
+                Protocol = LlmProtocolCombo.SelectedValue as string ?? "anthropic",
+                BaseUrl = LlmBaseUrlBox.Text.Trim(),
+                ApiKey = LlmKeyBox.Password.Trim(),
+                Model = LlmModelBox.Text.Trim(),
+            },
         };
         return c;
     }
@@ -184,7 +213,74 @@ public partial class SettingsWindow : Window
         if (PanelGeneral == null) return;
         PanelGeneral.Visibility = NavGeneral.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelActions.Visibility = NavActions.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ------------------------------------------------------------------ plugins
+
+    public void ShowPluginsPage(string? pluginId = null)
+    {
+        NavPlugins.IsChecked = true;
+    }
+
+    private void BuildPluginList()
+    {
+        PluginList.Children.Clear();
+        foreach (var l in _plugins.Plugins)
+        {
+            var plugin = l.Plugin;
+            var card = new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(16, 10, 16, 10), Margin = new Thickness(0, 0, 0, 10) };
+            var stack = new StackPanel();
+            card.Child = stack;
+
+            var head = new Grid();
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            var title = new TextBlock { FontWeight = FontWeights.SemiBold };
+            title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
+            title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
+            info.Children.Add(title);
+            info.Children.Add(new TextBlock { Text = l.Error != null ? "加载失败：" + l.Error : plugin.Description, Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 0) });
+            head.Children.Add(info);
+            var toggle = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = !_disabledPlugins.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+            toggle.Checked += (s, e) => { _disabledPlugins.Remove(plugin.Id); Changed(s, e); };
+            toggle.Unchecked += (s, e) => { _disabledPlugins.Add(plugin.Id); Changed(s, e); };
+            Grid.SetColumn(toggle, 1);
+            head.Children.Add(toggle);
+            stack.Children.Add(head);
+
+            if (l.Error == null)
+            {
+                FrameworkElement? view = null;
+                try { view = plugin.CreateSettingsView(); }
+                catch (Exception ex) { Log.Error($"plugin {plugin.Id} settings view", ex); }
+                if (view != null)
+                {
+                    var expander = new Expander { Header = "设置", Margin = new Thickness(0, 8, 0, 0), Content = view, IsExpanded = false };
+                    stack.Children.Add(expander);
+                }
+            }
+            PluginList.Children.Add(card);
+        }
+    }
+
+    private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);
+
+    private async void LlmTest_Click(object sender, RoutedEventArgs e)
+    {
+        if (_saveTimer.IsEnabled) { _saveTimer.Stop(); SaveNow(); }
+        LlmTestResult.Text = "连接中…";
+        try
+        {
+            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 32, Effort = "low" });
+            LlmTestResult.Text = "成功：" + reply.Trim().Replace("\n", " ");
+        }
+        catch (Exception ex)
+        {
+            LlmTestResult.Text = "失败：" + ex.Message;
+        }
     }
 
     // ------------------------------------------------------------------ actions

@@ -8,6 +8,7 @@ using Path = System.Windows.Shapes.Path;
 using Rectangle = System.Windows.Shapes.Rectangle;
 using PopBar.Actions;
 using PopBar.Config;
+using PopBar.Core;
 using static PopBar.Native.NativeMethods;
 
 namespace PopBar.UI;
@@ -15,13 +16,12 @@ namespace PopBar.UI;
 /// <summary>The floating bar. Never takes focus; positioned in physical pixels next to the mouse-up point.</summary>
 public partial class PopupWindow : Window
 {
-    public event Action<ActionDefinition, string, IntPtr>? ActionClicked;
+    public event Action<ActionDefinition, Selection>? ActionClicked;
     internal event Action<RECT>? Shown;
     public event Action? Hidden;
 
     private IntPtr _hwnd;
-    private string _text = "";
-    private IntPtr _source;
+    private Selection _selection = new("", IntPtr.Zero, 0, 0);
     private bool _visible;
     private string _theme = "";
     private int _lastX, _lastY;
@@ -62,10 +62,10 @@ public partial class PopupWindow : Window
 
     // ------------------------------------------------------------------ show / hide
 
-    public void ShowFor(string text, int x, int y, IntPtr source, IReadOnlyList<ActionDefinition> actions, AppConfig cfg)
+    public void ShowFor(Selection sel, IReadOnlyList<ActionDefinition> actions, AppConfig cfg)
     {
-        _text = text;
-        _source = source;
+        _selection = sel;
+        int x = sel.X, y = sel.Y;
         _lastX = x; _lastY = y;
         ApplyTheme(cfg.Theme);
         BuildButtons(actions, cfg.ShowLabels);
@@ -232,9 +232,8 @@ public partial class PopupWindow : Window
     private void OnButtonClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: ActionDefinition a }) return;
-        var text = _text;
-        var src = _source;
+        var sel = _selection;
         HideNow();
-        ActionClicked?.Invoke(a, text, src);
+        ActionClicked?.Invoke(a, sel);
     }
 }

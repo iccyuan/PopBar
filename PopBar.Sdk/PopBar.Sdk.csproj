@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>PopBar.Sdk</AssemblyName>
+    <RootNamespace>PopBar.Sdk</RootNamespace>
+    <Version>0.2.0</Version>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>CS1591</NoWarn>
+    <Description>Plugin SDK for PopBar. Reference this assembly to build a PopBar plugin.</Description>
+  </PropertyGroup>
+
+</Project>

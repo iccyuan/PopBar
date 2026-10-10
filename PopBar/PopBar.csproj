@@ -2,7 +2,9 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- 10.0.19041 gives us Windows.Media.Ocr (built-in offline OCR) through CsWinRT. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -10,7 +12,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>PopBar</AssemblyName>
     <RootNamespace>PopBar</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\popbar.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -21,8 +23,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\PopBar.Sdk\PopBar.Sdk.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- COM interop for IUIAutomation (same assembly FlaUI.UIA3 uses). -->
     <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
+    <!-- Official Anthropic SDK for the "anthropic" LLM protocol. -->
+    <PackageReference Include="Anthropic" Version="12.55.0" />
   </ItemGroup>
 
   <ItemGroup>

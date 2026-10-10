@@ -27,6 +27,12 @@ public sealed class ActionDefinition
     public string Match { get; set; } = MatchKinds.Any;
     public string? Regex { get; set; }
 
+    /// <summary>For plugin: full plugin action id, e.g. "translate:panel".</summary>
+    public string? Ref { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPlugin => string.Equals(Type, ActionTypes.Plugin, StringComparison.OrdinalIgnoreCase);
+
     public ActionDefinition Clone() => (ActionDefinition)MemberwiseClone();
 }
 
@@ -38,11 +44,14 @@ public static class ActionTypes
     public const string Transform = "transform";
     public const string Paste = "paste";
     public const string Command = "command";
+    public const string Plugin = "plugin";
 
+    /// <summary>Types the user can create by hand (plugin actions are contributed by plugins).</summary>
     public static readonly string[] All = { Copy, Url, Open, Transform, Paste, Command };
 
     public static string Describe(string type) => type switch
     {
+        Plugin => "插件动作",
         Copy => "复制到剪贴板",
         Url => "打开网址（{text} 替换为选中内容）",
         Open => "打开选中的链接 / 邮箱",
