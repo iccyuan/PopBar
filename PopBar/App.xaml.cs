@@ -97,7 +97,7 @@ public partial class App : Application
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         ActionRunner.Plugins = _plugins;
-        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin() });
+        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin() });
 
         _engine = new SelectionEngine(_store, _popup, Dispatcher, _plugins, _panels);
         _engine.Start();
