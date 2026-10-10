@@ -16,7 +16,7 @@ public partial class ActionEditWindow : Window
     {
         _def = def;
         InitializeComponent();
-        SourceInitialized += (_, _) => Core.ThemeManager.ApplyTitleBar(this);
+        SourceInitialized += (_, _) => Core.Acrylic.Apply(this, Core.BackdropKind.Mica, Core.ThemeManager.IsDark, roundCorners: true);
 
         IconCombo.ItemsSource = Icons.Names.Select(n => new IconItem(n, Icons.Get(n))).ToList();
         TypeCombo.ItemsSource = ActionTypes.All.Select(t => new KeyValuePair<string, string>(t, ActionTypes.Describe(t))).ToList();

@@ -3,8 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="编辑动作" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        Background="{DynamicResource BgBrush}" FontFamily="{StaticResource UiFont}"
+        Background="{DynamicResource WindowBgBrush}" FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="True"/>
+    </WindowChrome.WindowChrome>
     <Window.Resources>
         <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
             <Setter Property="Margin" Value="0,10,0,5"/>
@@ -12,7 +15,8 @@
             <Setter Property="FontSize" Value="12"/>
         </Style>
     </Window.Resources>
-    <StackPanel Margin="24,18,24,20">
+    <StackPanel Margin="24,12,24,20">
+        <TextBlock Text="编辑动作" Style="{StaticResource Muted}" Margin="-2,0,0,10" IsHitTestVisible="False"/>
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>

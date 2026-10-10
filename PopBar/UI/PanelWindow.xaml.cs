@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using PopBar.Core;
 using PopBar.Sdk;
 using static PopBar.Native.NativeMethods;
 
@@ -44,6 +45,10 @@ public partial class PanelWindow : Window, IPanel
             _hwnd = new WindowInteropHelper(this).Handle;
             var ex = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64();
             SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
+            bool dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+            bool blur = Acrylic.Apply(this, BackdropKind.Acrylic, dark, roundCorners: true, tintArgb: dark ? 0xC0202530u : 0xC0FFFFFFu);
+            // Translucent tint over the blur, opaque card without it.
+            Set("PBg", blur ? (dark ? "#B31C212B" : "#B8FFFFFF") : (dark ? "#FF1F2430" : "#FFFFFFFF"));
         };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
     }
@@ -79,11 +84,12 @@ public partial class PanelWindow : Window, IPanel
     {
         bool dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
         Set("PBg", dark ? "#FF1F2430" : "#FFFFFFFF");
-        Set("PBorder", dark ? "#33FFFFFF" : "#FFE5E7EB");
+        Set("PBorder", dark ? "#2EFFFFFF" : "#22000000");
         Set("PFg", dark ? "#FFECEFF4" : "#FF1F2937");
         Set("PMuted", dark ? "#FF9AA3B2" : "#FF6B7280");
-        Set("PHover", dark ? "#1AFFFFFF" : "#FFF3F4F6");
-        Set("PSource", dark ? "#14FFFFFF" : "#FFF8FAFC");
+        Set("PHover", dark ? "#1FFFFFFF" : "#14000000");
+        Set("PSource", dark ? "#16FFFFFF" : "#10000000");
+        Set("PAccent", dark ? "#FF5B9BFF" : "#FF3B82F6");
     }
 
     private void Set(string key, string color)

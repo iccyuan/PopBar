@@ -20,8 +20,6 @@ public sealed class TranslatePlugin : IPopBarPlugin
 
     private IPluginHost _host = null!;
     private Settings _cfg = new();
-    private string? _msToken;
-    private DateTime _msTokenAt;
 
     public string Id => "translate";
     public string Name => "翻译";
@@ -61,13 +59,6 @@ public sealed class TranslatePlugin : IPopBarPlugin
             string target = LooksLike(text, _cfg.TargetLang) ? _cfg.AltLang : _cfg.TargetLang;
             switch (_cfg.Provider)
             {
-                case "microsoft":
-                {
-                    var (result, detected) = await MicrosoftAsync(text, target, linked.Token);
-                    panel.SetText(result);
-                    panel.SetStatus($"{detected} → {target} · 微软翻译");
-                    break;
-                }
                 case "llm":
                 {
                     panel.SetStatus($"→ {target} · {_host.Llm.ModelName}");
@@ -128,29 +119,6 @@ public sealed class TranslatePlugin : IPopBarPlugin
         return (sb.ToString(), detected);
     }
 
-    private async Task<(string Text, string Detected)> MicrosoftAsync(string text, string target, CancellationToken ct)
-    {
-        if (_msToken == null || DateTime.UtcNow - _msTokenAt > TimeSpan.FromMinutes(8))
-        {
-            _msToken = (await _host.Http.GetStringAsync("https://edge.microsoft.com/translate/auth", ct)).Trim();
-            _msTokenAt = DateTime.UtcNow;
-        }
-        var to = target.Equals("zh-CN", StringComparison.OrdinalIgnoreCase) ? "zh-Hans" : target;
-        using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api-edge.cognitive.microsofttranslator.com/translate?api-version=3.0&to={Uri.EscapeDataString(to)}")
-        {
-            Content = new StringContent(JsonSerializer.Serialize(new[] { new { Text = text } }), Encoding.UTF8, "application/json"),
-        };
-        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _msToken);
-        using var resp = await _host.Http.SendAsync(req, ct);
-        if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) { _msToken = null; }
-        resp.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-        var first = doc.RootElement[0];
-        string detected = first.TryGetProperty("detectedLanguage", out var dl) && dl.TryGetProperty("language", out var l) ? l.GetString() ?? "auto" : "auto";
-        var translated = first.GetProperty("translations")[0].GetProperty("text").GetString() ?? "";
-        return (translated, detected);
-    }
-
     // ------------------------------------------------------------------ settings
 
     public FrameworkElement? CreateSettingsView()
@@ -158,7 +126,7 @@ public sealed class TranslatePlugin : IPopBarPlugin
         void Save() => _host.Storage.Set(_cfg);
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("microsoft", "微软翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, _cfg.Provider, v => { _cfg.Provider = v; Save(); }, 260), "Google 在国内需要代理；微软接口直连可用"),
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, _cfg.Provider, v => { _cfg.Provider = v; Save(); }, 260), "Google 走系统代理，国内需要代理"),
                 Form.Row("目标语言", Form.TextBox(_cfg.TargetLang, 120, v => { _cfg.TargetLang = v.Trim(); Save(); }), "如 zh-CN、en、ja"),
                 Form.Row("备用语言", Form.TextBox(_cfg.AltLang, 120, v => { _cfg.AltLang = v.Trim(); Save(); }), "选中内容已经是目标语言时，改译成这种语言")
             ));

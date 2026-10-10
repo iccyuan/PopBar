@@ -3,6 +3,7 @@
 
     <!-- Palette defaults (light). ThemeManager overwrites these keys at runtime; everything binds with DynamicResource. -->
     <SolidColorBrush x:Key="BgBrush" Color="#F5F6FA"/>
+    <SolidColorBrush x:Key="WindowBgBrush" Color="#F5F6FA"/>
     <SolidColorBrush x:Key="NavBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#E5E7EB"/>

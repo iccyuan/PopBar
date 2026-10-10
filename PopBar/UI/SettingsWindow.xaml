@@ -4,19 +4,23 @@
         xmlns:ui="clr-namespace:PopBar.UI"
         Title="PopBar 设置" Width="880" Height="660" MinWidth="720" MinHeight="480"
         WindowStartupLocation="CenterScreen"
-        Background="{DynamicResource BgBrush}"
+        Background="{DynamicResource WindowBgBrush}"
         FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display">
+    <!-- Glass frame over the whole window so Mica shows through; DWM still draws the caption buttons. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="True"/>
+    </WindowChrome.WindowChrome>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- nav -->
+        <!-- nav (its top 44px doubles as the draggable title area) -->
         <Border Grid.Column="0" Background="{DynamicResource NavBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
-            <DockPanel Margin="12,20,12,16">
+            <DockPanel Margin="12,44,12,16">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,0,0,22">
                     <Border Width="34" Height="34" CornerRadius="9" VerticalAlignment="Center">
                         <Border.Background>
@@ -43,8 +47,11 @@
             </DockPanel>
         </Border>
 
+        <!-- window title drawn by us (DWM only draws the caption buttons when the frame is extended) -->
+        <TextBlock Grid.Column="0" Text="PopBar 设置" Style="{StaticResource Muted}" Margin="22,13,0,0" VerticalAlignment="Top" IsHitTestVisible="False"/>
+
         <!-- content -->
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="32,26,32,32">
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="32,26,32,32" Margin="0,44,0,0">
             <Grid>
                 <!-- ===== General ===== -->
                 <StackPanel x:Name="PanelGeneral">

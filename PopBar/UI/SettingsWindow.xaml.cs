@@ -97,7 +97,7 @@ public partial class SettingsWindow : Window
             new("dark", "深色"),
             new("light", "浅色"),
         };
-        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Mica, ThemeManager.IsDark, roundCorners: true);
         ThemeManager.Changed += OnThemeChanged;
         Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
         ActionsList.ItemsSource = _rows;
@@ -287,7 +287,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnThemeChanged(string effective) => Dispatcher.InvokeAsync(() => ThemeManager.ApplyTitleBar(this));
+    private void OnThemeChanged(string effective) => Dispatcher.InvokeAsync(() => Acrylic.SetDark(this, ThemeManager.IsDark));
 
     private void OpenRepo_Click(object sender, RoutedEventArgs e)
     {
