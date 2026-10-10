@@ -13,7 +13,7 @@ namespace PopBar.Plugins.Builtin.Screenshot;
 
 /// <summary>
 /// An image pinned on top of everything (Snipaste "贴图"): drag to move, wheel to zoom, Ctrl+wheel for opacity,
-/// double-click or Esc to close, hover strip and right-click menu for copy / save / original size / close.
+/// double-click or Esc to close, right-click menu for copy / save / original size / close.
 /// </summary>
 internal sealed class PinWindow : Window
 {
@@ -28,7 +28,6 @@ internal sealed class PinWindow : Window
     private readonly Grid _stage = new();
     private readonly Border _shadow = new();
     private readonly Border _ring = new() { BorderThickness = new Thickness(1.5), CornerRadius = new CornerRadius(Radius), IsHitTestVisible = false, Opacity = 0 };
-    private readonly Border _bar = new() { CornerRadius = new CornerRadius(8), Background = Glass, Padding = new Thickness(3), Margin = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Opacity = 0, IsHitTestVisible = false };
     private readonly Border _zoomTag = new() { CornerRadius = new CornerRadius(11), Padding = new Thickness(10, 3, 10, 4), Background = Glass, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8), Opacity = 0, IsHitTestVisible = false };
     private readonly TextBlock _zoomText = new() { Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Medium };
     private readonly System.Windows.Threading.DispatcherTimer _tagTimer = new() { Interval = TimeSpan.FromMilliseconds(900) };
@@ -60,14 +59,12 @@ internal sealed class PinWindow : Window
         _shadow.Effect = new DropShadowEffect { BlurRadius = 24, ShadowDepth = 4, Direction = 270, Opacity = 0.32 };
         _ring.BorderBrush = (Brush?)Application.Current?.TryFindResource("AccentBrush") ?? Brushes.DodgerBlue;
         _zoomTag.Child = _zoomText;
-        BuildBar();
 
         _stage.Margin = new Thickness(Shadow);
         _stage.Children.Add(_shadow);
         _stage.Children.Add(_view);
         _stage.Children.Add(new Border { CornerRadius = new CornerRadius(Radius), BorderThickness = new Thickness(1), BorderBrush = Frozen(Color.FromArgb(40, 0, 0, 0)), IsHitTestVisible = false });
         _stage.Children.Add(_ring);
-        _stage.Children.Add(_bar);
         _stage.Children.Add(_zoomTag);
         Content = _stage;
 
@@ -109,36 +106,7 @@ internal sealed class PinWindow : Window
 
     private static Brush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
 
-    /// <summary>Floating action strip shown on hover (top-right, dark glass so it reads over any image).</summary>
-    private void BuildBar()
-    {
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(BarButton("copy", "复制  Ctrl+C", Copy));
-        row.Children.Add(BarButton("download", "另存为  Ctrl+S", Save));
-        row.Children.Add(BarButton("x", "销毁  Esc", Close));
-        _bar.Child = row;
-    }
-
-    private Button BarButton(string icon, string tip, Action click)
-    {
-        var plate = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(6), Background = Brushes.Transparent, Child = _host.Ui.Icon(icon, 15, Brushes.White) };
-        var t = new ControlTemplate(typeof(Button)) { VisualTree = new FrameworkElementFactory(typeof(ContentPresenter)) };
-        var b = new Button { Template = t, Content = plate, ToolTip = tip, Focusable = false, Cursor = Cursors.Hand };
-        var hover = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
-        b.MouseEnter += (_, _) => plate.Background = hover;
-        b.MouseLeave += (_, _) => plate.Background = Brushes.Transparent;
-        b.Click += (_, _) => click();
-        return b;
-    }
-
-    private void SetHover(bool on)
-    {
-        Fade(_ring, on ? 1 : 0, 140);
-        // Hide the strip when the image is too small to host it without covering everything.
-        bool bar = on && _view.Width >= 130 && _view.Height >= 56;
-        _bar.IsHitTestVisible = bar;
-        Fade(_bar, bar ? 1 : 0, 140);
-    }
+    private void SetHover(bool on) => Fade(_ring, on ? 1 : 0, 140);
 
     private static void Fade(UIElement e, double to, int ms) =>
         e.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = new QuadraticEase() });
