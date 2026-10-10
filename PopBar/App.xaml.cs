@@ -39,6 +39,15 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Build-time helper: regenerate Assets/popbar.ico from the vector logo (tools/make-icon.ps1).
+        int ei = Array.IndexOf(e.Args, "--export-icon");
+        if (ei >= 0 && ei + 1 < e.Args.Length)
+        {
+            File.WriteAllBytes(e.Args[ei + 1], UI.LogoArt.BuildIco());
+            Shutdown();
+            return;
+        }
+
         _mutex = new Mutex(true, MutexName, out bool createdNew);
         if (!createdNew)
         {
@@ -146,8 +155,8 @@ public partial class App : Application
     {
         try
         {
-            var res = GetResourceStream(new Uri("pack://application:,,,/Assets/popbar.ico"));
-            if (res != null) return new System.Drawing.Icon(res.Stream);
+            using var ms = new MemoryStream(UI.LogoArt.BuildIco());
+            return new System.Drawing.Icon(ms, WinForms.SystemInformation.SmallIconSize);
         }
         catch (Exception ex) { Log.Warn("tray icon fallback: " + ex.Message); }
         return System.Drawing.SystemIcons.Application;
