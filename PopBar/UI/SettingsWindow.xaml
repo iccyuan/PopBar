@@ -7,7 +7,7 @@
         Background="{DynamicResource WindowBgBrush}"
         FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True"
-        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale">
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <!-- Glass frame over the whole window so Mica shows through; DWM still draws the caption buttons. -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="True"/>
@@ -19,7 +19,7 @@
         </Grid.ColumnDefinitions>
 
         <!-- nav (its top 44px doubles as the draggable title area) -->
-        <Border Grid.Column="0" Background="{DynamicResource NavBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+        <Border Grid.Column="0" Background="{DynamicResource NavBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0" RenderOptions.ClearTypeHint="Enabled">
             <DockPanel Margin="12,44,12,16">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,0,0,22">
                     <Border Width="34" Height="34" CornerRadius="9" VerticalAlignment="Center">

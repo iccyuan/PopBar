@@ -52,6 +52,8 @@
     <!-- ===== card ===== -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+        <!-- opaque surface + hint = real ClearType text even inside a Mica/layered window -->
+        <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="12"/>

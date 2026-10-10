@@ -7,7 +7,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="True"
         ResizeMode="NoResize" SizeToContent="Height" Width="440"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale"
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType"
         FontFamily="Segoe UI, Microsoft YaHei UI">
     <Window.Resources>
         <SolidColorBrush x:Key="PBg" Color="#CCFFFFFF"/>
@@ -62,7 +62,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="Root" Margin="14">
+    <Grid x:Name="Root" Margin="14" RenderOptions.ClearTypeHint="Enabled">
         <!-- shadow caster: hidden under the opaque glass snapshot, only its shadow shows -->
         <Border x:Name="Shadow" CornerRadius="12" Background="#FF1E232D">
             <Border.Effect>

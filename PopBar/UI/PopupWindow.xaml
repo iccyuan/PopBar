@@ -13,7 +13,7 @@
         SizeToContent="WidthAndHeight"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale">
+        TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Window.Resources>
         <SolidColorBrush x:Key="BarBrush" Color="#E0FFFFFF"/>
         <SolidColorBrush x:Key="BarFgBrush" Color="#1F2937"/>
@@ -71,7 +71,7 @@
     </Window.Resources>
 
     <!-- 16px margin reserves room for the soft shadow (layered window: we draw our own). -->
-    <Grid x:Name="Root" Margin="16" Opacity="0" RenderTransformOrigin="0.5,1">
+    <Grid x:Name="Root" Margin="16" Opacity="0" RenderTransformOrigin="0.5,1" RenderOptions.ClearTypeHint="Enabled">
         <Grid.RenderTransform>
             <TransformGroup>
                 <ScaleTransform x:Name="Zoom" ScaleX="0.96" ScaleY="0.96"/>
