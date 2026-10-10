@@ -189,23 +189,11 @@ public partial class PopupWindow : Window
                 });
             }
 
-            const double iconPx = 17;
-            var canvas = new Canvas
-            {
-                Width = 24, Height = 24,
-                LayoutTransform = new ScaleTransform(iconPx / 24, iconPx / 24),
-            };
-            canvas.Children.Add(new Path
-            {
-                Data = Icons.Get(a.Icon),
-                Stroke = fg, StrokeThickness = 1.9,
-                StrokeLineJoin = PenLineJoin.Round,
-                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-                Stretch = Stretch.None,
-            });
+            // 16 DIP = 24 px at 150 % DPI, i.e. the icon's native grid: pixel-crisp strokes.
+            var icon = new IconImage { Icon = a.Icon, Size = 16, Brush = fg, Thickness = 1.9, VerticalAlignment = VerticalAlignment.Center };
 
             var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(canvas);
+            content.Children.Add(icon);
             if (showLabels && !string.IsNullOrWhiteSpace(a.Label))
             {
                 content.Children.Add(new TextBlock

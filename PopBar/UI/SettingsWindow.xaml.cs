@@ -66,7 +66,11 @@ public partial class SettingsWindow : Window
     private readonly ObservableCollection<ActionRow> _rows = new();
     private readonly DispatcherTimer _saveTimer;
     private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _excluded = new();
+    private readonly List<string> _noClip = new();
     private bool _loading;
+
+    private sealed record AppPick(string Exe, string Label);
 
     internal SettingsWindow(ConfigStore store, Plugins.PluginManager plugins, Sdk.ILlmService llm)
     {
@@ -152,8 +156,9 @@ public partial class SettingsWindow : Window
             LabelsSw.IsChecked = c.ShowLabels;
             BlurSlider.Value = Math.Clamp(c.BlurOpacity, 40, 100);
             BlurValueText.Text = $"{(int)BlurSlider.Value}%";
-            ExcludedBox.Text = string.Join(Environment.NewLine, c.ExcludedApps);
-            NoClipBox.Text = string.Join(Environment.NewLine, c.NoClipboardApps);
+            _excluded.Clear(); _excluded.AddRange(c.ExcludedApps);
+            _noClip.Clear(); _noClip.AddRange(c.NoClipboardApps);
+            RenderAppLists();
 
             LlmProtocolCombo.SelectedValue = c.Llm.Protocol;
             if (LlmProtocolCombo.SelectedIndex < 0) LlmProtocolCombo.SelectedIndex = 0;
@@ -186,8 +191,8 @@ public partial class SettingsWindow : Window
             Theme = ThemeCombo.SelectedValue as string ?? "dark",
             ShowLabels = LabelsSw.IsChecked == true,
             BlurOpacity = (int)BlurSlider.Value,
-            ExcludedApps = Lines(ExcludedBox.Text),
-            NoClipboardApps = Lines(NoClipBox.Text),
+            ExcludedApps = _excluded.ToList(),
+            NoClipboardApps = _noClip.ToList(),
             Actions = _rows.Select(r => r.Def.Clone()).ToList(),
             DisabledPlugins = _disabledPlugins.ToList(),
             Llm = new LlmConfig
@@ -245,6 +250,7 @@ public partial class SettingsWindow : Window
         if (PanelGeneral == null) return;
         PanelGeneral.Visibility = NavGeneral.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelActions.Visibility = NavActions.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PanelApps.Visibility = NavApps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -271,13 +277,8 @@ public partial class SettingsWindow : Window
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "sendto" => "external-link", _ => "puzzle" };
-            var iconCanvas = new Canvas { Width = 24, Height = 24, LayoutTransform = new ScaleTransform(0.75, 0.75) };
-            iconCanvas.Children.Add(new System.Windows.Shapes.Path
-            {
-                Data = Icons.Get(iconName), Stroke = (Brush)FindResource("AccentHoverBrush"), StrokeThickness = 2,
-                StrokeLineJoin = PenLineJoin.Round, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-            });
-            var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconCanvas, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
+            var iconImg = new IconImage { Icon = iconName, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
             head.Children.Add(iconBox);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(info, 1);
@@ -316,6 +317,88 @@ public partial class SettingsWindow : Window
         try { Process.Start(new ProcessStartInfo("https://github.com/iccyuan/PopBar") { UseShellExecute = true }); }
         catch (Exception ex) { Log.Error("open repo", ex); }
     }
+
+    // ------------------------------------------------------------------ apps page
+
+    private void RenderAppLists()
+    {
+        RenderAppList(ExcludedList, _excluded);
+        RenderAppList(NoClipList, _noClip);
+    }
+
+    private void RenderAppList(StackPanel host, List<string> items)
+    {
+        host.Children.Clear();
+        if (items.Count == 0)
+        {
+            host.Children.Add(new TextBlock { Text = "（空）", Style = (Style)FindResource("Muted"), Margin = new Thickness(2, 0, 0, 4) });
+            return;
+        }
+        foreach (var exe in items)
+        {
+            var name = exe;
+            var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var icon = new IconImage { Icon = "app-window", Size = 15, Brush = (Brush)FindResource("MutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 10, 0) };
+            row.Children.Add(icon);
+            var label = new TextBlock { Text = name, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(label, 1);
+            row.Children.Add(label);
+            var del = new Button { Style = (Style)FindResource("IconButton"), ToolTip = "移除", Content = new IconImage { Icon = "x", Size = 13, Brush = (Brush)FindResource("MutedBrush") } };
+            del.Click += (s, e) => { items.Remove(name); RenderAppLists(); Changed(s, e); };
+            Grid.SetColumn(del, 2);
+            row.Children.Add(del);
+            var chip = new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(12, 6, 6, 6), Margin = new Thickness(0, 0, 0, 6), Child = row };
+            chip.CornerRadius = new CornerRadius(9);
+            row.Margin = new Thickness(0);
+            host.Children.Add(chip);
+        }
+    }
+
+    /// <summary>Fill the picker with the processes that currently own a visible window.</summary>
+    private void ProcessPick_Opened(object sender, EventArgs e)
+    {
+        if (sender is not ComboBox combo) return;
+        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Native.NativeMethods.EnumWindows((h, _) =>
+        {
+            if (!Native.NativeMethods.IsWindowVisible(h)) return true;
+            var title = Native.NativeMethods.GetWindowTitle(h);
+            if (string.IsNullOrWhiteSpace(title)) return true;
+            var exe = Native.NativeMethods.GetWindowProcessName(h);
+            if (exe.Length == 0 || exe.Equals("PopBar.exe", StringComparison.OrdinalIgnoreCase)) return true;
+            if (!seen.ContainsKey(exe)) seen[exe] = title.Length > 40 ? title[..40] + "…" : title;
+            return true;
+        }, IntPtr.Zero);
+        combo.ItemsSource = seen.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).Select(k => new AppPick(k.Key, $"{k.Key}  —  {k.Value}")).ToList();
+    }
+
+    private void AddApp(ComboBox picker, List<string> list)
+    {
+        var exe = (picker.SelectedItem as AppPick)?.Exe ?? (picker.Text ?? "").Trim();
+        if (exe.Length == 0) return;
+        if (!list.Contains(exe, StringComparer.OrdinalIgnoreCase)) list.Add(exe);
+        picker.SelectedItem = null;
+        RenderAppLists();
+        Changed(picker, new RoutedEventArgs());
+    }
+
+    private void BrowseApp(List<string> list)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "程序 (*.exe)|*.exe", Title = "选择程序" };
+        if (dlg.ShowDialog(this) != true) return;
+        var exe = System.IO.Path.GetFileName(dlg.FileName);
+        if (!list.Contains(exe, StringComparer.OrdinalIgnoreCase)) list.Add(exe);
+        RenderAppLists();
+        Changed(this, new RoutedEventArgs());
+    }
+
+    private void AddExcluded_Click(object sender, RoutedEventArgs e) => AddApp(ExcludedPick, _excluded);
+    private void AddNoClip_Click(object sender, RoutedEventArgs e) => AddApp(NoClipPick, _noClip);
+    private void BrowseExcluded_Click(object sender, RoutedEventArgs e) => BrowseApp(_excluded);
+    private void BrowseNoClip_Click(object sender, RoutedEventArgs e) => BrowseApp(_noClip);
 
     private void ShowMode_Changed(object sender, RoutedEventArgs e)
     {

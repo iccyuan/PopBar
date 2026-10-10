@@ -7,7 +7,7 @@
         Background="{DynamicResource WindowBgBrush}"
         FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True"
-        TextOptions.TextFormattingMode="Display">
+        TextOptions.TextFormattingMode="Ideal">
     <!-- Glass frame over the whole window so Mica shows through; DWM still draws the caption buttons. -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="True"/>
@@ -29,8 +29,7 @@
                                 <GradientStop Color="#8B5CF6" Offset="1"/>
                             </LinearGradientBrush>
                         </Border.Background>
-                        <Path Data="{x:Static ui:Icons.MousePointer}" Stroke="White" StrokeThickness="2" Width="16" Height="16" Stretch="Uniform"
-                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                        <ui:IconImage Icon="mouse-pointer" Size="17" Brush="White"/>
                     </Border>
                     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="PopBar" FontSize="17" FontWeight="Bold"/>
@@ -38,10 +37,11 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Top">
-                    <RadioButton x:Name="NavGeneral" Style="{StaticResource NavItem}" Content="通用" Tag="{x:Static ui:Icons.SlidersGeometry}" IsChecked="True" Checked="Nav_Checked"/>
-                    <RadioButton x:Name="NavActions" Style="{StaticResource NavItem}" Content="动作" Tag="{x:Static ui:Icons.ZapGeometry}" Checked="Nav_Checked"/>
-                    <RadioButton x:Name="NavPlugins" Style="{StaticResource NavItem}" Content="插件" Tag="{x:Static ui:Icons.PuzzleGeometry}" Checked="Nav_Checked"/>
-                    <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="关于" Tag="{x:Static ui:Icons.InfoGeometry}" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavGeneral" Style="{StaticResource NavItem}" Content="通用" Tag="sliders" IsChecked="True" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavActions" Style="{StaticResource NavItem}" Content="动作" Tag="zap" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavApps" Style="{StaticResource NavItem}" Content="应用" Tag="app-window" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavPlugins" Style="{StaticResource NavItem}" Content="插件" Tag="puzzle" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="关于" Tag="info" Checked="Nav_Checked"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Style="{StaticResource Muted}" Margin="10,0,0,0" Text=""/>
             </DockPanel>
@@ -174,15 +174,36 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Style="{StaticResource H2}" Text="应用例外"/>
+                </StackPanel>
+
+                <!-- ===== Apps ===== -->
+                <StackPanel x:Name="PanelApps" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource H1}" Text="应用"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="从正在运行的程序里选，或浏览选择 exe 文件；按进程名匹配。"/>
+
+                    <TextBlock Style="{StaticResource H2}" Text="排除的应用" Margin="4,0,0,8"/>
                     <Border Style="{StaticResource Card}" Padding="18,14">
                         <StackPanel>
-                            <TextBlock Text="排除的应用（每行一个进程名，如 game.exe，PopBar 在这些程序里完全不弹出）"/>
-                            <TextBox x:Name="ExcludedBox" Margin="0,8,0,14" MinHeight="70" AcceptsReturn="True" TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" TextChanged="Changed"/>
-                            <TextBlock Text="禁用剪贴板回退的应用（Ctrl+C 有副作用的程序，如终端、远程桌面）"/>
-                            <TextBox x:Name="NoClipBox" Margin="0,8,0,4" MinHeight="70" AcceptsReturn="True" TextWrapping="Wrap"
-                                     VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top" TextChanged="Changed"/>
+                            <TextBlock Style="{StaticResource Muted}" Text="PopBar 在这些程序里完全不弹出（游戏、设计软件、远程桌面等）" Margin="0,0,0,10"/>
+                            <StackPanel x:Name="ExcludedList"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ComboBox x:Name="ExcludedPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
+                                <Button Content="添加" Margin="8,0,0,0" Click="AddExcluded_Click"/>
+                                <Button Content="浏览 exe…" Margin="8,0,0,0" Click="BrowseExcluded_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource H2}" Text="禁用剪贴板回退的应用"/>
+                    <Border Style="{StaticResource Card}" Padding="18,14">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource Muted}" Text="Ctrl+C 有副作用的程序（终端、远程桌面、虚拟机），这些程序里只用 UI Automation 取词" Margin="0,0,0,10"/>
+                            <StackPanel x:Name="NoClipList"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <ComboBox x:Name="NoClipPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
+                                <Button Content="添加" Margin="8,0,0,0" Click="AddNoClip_Click"/>
+                                <Button Content="浏览 exe…" Margin="8,0,0,0" Click="BrowseNoClip_Click"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -210,13 +231,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Width="36" Height="36" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
-                                            <Canvas Width="24" Height="24">
-                                                <Canvas.LayoutTransform>
-                                                    <ScaleTransform ScaleX="0.75" ScaleY="0.75"/>
-                                                </Canvas.LayoutTransform>
-                                                <Path Data="{Binding IconGeometry}" Stroke="{DynamicResource AccentHoverBrush}" StrokeThickness="2"
-                                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                                            </Canvas>
+                                            <ui:IconImage Icon="{Binding Def.Icon}" Size="18" Brush="{DynamicResource AccentHoverBrush}"/>
                                         </Border>
                                         <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
@@ -224,16 +239,16 @@
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                                             <Button Style="{StaticResource IconButton}" ToolTip="上移" Click="MoveUp_Click">
-                                                <Path Data="{x:Static ui:Icons.ArrowUp}" Stroke="{DynamicResource MutedBrush}" StrokeThickness="2" Stretch="Uniform" Width="14" Height="14" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                <ui:IconImage Icon="arrow-up" Size="14" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
                                             <Button Style="{StaticResource IconButton}" ToolTip="下移" Click="MoveDown_Click">
-                                                <Path Data="{x:Static ui:Icons.ArrowDown}" Stroke="{DynamicResource MutedBrush}" StrokeThickness="2" Stretch="Uniform" Width="14" Height="14" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                <ui:IconImage Icon="arrow-down" Size="14" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
                                             <Button Style="{StaticResource IconButton}" ToolTip="编辑" Click="EditAction_Click" Visibility="{Binding EditVisibility}">
-                                                <Path Data="{x:Static ui:Icons.Pencil}" Stroke="{DynamicResource MutedBrush}" StrokeThickness="2" Stretch="Uniform" Width="14" Height="14" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                <ui:IconImage Icon="pencil" Size="14" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
                                             <Button Style="{StaticResource IconButton}" ToolTip="删除" Click="DeleteAction_Click">
-                                                <Path Data="{x:Static ui:Icons.Trash}" Stroke="{DynamicResource DangerBrush}" StrokeThickness="2" Stretch="Uniform" Width="14" Height="14" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                                <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
                                             </Button>
                                         </StackPanel>
                                         <CheckBox Grid.Column="3" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>

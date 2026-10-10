@@ -35,7 +35,7 @@ public partial class PanelWindow : Window, IPanel
         Width = opt.Width;
         ApplyTheme(theme);
         TitleText.Text = opt.Title;
-        TitleIcon.Data = Icons.Get(opt.Icon);
+        TitleIcon.Icon = opt.Icon;
         if (!string.IsNullOrWhiteSpace(opt.Source))
         {
             SourceText.Text = opt.Source.Trim();
@@ -202,7 +202,7 @@ public partial class PanelWindow : Window, IPanel
     private void Pin_Click(object sender, RoutedEventArgs e)
     {
         _pinned = !_pinned;
-        PinIcon.Stroke = _pinned ? (Brush)Resources["PAccent"] : (Brush)Resources["PMuted"];
+        PinIcon.Brush = _pinned ? (Brush)Resources["PAccent"] : (Brush)Resources["PMuted"];
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();

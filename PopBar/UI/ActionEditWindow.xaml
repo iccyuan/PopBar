@@ -1,10 +1,11 @@
 <Window x:Class="PopBar.UI.ActionEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:PopBar.UI"
         Title="编辑动作" Width="560" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="{DynamicResource WindowBgBrush}" FontFamily="{StaticResource UiFont}"
-        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="40" GlassFrameThickness="-1" ResizeBorderThickness="0" CornerRadius="0" UseAeroCaptionButtons="True"/>
     </WindowChrome.WindowChrome>
@@ -33,13 +34,7 @@
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
-                                <Canvas Width="24" Height="24" Margin="0,0,8,0">
-                                    <Canvas.LayoutTransform>
-                                        <ScaleTransform ScaleX="0.7" ScaleY="0.7"/>
-                                    </Canvas.LayoutTransform>
-                                    <Path Data="{Binding Geometry}" Stroke="{DynamicResource TextBrush}" StrokeThickness="2"
-                                          StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                                </Canvas>
+                                <ui:IconImage Icon="{Binding Name}" Size="16" Brush="{DynamicResource TextBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </DataTemplate>

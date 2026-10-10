@@ -73,7 +73,7 @@ public static class Form
 
     public static TextBox TextBox(string value, double width = 260, Action<string>? onChanged = null, bool multiline = false)
     {
-        var tb = new TextBox { Text = value, Width = width, Height = multiline ? double.NaN : 32, MinHeight = multiline ? 70 : 32 };
+        var tb = new TextBox { Text = value, Width = width, MinHeight = multiline ? 70 : 34 };
         if (multiline) { tb.AcceptsReturn = true; tb.TextWrapping = TextWrapping.Wrap; tb.VerticalScrollBarVisibility = ScrollBarVisibility.Auto; tb.VerticalContentAlignment = VerticalAlignment.Top; }
         if (onChanged != null) tb.TextChanged += (_, _) => onChanged(tb.Text);
         return tb;
@@ -81,7 +81,7 @@ public static class Form
 
     public static PasswordBox Password(string value, double width = 260, Action<string>? onChanged = null)
     {
-        var pb = new PasswordBox { Password = value, Width = width, Height = 32, Padding = new Thickness(8, 6, 8, 6), VerticalContentAlignment = VerticalAlignment.Center };
+        var pb = new PasswordBox { Password = value, Width = width, MinHeight = 34 };
         if (onChanged != null) pb.PasswordChanged += (_, _) => onChanged(pb.Password);
         return pb;
     }

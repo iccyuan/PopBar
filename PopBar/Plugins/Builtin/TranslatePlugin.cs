@@ -23,7 +23,7 @@ public sealed class TranslatePlugin : IPopBarPlugin
 
     public string Id => "translate";
     public string Name => "翻译";
-    public string Description => "在悬浮面板里直接显示译文；支持 Google / 微软免费接口或 AI 模型。";
+    public string Description => "在悬浮面板里直接显示译文；可用 Google 免费接口或你配置的 AI 模型。";
     public Version Version => new(0, 2, 0);
 
     public void Initialize(IPluginHost host)

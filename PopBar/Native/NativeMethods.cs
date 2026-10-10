@@ -128,6 +128,16 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowTextW(IntPtr hWnd, [Out] char[] lpString, int nMaxCount);
+
+    public static string GetWindowTitle(IntPtr hwnd)
+    {
+        var buf = new char[512];
+        int n = GetWindowTextW(hwnd, buf, buf.Length);
+        return n > 0 ? new string(buf, 0, n) : string.Empty;
+    }
+
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")]

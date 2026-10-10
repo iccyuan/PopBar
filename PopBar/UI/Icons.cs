@@ -1,4 +1,5 @@
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PopBar.UI;
 
@@ -45,9 +46,41 @@ public static class Icons
         ["mouse-pointer"] = "M12.586 12.586 19 19 M3.688 3.037a.497.497 0 0 0-.651.651l6.5 15.999a.501.501 0 0 0 .947-.062l1.569-6.083a2 2 0 0 1 1.448-1.479l6.124-1.579a.5.5 0 0 0 .063-.947z",
         ["chevron-down"] = "M6 9l6 6 6-6",
         ["chevron-right"] = "M9 18l6-6-6-6",
+        ["pin"] = "M12 17v5 M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z",
+        ["app-window"] = "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M10 4v4 M2 8h20 M6 4v4",
     };
 
     private static readonly Dictionary<string, Geometry> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, BitmapSource> BitmapCache = new(StringComparer.Ordinal);
+
+    /// <summary>Rasterise an icon at an exact pixel size (cached). Stroke is scaled from icon units to pixels.</summary>
+    public static BitmapSource Render(string? name, int px, Color color, double thicknessUnits = 2.0)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "circle" : name;
+        var key = $"{name}|{px}|{color}|{thicknessUnits}";
+        lock (BitmapCache)
+        {
+            if (BitmapCache.TryGetValue(key, out var cached)) return cached;
+            var geo = Get(name);
+            double s = px / 24.0;
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            var pen = new Pen(brush, thicknessUnits * s) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
+            pen.Freeze();
+            var visual = new DrawingVisual();
+            using (var dc = visual.RenderOpen())
+            {
+                dc.PushTransform(new ScaleTransform(s, s));
+                dc.DrawGeometry(null, pen, geo);
+                dc.Pop();
+            }
+            var rtb = new RenderTargetBitmap(px, px, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(visual);
+            rtb.Freeze();
+            BitmapCache[key] = rtb;
+            return rtb;
+        }
+    }
 
     public static IEnumerable<string> Names => Data.Keys.OrderBy(k => k, StringComparer.Ordinal);
 
@@ -62,6 +95,7 @@ public static class Icons
     public static Geometry ZapGeometry => Get("zap");
     public static Geometry PuzzleGeometry => Get("puzzle");
     public static Geometry InfoGeometry => Get("info");
+    public static Geometry AppWindowGeometry => Get("app-window");
 
     public static Geometry Get(string? name)
     {
