@@ -49,7 +49,8 @@ public partial class PanelWindow : Window, IPanel
             SourceBox.Visibility = Visibility.Visible;
         }
         ResultBox.IsReadOnly = !opt.Editable;
-        ResultBox.MaxHeight = opt.MaxBodyHeight;
+        _collapsedMax = opt.MaxBodyHeight;
+        ResultBox.MaxHeight = _collapsedMax;
         TextArea.Visibility = opt.ShowTextArea ? Visibility.Visible : Visibility.Collapsed;
         if (opt.Pinned) { _pinned = true; PinIcon.Brush = (Brush)Resources["PAccent"]; }
         if (!opt.CloseOnOutsideClick) PinBtn.Visibility = Visibility.Collapsed;
@@ -76,6 +77,10 @@ public partial class PanelWindow : Window, IPanel
         int y = anchorY + (int)(18 * scale) - m;
         if (y + h - m > work.Bottom) y = Math.Max(work.Top - m, anchorY - h - (int)(18 * scale) + m);
         _scale = scale;
+        _work = work;
+        // 「显示全部」 may grow the body up to what the monitor can show: everything but the body plus the toggle row.
+        double body = TextArea.Visibility == Visibility.Visible ? ResultBox.DesiredSize.Height : CustomHost.DesiredSize.Height;
+        _expandedMax = Math.Max(_collapsedMax, work.Height / scale - (DesiredSize.Height - body) - 30);
         CaptureMonitorGlass(work);
         Left = x / scale; Top = y / scale; // DIP relative to the primary monitor; corrected below with SetWindowPos
         Show();
@@ -84,6 +89,51 @@ public partial class PanelWindow : Window, IPanel
         Activate();
         LocationChanged += (_, _) => UpdateGlassViewbox();
         Glass.SizeChanged += (_, _) => UpdateGlassViewbox();
+        SizeChanged += (_, e) => { if (e.HeightChanged) KeepOnScreen(); };
+    }
+
+    // ---- 「显示全部 / 收起」: the body starts at MaxBodyHeight and may grow to the monitor's height ----
+
+    private double _collapsedMax, _expandedMax = double.PositiveInfinity;
+    private bool _expanded;
+    private RECT _work;
+
+    private ScrollViewer? BodyScroller =>
+        CustomHost.Visibility == Visibility.Visible ? CustomHost.Content as ScrollViewer
+        : ResultBox.Template?.FindName("PART_ContentHost", ResultBox) as ScrollViewer;
+
+    /// <summary>Show the toggle while the body has more than fits (or is expanded, so it can be folded back).</summary>
+    private void UpdateExpandToggle()
+    {
+        if (_closed) return;
+        var sv = BodyScroller;
+        bool overflow = _expanded || (sv != null && sv.ScrollableHeight > 0.5);
+        ExpandBtn.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ScheduleExpandToggle() => Dispatcher.InvokeAsync(UpdateExpandToggle, System.Windows.Threading.DispatcherPriority.Loaded);
+
+    private void Expand_Click(object sender, RoutedEventArgs e)
+    {
+        _expanded = !_expanded;
+        double max = _expanded ? _expandedMax : _collapsedMax;
+        ResultBox.MaxHeight = max;
+        if (CustomHost.Content is ScrollViewer sv) sv.MaxHeight = max;
+        ExpandText.Text = _expanded ? "收起" : "显示全部";
+        ExpandIcon.Icon = _expanded ? "chevron-up" : "chevron-down";
+        ScheduleExpandToggle();
+    }
+
+    private void Body_SizeChanged(object sender, SizeChangedEventArgs e) => ScheduleExpandToggle();
+
+    /// <summary>After growing, slide the window up so its bottom stays inside the work area.</summary>
+    private void KeepOnScreen()
+    {
+        if (_hwnd == IntPtr.Zero || _work.Bottom == 0 || !GetWindowRect(_hwnd, out var r)) return;
+        int m = (int)Math.Round(Root.Margin.Left * _scale);
+        if (r.Bottom - m <= _work.Bottom) return;
+        int y = Math.Max(_work.Top - m, _work.Bottom - (r.Bottom - r.Top) + m);
+        SetWindowPos(_hwnd, IntPtr.Zero, r.Left, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     }
 
     private double _scale = 1;
@@ -274,9 +324,12 @@ public partial class PanelWindow : Window, IPanel
         try
         {
             var el = factory();
-            CustomHost.Content = new ScrollViewer { Content = el, MaxHeight = _opt.MaxBodyHeight, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var sv = new ScrollViewer { Content = el, MaxHeight = _expanded ? _expandedMax : _collapsedMax, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Style = (Style)FindResource("PBodyScroll") };
+            sv.ScrollChanged += (_, _) => ScheduleExpandToggle();
+            CustomHost.Content = sv;
             CustomHost.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
+            ScheduleExpandToggle();
         }
         catch (Exception ex) { Log.Error("panel SetContent", ex); }
     });
@@ -289,5 +342,5 @@ public partial class PanelWindow : Window, IPanel
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void ResultBox_TextChanged(object sender, TextChangedEventArgs e) { }
+    private void ResultBox_TextChanged(object sender, TextChangedEventArgs e) => ScheduleExpandToggle();
 }

@@ -18,6 +18,14 @@
         <SolidColorBrush x:Key="PSource" Color="#12000000"/>
         <SolidColorBrush x:Key="PAccent" Color="#3B82F6"/>
 
+        <!-- Body scrollers: keep the text clear of the overlay scrollbar, but only while the bar is actually shown. -->
+        <Style x:Key="PBodyScroll" TargetType="ScrollViewer">
+            <Style.Triggers>
+                <Trigger Property="ComputedVerticalScrollBarVisibility" Value="Visible">
+                    <Setter Property="Padding" Value="0,0,12,0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="PIconBtn" TargetType="Button">
             <Setter Property="Width" Value="28"/>
             <Setter Property="Height" Value="28"/>
@@ -131,17 +139,17 @@
                 </Border>
                 <ContentControl x:Name="CustomHost" Visibility="Collapsed" Focusable="False"/>
                 <Grid x:Name="TextArea">
-                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
+                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="260" FontSize="13.5"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
                              CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}"
                              TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" IsReadOnlyCaretVisible="True"
-                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="ResultBox_TextChanged">
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="ResultBox_TextChanged" SizeChanged="Body_SizeChanged">
                         <TextBox.Style>
                             <Style TargetType="TextBox">
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="TextBox">
-                                            <ScrollViewer x:Name="PART_ContentHost" Background="Transparent"/>
+                                            <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" Style="{StaticResource PBodyScroll}"/>
                                         </ControlTemplate>
                                     </Setter.Value>
                                 </Setter>
@@ -149,6 +157,26 @@
                         </TextBox.Style>
                     </TextBox>
                 </Grid>
+                <!-- shown only when the body overflows its default height -->
+                <Button x:Name="ExpandBtn" Visibility="Collapsed" Click="Expand_Click" HorizontalAlignment="Center" Margin="0,6,0,-4"
+                        Cursor="Hand" Focusable="False" Padding="10,3">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" CornerRadius="6" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ExpandText" Text="显示全部" FontSize="12" Foreground="{DynamicResource PAccent}" VerticalAlignment="Center"/>
+                        <ui:IconImage x:Name="ExpandIcon" Icon="chevron-down" Size="13" Brush="{DynamicResource PAccent}" Margin="3,1,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
                 <!-- failures stand out instead of hiding in the grey status line -->
                 <Border x:Name="ErrorBox" CornerRadius="8" Background="{DynamicResource PErrBg}" Padding="10,8" Margin="0,4,0,2" Visibility="Collapsed">
                     <DockPanel>

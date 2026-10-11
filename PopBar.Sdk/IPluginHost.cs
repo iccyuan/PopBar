@@ -101,6 +101,9 @@ public sealed class PanelOptions
     public bool Pinned { get; init; }
     /// <summary>Show the built-in text result area. Set false when you supply your own content via <see cref="IPanel.SetContent"/>.</summary>
     public bool ShowTextArea { get; init; } = true;
-    /// <summary>Maximum height of the body before it scrolls (DIP).</summary>
-    public double MaxBodyHeight { get; init; } = 420;
+    /// <summary>
+    /// Body height (DIP) shown by default. Longer content scrolls inside it and the panel offers 「显示全部」, which
+    /// lets the body grow as far as the monitor allows (and scroll beyond that).
+    /// </summary>
+    public double MaxBodyHeight { get; init; } = 260;
 }

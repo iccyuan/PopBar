@@ -117,7 +117,7 @@ public sealed class HelloPlugin : IPopBarPlugin
 
 2. 把编译出的 DLL 放到 `%AppData%\PopBar\plugins\<任意目录名>\`，重启 PopBar。新动作会自动出现在「动作」页，顺序和启用状态由用户控制。
 
-`IPluginHost` 提供：日志、每插件 JSON 存储、共享 `HttpClient`、`ILlmService`（流式）、浮动面板 `ShowPanel`（标题标签 `Badge`、`SetError` 醒目报错、进度指示）、`ShowPopup`（为任意文本弹操作栏）、`CaptureScreenRegionAsync`（框选截图）、剪贴板 / 粘贴 / 激活窗口、全局热键、托盘菜单项（可带图标）、`RunActionAsync`（调用其他动作，如 `"translate:panel"`）、`RefreshActions`（动作列表变化后即时同步到操作条）、`Services`（插件间共享能力：内置翻译提供 `ITextTranslator`，OCR 提供带行坐标的 `IOcrEngine`，按类型取用，不必互相引用）、`Settings`（设置草稿，见下表）。`PluginAction` 可声明 `Description`、`EnabledByDefault`、`Group`（同组动作在操作条上合并成一个按钮）。`IHostUi` 提供和设置页同款的控件与对话框（按键录制、运行中程序、图标、文件 / 文件夹 / 保存对话框、确认框）；`PopBar.Sdk.Ui.Form` 是表单助手，`Ui.CodeView.Json` 是带高亮的只读代码块，`Ui.Shortcut` 解析用户配置的窗口内快捷键。
+`IPluginHost` 提供：日志、每插件 JSON 存储、共享 `HttpClient`、`ILlmService`（流式）、浮动面板 `ShowPanel`（标题标签 `Badge`、`SetError` 醒目报错、进度指示；正文默认最高 `MaxBodyHeight`，超出时出现「显示全部」）、`ShowPopup`（为任意文本弹操作栏）、`CaptureScreenRegionAsync`（框选截图）、剪贴板 / 粘贴 / 激活窗口、全局热键、托盘菜单项（可带图标）、`RunActionAsync`（调用其他动作，如 `"translate:panel"`）、`RefreshActions`（动作列表变化后即时同步到操作条）、`Services`（插件间共享能力：内置翻译提供 `ITextTranslator`，OCR 提供带行坐标的 `IOcrEngine`，按类型取用，不必互相引用）、`Settings`（设置草稿，见下表）。`PluginAction` 可声明 `Description`、`EnabledByDefault`、`Group`（同组动作在操作条上合并成一个按钮）。`IHostUi` 提供和设置页同款的控件与对话框（按键录制、运行中程序、图标、文件 / 文件夹 / 保存对话框、确认框）；`PopBar.Sdk.Ui.Form` 是表单助手，`Ui.CodeView.Json` 是带高亮的只读代码块，`Ui.Shortcut` 解析用户配置的窗口内快捷键。
 
 第三方插件在独立的 `AssemblyLoadContext` 里加载，只与宿主共享 `PopBar.Sdk`；其他依赖随 DLL 一起放。
 
