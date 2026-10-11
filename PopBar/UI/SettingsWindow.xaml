@@ -232,7 +232,7 @@
                                         </Border>
                                         <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                            <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                                             <Button Style="{StaticResource IconButton}" ToolTip="编辑" Click="EditAction_Click" Visibility="{Binding EditVisibility}">
@@ -266,7 +266,7 @@
                                             </Border>
                                             <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
-                                                <TextBlock Text="{Binding Note}" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                                <TextBlock Text="{Binding Note}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             </StackPanel>
                                             <Border Grid.Column="3" CornerRadius="10" Padding="9,2,9,3" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource AccentHoverBrush}"/>
@@ -277,7 +277,7 @@
                                             <ItemsControl ItemsSource="{Binding Members}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Grid Margin="0,2,0,2" Opacity="{Binding DragOpacity}" Background="Transparent">
+                                                        <Grid Margin="0,4,0,4" Opacity="{Binding DragOpacity}" Background="Transparent">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="Auto"/>
@@ -295,7 +295,7 @@
                                                             </Border>
                                                             <StackPanel Grid.Column="3" Margin="12,0,0,0" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding Label}"/>
-                                                                <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                                                                <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                                             </StackPanel>
                                                             <Button Grid.Column="4" Style="{StaticResource IconButton}" ToolTip="删除" Click="DeleteAction_Click" VerticalAlignment="Center" Margin="8,0">
                                                                 <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
