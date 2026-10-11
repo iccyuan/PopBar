@@ -53,8 +53,8 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
-        host.AddTrayMenuItem("capture", "截图", Capture);
-        host.AddTrayMenuItem("pin", "贴图（剪贴板）", PinClipboard);
+        host.AddTrayMenuItem("capture", "截图", Capture, "crop");
+        host.AddTrayMenuItem("pin", "贴图（剪贴板）", PinClipboard, "pin");
         RegisterHotkeys();
     }
 
@@ -192,11 +192,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
         var ui = _host.Ui;
 
         var dirBox = Form.TextBox(string.IsNullOrWhiteSpace(d.SaveDir) ? DefaultSaveDir : d.SaveDir, 260, v => { d.SaveDir = v.Trim(); Changed(); });
-        var browse = Form.Button("选择…", () =>
-        {
-            var dlg = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = dirBox.Text };
-            if (dlg.ShowDialog() == true) { dirBox.Text = dlg.FolderName; }
-        });
+        var browse = ui.FolderBrowse("选择…", () => dirBox.Text, f => dirBox.Text = f);
         browse.Margin = new Thickness(8, 0, 0, 0);
         var dirRow = new StackPanel { Orientation = Orientation.Horizontal };
         dirRow.Children.Add(dirBox);

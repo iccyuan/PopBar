@@ -783,25 +783,18 @@ internal sealed class CaptureOverlay : Window
         var img = Export();
         var dir = string.IsNullOrWhiteSpace(_cfg.SaveDir) ? ScreenshotPlugin.DefaultSaveDir : _cfg.SaveDir;
         try { Directory.CreateDirectory(dir); } catch { }
-        var dlg = new Microsoft.Win32.SaveFileDialog
-        {
-            InitialDirectory = dir,
-            FileName = $"PopBar_{DateTime.Now:yyyyMMdd_HHmmss}",
-            DefaultExt = ".png",
-            Filter = "PNG 图片 (*.png)|*.png|JPEG 图片 (*.jpg)|*.jpg",
-        };
         _dialogOpen = true;
         Topmost = false;
-        bool ok = dlg.ShowDialog(this) == true;
+        var path = _host.Ui.SaveFile("PNG 图片 (*.png)|*.png|JPEG 图片 (*.jpg)|*.jpg", $"PopBar_{DateTime.Now:yyyyMMdd_HHmmss}", dir, owner: this);
         _dialogOpen = false;
-        if (!ok) { Topmost = true; Activate(); return; }
+        if (path == null) { Topmost = true; Activate(); return; }
         try
         {
-            BitmapEncoder enc = dlg.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? new JpegBitmapEncoder { QualityLevel = 92 } : new PngBitmapEncoder();
+            BitmapEncoder enc = path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? new JpegBitmapEncoder { QualityLevel = 92 } : new PngBitmapEncoder();
             enc.Frames.Add(BitmapFrame.Create(img));
-            using var fs = File.Create(dlg.FileName);
+            using var fs = File.Create(path);
             enc.Save(fs);
-            _cfg.SaveDir = System.IO.Path.GetDirectoryName(dlg.FileName) ?? dir;
+            _cfg.SaveDir = System.IO.Path.GetDirectoryName(path) ?? dir;
         }
         catch (Exception ex) { _host.Log.Error("save screenshot", ex); }
         Close();

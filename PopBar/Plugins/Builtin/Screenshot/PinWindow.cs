@@ -170,21 +170,14 @@ internal sealed class PinWindow : Window
 
     private void Save()
     {
-        try { Directory.CreateDirectory(_saveDir); } catch { }
-        var dlg = new Microsoft.Win32.SaveFileDialog
-        {
-            InitialDirectory = _saveDir,
-            FileName = $"PopBar_{DateTime.Now:yyyyMMdd_HHmmss}",
-            DefaultExt = ".png",
-            Filter = "PNG 图片 (*.png)|*.png|JPEG 图片 (*.jpg)|*.jpg",
-        };
         Topmost = false;
         try
         {
-            if (dlg.ShowDialog(this) != true) return;
-            BitmapEncoder enc = dlg.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? new JpegBitmapEncoder { QualityLevel = 92 } : new PngBitmapEncoder();
+            var path = _host.Ui.SaveFile("PNG 图片 (*.png)|*.png|JPEG 图片 (*.jpg)|*.jpg", $"PopBar_{DateTime.Now:yyyyMMdd_HHmmss}", _saveDir, owner: this);
+            if (path == null) return;
+            BitmapEncoder enc = path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ? new JpegBitmapEncoder { QualityLevel = 92 } : new PngBitmapEncoder();
             enc.Frames.Add(BitmapFrame.Create(_image));
-            using var fs = File.Create(dlg.FileName);
+            using var fs = File.Create(path);
             enc.Save(fs);
         }
         catch (Exception ex) { _host.Log.Error("pin save", ex); }

@@ -45,12 +45,61 @@ internal sealed class HostUi : IHostUi
     public FrameworkElement FileBrowse(string label, string filter, Action<string> onPicked)
     {
         var btn = new Button { Content = label };
-        btn.Click += (_, _) =>
-        {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = filter };
-            if (dlg.ShowDialog() == true) onPicked(dlg.FileName);
-        };
+        btn.Click += (_, _) => { if (PickFile(filter) is { } f) onPicked(f); };
         return btn;
+    }
+
+    public FrameworkElement FolderBrowse(string label, Func<string?> initial, Action<string> onPicked)
+    {
+        var btn = new Button { Content = label };
+        btn.Click += (_, _) => { if (PickFolder(initial()) is { } f) onPicked(f); };
+        return btn;
+    }
+
+    // Dialogs are owned by the active PopBar window (settings, a panel...) so they centre on it and stay in front.
+    private static Window? Owner => Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive);
+
+    public string? PickFile(string filter, string? title = null, string? initialDir = null)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = filter, Title = title ?? "选择文件" };
+        if (!string.IsNullOrWhiteSpace(initialDir)) dlg.InitialDirectory = initialDir;
+        return Show(dlg, Owner) ? dlg.FileName : null;
+    }
+
+    public string? PickFolder(string? initialDir = null, string? title = null)
+    {
+        var dlg = new Microsoft.Win32.OpenFolderDialog { Title = title ?? "选择文件夹" };
+        if (!string.IsNullOrWhiteSpace(initialDir) && System.IO.Directory.Exists(initialDir)) dlg.InitialDirectory = initialDir;
+        return Show(dlg, Owner) ? dlg.FolderName : null;
+    }
+
+    public string? SaveFile(string filter, string defaultName, string? initialDir = null, Window? owner = null)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog { Filter = filter, FileName = defaultName, AddExtension = true };
+        if (!string.IsNullOrWhiteSpace(initialDir))
+        {
+            try { System.IO.Directory.CreateDirectory(initialDir); } catch { }
+            dlg.InitialDirectory = initialDir;
+        }
+        return Show(dlg, owner ?? Owner) ? dlg.FileName : null;
+    }
+
+    private static bool Show(Microsoft.Win32.CommonDialog dlg, Window? owner) => (owner != null ? dlg.ShowDialog(owner) : dlg.ShowDialog()) == true;
+
+    public bool Confirm(string message, string? title = null)
+    {
+        var owner = Owner;
+        var r = owner != null
+            ? MessageBox.Show(owner, message, title ?? "PopBar", MessageBoxButton.OKCancel, MessageBoxImage.Question)
+            : MessageBox.Show(message, title ?? "PopBar", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        return r == MessageBoxResult.OK;
+    }
+
+    public void Alert(string message, string? title = null)
+    {
+        var owner = Owner;
+        if (owner != null) MessageBox.Show(owner, message, title ?? "PopBar", MessageBoxButton.OK, MessageBoxImage.Information);
+        else MessageBox.Show(message, title ?? "PopBar", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     public FrameworkElement Icon(string name, double size = 16, Brush? brush = null)

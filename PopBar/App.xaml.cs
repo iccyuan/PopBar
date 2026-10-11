@@ -22,8 +22,8 @@ public partial class App : Application
     private Mutex? _mutex;
     private EventWaitHandle? _showEvent;
     private WinForms.NotifyIcon? _tray;
-    private WinForms.ContextMenuStrip? _trayMenu;
-    private WinForms.ToolStripMenuItem? _enabledItem;
+    /// <summary>Invisible, activatable window: a WPF ContextMenu opened from the tray only closes on outside clicks when our process is foreground.</summary>
+    private Window? _trayAnchor;
     private readonly ConfigStore _store = new();
     private PopupWindow? _popup;
     private SelectionEngine? _engine;
@@ -33,7 +33,7 @@ public partial class App : Application
     private HttpClient? _http;
     private LlmService? _llm;
     private readonly PanelRegistry _panels = new();
-    private readonly List<(string Id, string Label, Action Callback)> _pluginTrayItems = new();
+    private readonly List<(string Id, string Label, string? Icon, Action Callback)> _pluginTrayItems = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -90,7 +90,7 @@ public partial class App : Application
             Http = _http,
             Hotkeys = _hotkeys,
             Panels = _panels,
-            AddTrayItem = (id, label, cb) => { _pluginTrayItems.Add((id, label, cb)); RebuildTrayMenu(); },
+            AddTrayItem = (id, label, icon, cb) => _pluginTrayItems.Add((id, label, icon, cb)),
             ShowPopup = ctx => _engine?.ShowExternal(ctx),
             OpenSettings = pluginId => Dispatcher.InvokeAsync(() => ShowSettings(pluginId)),
             RunAction = (id, ctx) => _plugins!.ExecuteAsync(id, ctx),
@@ -128,30 +128,53 @@ public partial class App : Application
             Icon = LoadTrayIcon(),
             Visible = true,
         };
-        RebuildTrayMenu();
+        _tray.MouseUp += (_, e) => { if (e.Button == WinForms.MouseButtons.Right) Dispatcher.InvokeAsync(ShowTrayMenu); };
         _tray.DoubleClick += (_, _) => ShowSettings();
     }
 
-    private void RebuildTrayMenu()
+    /// <summary>The tray menu is PopBar's own styled ContextMenu (icons, rounded, theme-aware), rebuilt on every open.</summary>
+    private void ShowTrayMenu()
     {
-        if (!Dispatcher.CheckAccess()) { Dispatcher.InvokeAsync(RebuildTrayMenu); return; }
-        var menu = new WinForms.ContextMenuStrip();
-        var enabledItem = new WinForms.ToolStripMenuItem("启用 PopBar") { Checked = _store.Current.Enabled, CheckOnClick = true };
-        enabledItem.Click += (_, _) => _store.Update(c => c.Enabled = enabledItem.Checked);
-        _enabledItem = enabledItem;
-        menu.Items.Add(enabledItem);
+        _trayAnchor ??= new Window
+        {
+            Width = 1, Height = 1, Left = -10000, Top = -10000, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent, Opacity = 0,
+        };
+        var menu = BuildTrayMenu();
+        _trayAnchor.Show();
+        _trayAnchor.Activate();
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        menu.Closed += (_, _) => _trayAnchor.Hide();
+        menu.IsOpen = true;
+    }
+
+    private System.Windows.Controls.ContextMenu BuildTrayMenu()
+    {
+        var menu = new System.Windows.Controls.ContextMenu();
+        var muted = (System.Windows.Media.Brush)FindResource("MutedBrush");
+        var accent = (System.Windows.Media.Brush)FindResource("AccentBrush");
+
+        System.Windows.Controls.MenuItem Item(string label, string? icon, Action onClick, System.Windows.Media.Brush? brush = null)
+        {
+            var mi = new System.Windows.Controls.MenuItem { Header = label };
+            if (icon != null) mi.Icon = new UI.IconImage { Icon = icon, Size = 16, Brush = brush ?? muted };
+            mi.Click += (_, _) => { try { onClick(); } catch (Exception ex) { Log.Error("tray item", ex); } };
+            return mi;
+        }
+
+        bool enabled = _store.Current.Enabled;
+        menu.Items.Add(Item(enabled ? "已启用 · 点击暂停" : "已暂停 · 点击启用", enabled ? "toggle-right" : "toggle-left",
+            () => _store.Update(c => c.Enabled = !c.Enabled), enabled ? accent : muted));
+
         if (_pluginTrayItems.Count > 0)
         {
-            menu.Items.Add(new WinForms.ToolStripSeparator());
-            foreach (var (_, label, cb) in _pluginTrayItems)
-                menu.Items.Add(new WinForms.ToolStripMenuItem(label, null, (_, _) => { try { cb(); } catch (Exception ex) { Log.Error("tray item", ex); } }));
+            menu.Items.Add(new System.Windows.Controls.Separator());
+            foreach (var (_, label, icon, cb) in _pluginTrayItems) menu.Items.Add(Item(label, icon ?? "circle", cb));
         }
-        menu.Items.Add(new WinForms.ToolStripSeparator());
-        menu.Items.Add(new WinForms.ToolStripMenuItem("设置…", null, (_, _) => ShowSettings()));
-        menu.Items.Add(new WinForms.ToolStripMenuItem("退出", null, (_, _) => ExitApp()));
-        _trayMenu?.Dispose();
-        _trayMenu = menu;
-        if (_tray != null) _tray.ContextMenuStrip = menu;
+        menu.Items.Add(new System.Windows.Controls.Separator());
+        menu.Items.Add(Item("设置…", "settings", () => ShowSettings()));
+        menu.Items.Add(Item("退出", "power", ExitApp));
+        return menu;
     }
 
     private static System.Drawing.Icon LoadTrayIcon()
@@ -169,7 +192,6 @@ public partial class App : Application
     {
         Dispatcher.InvokeAsync(() =>
         {
-            if (_enabledItem != null) _enabledItem.Checked = cfg.Enabled;
             _settings?.RefreshFromStore();
             ApplyAutoStart(cfg.AutoStart);
             ThemeManager.BlurOpacity = cfg.BlurOpacity;

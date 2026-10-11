@@ -54,8 +54,8 @@ public interface IPluginHost
     /// <summary>Register a global hotkey ("Ctrl+Alt+O"). Returns false if the combination is taken.</summary>
     bool RegisterHotkey(string id, string gesture, Action callback);
     void UnregisterHotkey(string id);
-    /// <summary>Add an entry to the tray context menu.</summary>
-    void AddTrayMenuItem(string id, string label, Action callback);
+    /// <summary>Add an entry to the tray context menu. <paramref name="icon"/> is a name from <see cref="IHostUi.IconNames"/>.</summary>
+    void AddTrayMenuItem(string id, string label, Action callback, string? icon = null);
     /// <summary>
     /// Call after your <see cref="IPopBarPlugin.GetActions"/> result changed (items added, removed, renamed): new actions
     /// join the bar right away, removed ones leave it, and an open settings window refreshes its action list.

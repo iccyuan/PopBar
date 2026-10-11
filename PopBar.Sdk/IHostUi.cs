@@ -22,6 +22,29 @@ public interface IHostUi
     /// <summary>Button opening a file dialog; calls back with the chosen path.</summary>
     FrameworkElement FileBrowse(string label, string filter, Action<string> onPicked);
 
+    /// <summary>Button opening a folder dialog; <paramref name="initial"/> supplies the folder to start in.</summary>
+    FrameworkElement FolderBrowse(string label, Func<string?> initial, Action<string> onPicked);
+
+    // ---- plain dialogs (return null / false when cancelled) ----
+
+    /// <summary>Open-file dialog. <paramref name="filter"/> uses the Win32 form "PNG 图片 (*.png)|*.png".</summary>
+    string? PickFile(string filter, string? title = null, string? initialDir = null);
+
+    /// <summary>Folder dialog.</summary>
+    string? PickFolder(string? initialDir = null, string? title = null);
+
+    /// <summary>
+    /// Save-file dialog. The chosen path carries the extension of the selected filter entry. Pass the window the
+    /// dialog belongs to as <paramref name="owner"/> when calling from your own window (e.g. an overlay), else null.
+    /// </summary>
+    string? SaveFile(string filter, string defaultName, string? initialDir = null, Window? owner = null);
+
+    /// <summary>Yes / no question styled like PopBar's own prompts. True when confirmed.</summary>
+    bool Confirm(string message, string? title = null);
+
+    /// <summary>Simple notice.</summary>
+    void Alert(string message, string? title = null);
+
     /// <summary>Crisp line icon from PopBar's icon set (same control the bar uses).</summary>
     FrameworkElement Icon(string name, double size = 16, Brush? brush = null);
 

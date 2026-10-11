@@ -60,8 +60,8 @@ public sealed class NotesPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
-        host.AddTrayMenuItem("new", "新建便签", NewNote);
-        host.AddTrayMenuItem("show", "显示全部便签", () => host.Dispatcher.InvokeAsync(ShowAll));
+        host.AddTrayMenuItem("new", "新建便签", NewNote, "sticky-note");
+        host.AddTrayMenuItem("show", "显示全部便签", () => host.Dispatcher.InvokeAsync(ShowAll), "eye");
         RegisterHotkeys();
         host.Dispatcher.InvokeAsync(() => { foreach (var n in _cfg.Notes.ToList()) Open(n, focus: false); });
     }

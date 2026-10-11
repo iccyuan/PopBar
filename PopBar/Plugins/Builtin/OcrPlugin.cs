@@ -39,7 +39,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
         _host = host;
         _cfg = host.Storage.Get<Settings>();
         host.Services.Provide<IOcrEngine>(this);
-        host.AddTrayMenuItem("capture", "屏幕 OCR 取词", () => _ = CaptureAsync());
+        host.AddTrayMenuItem("capture", "屏幕 OCR 取词", () => _ = CaptureAsync(), "type");
         if (!string.IsNullOrWhiteSpace(_cfg.Hotkey) && !host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync()))
             host.Log.Warn($"hotkey {_cfg.Hotkey} unavailable");
     }

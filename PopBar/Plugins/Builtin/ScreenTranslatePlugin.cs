@@ -41,7 +41,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
-        host.AddTrayMenuItem("run", "屏幕翻译", () => _ = RunAsync());
+        host.AddTrayMenuItem("run", "屏幕翻译", () => _ = RunAsync(), "scan-text");
         RegisterHotkey();
     }
 

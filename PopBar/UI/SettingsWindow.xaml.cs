@@ -563,9 +563,9 @@ public partial class SettingsWindow : Window
 
     private void BrowseApp(List<string> list)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "程序 (*.exe)|*.exe", Title = "选择程序" };
-        if (dlg.ShowDialog(this) != true) return;
-        var exe = System.IO.Path.GetFileName(dlg.FileName);
+        var picked = new Plugins.HostUi().PickFile("程序 (*.exe)|*.exe", "选择程序");
+        if (picked == null) return;
+        var exe = System.IO.Path.GetFileName(picked);
         if (!list.Contains(exe, StringComparer.OrdinalIgnoreCase)) list.Add(exe);
         RenderAppLists();
         Changed(this, new RoutedEventArgs());

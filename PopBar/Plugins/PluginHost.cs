@@ -19,7 +19,7 @@ internal sealed class HostServices
     public required ILlmService Llm { get; init; }
     public required HttpClient Http { get; init; }
     public required HotkeyManager Hotkeys { get; init; }
-    public required Action<string, string, Action> AddTrayItem { get; init; }
+    public required Action<string, string, string?, Action> AddTrayItem { get; init; }
     public required Action<SelectionContext> ShowPopup { get; init; }
     public required Action<string> OpenSettings { get; init; }
     public required Func<string, SelectionContext, Task> RunAction { get; init; }
@@ -260,7 +260,7 @@ internal sealed class PluginHost : IPluginHost
 
     public void UnregisterHotkey(string id) => _s.Dispatcher.Invoke(() => _s.Hotkeys.Unregister($"{_pluginId}:{id}"));
 
-    public void AddTrayMenuItem(string id, string label, Action callback) => _s.AddTrayItem($"{_pluginId}:{id}", label, callback);
+    public void AddTrayMenuItem(string id, string label, Action callback, string? icon = null) => _s.AddTrayItem($"{_pluginId}:{id}", label, icon, callback);
 
     public Task RunActionAsync(string actionId, SelectionContext context) => _s.RunAction(actionId, context);
 

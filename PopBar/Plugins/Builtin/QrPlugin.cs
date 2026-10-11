@@ -34,8 +34,8 @@ public sealed class QrPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
-        host.AddTrayMenuItem("scan-region", "识别二维码（框选）", () => _ = ScanRegionAsync());
-        host.AddTrayMenuItem("scan-screen", "扫描屏幕二维码", () => _ = ScanScreenAsync());
+        host.AddTrayMenuItem("scan-region", "识别二维码（框选）", () => _ = ScanRegionAsync(), "qr-code");
+        host.AddTrayMenuItem("scan-screen", "扫描屏幕二维码", () => _ = ScanScreenAsync(), "search");
         RegisterHotkey();
     }
 
@@ -106,13 +106,13 @@ public sealed class QrPlugin : IPopBarPlugin
 
     private void Save(BitmapSource bmp)
     {
-        var dlg = new Microsoft.Win32.SaveFileDialog { FileName = $"QR_{DateTime.Now:yyyyMMdd_HHmmss}", DefaultExt = ".png", Filter = "PNG 图片 (*.png)|*.png" };
-        if (dlg.ShowDialog() != true) return;
+        var path = _host.Ui.SaveFile("PNG 图片 (*.png)|*.png", $"QR_{DateTime.Now:yyyyMMdd_HHmmss}");
+        if (path == null) return;
         try
         {
             var enc = new PngBitmapEncoder();
             enc.Frames.Add(BitmapFrame.Create(bmp));
-            using var fs = File.Create(dlg.FileName);
+            using var fs = File.Create(path);
             enc.Save(fs);
         }
         catch (Exception ex) { _host.Log.Error("save qr", ex); }
