@@ -94,10 +94,12 @@ public partial class PopupWindow : Window, IPopupPresenter
         int w = (int)Math.Ceiling(size.Width * scale);
         int h = (int)Math.Ceiling(size.Height * scale);
         int m = (int)Math.Round(margin * scale);
-        int gap = (int)Math.Round(8 * scale);
+        // The anchor is the mouse-up point, i.e. the middle of the text line: clear half a line plus breathing room
+        // above, and the cursor arrow below.
+        int gap = (int)Math.Round(18 * scale);
         bool above = y - (h - m) - gap >= work.Top;
         int px = Math.Clamp(x - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
-        int py = above ? y - h + m - gap : y - m + (int)Math.Round(16 * scale);
+        int py = above ? y - h + m - gap : y - m + (int)Math.Round(28 * scale);
         py = Math.Clamp(py, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
 
         _anchorX = x; _anchorY = y; _above = above; _py = py; _m = m; _gap = gap; _scale = scale; _work = work;
