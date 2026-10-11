@@ -184,7 +184,86 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
                 Form.Row("显示结果面板", Form.Toggle(d.ShowPanel, v => { d.ShowPanel = v; Changed(); }), "关闭后只弹出操作条"),
                 Form.Row("英文按行合并为段落", Form.Toggle(d.JoinLines, v => { d.JoinLines = v; Changed(); }))
             ),
-            Form.Hint("可用语言：" + string.Join("、", OcrEngine.AvailableRecognizerLanguages.Select(l => l.LanguageTag))));
+            LanguagePackCard());
+    }
+
+    // ------------------------------------------------------------------ OCR language packs
+
+    /// <summary>Windows optional features that carry an OCR model; the capability id is "Language.OCR~~~{tag}~0.0.1.0".</summary>
+    private static readonly (string Tag, string Label)[] Packs =
+    {
+        ("zh-CN", "中文（简体）"), ("zh-TW", "中文（繁体）"), ("en-US", "English"), ("ja-JP", "日本語"), ("ko-KR", "한국어"),
+        ("fr-FR", "Français"), ("de-DE", "Deutsch"), ("es-ES", "Español"), ("ru-RU", "Русский"), ("it-IT", "Italiano"), ("pt-BR", "Português"),
+    };
+
+    private static string Installed() =>
+        OcrEngine.AvailableRecognizerLanguages.Count == 0 ? "一个都没有，OCR 无法工作" : string.Join("、", OcrEngine.AvailableRecognizerLanguages.Select(l => $"{l.DisplayName} ({l.LanguageTag})"));
+
+    /// <summary>
+    /// Installing a pack is a system change (Add-WindowsCapability needs elevation and Windows Update), so it runs in an
+    /// elevated PowerShell that writes its outcome to a temp file; the UI only shows what that file says.
+    /// </summary>
+    private FrameworkElement LanguagePackCard()
+    {
+        var installed = Form.Hint(Installed());
+        var status = Form.Hint("");
+        status.Visibility = Visibility.Collapsed;
+        // Mark packs already present and default to the first missing one.
+        static bool Has(string tag) => OcrEngine.AvailableRecognizerLanguages.Any(l => l.LanguageTag.StartsWith(
+            tag switch { "zh-CN" => "zh-Hans", "zh-TW" => "zh-Hant", _ => tag[..tag.IndexOf('-')] }, StringComparison.OrdinalIgnoreCase));
+        var combo = Form.Combo(Packs.Select(p => (p.Tag, Has(p.Tag) ? p.Label + "（已安装）" : p.Label)), Packs.FirstOrDefault(p => !Has(p.Tag)).Tag ?? "zh-CN", width: 180);
+        System.Windows.Controls.Button install = null!;
+        install = Form.Button("安装", () =>
+        {
+            var tag = combo.SelectedValue as string ?? "zh-CN";
+            install.IsEnabled = false;
+            status.Text = "正在安装，需要管理员授权，下载可能要几分钟…";
+            status.Visibility = Visibility.Visible;
+            _ = Task.Run(async () =>
+            {
+                var (ok, msg) = await InstallPackAsync(tag);
+                await _host.Dispatcher.InvokeAsync(() =>
+                {
+                    install.IsEnabled = true;
+                    status.Text = msg;
+                    installed.Text = Installed();
+                    if (ok) _host.Log.Info($"ocr pack {tag} installed"); else _host.Log.Warn($"ocr pack {tag}: {msg}");
+                });
+            });
+        }, accent: true);
+        var open = Form.Button("系统语言设置", () =>
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:regionlanguage") { UseShellExecute = true }); } catch { }
+        });
+        return Form.Card(
+            Form.Row("已安装的识别语言", installed),
+            Form.Row("安装语言包", Form.Buttons(combo, install, open), "走系统可选功能安装（需联网、会弹一次管理员授权）；装完若列表没刷新，重启 PopBar"),
+            status);
+    }
+
+    private static async Task<(bool Ok, string Message)> InstallPackAsync(string tag)
+    {
+        var log = Path.Combine(Path.GetTempPath(), $"popbar-ocr-{Guid.NewGuid():N}.txt");
+        // Written by the elevated process; single quotes keep PowerShell from interpreting anything inside.
+        var script = $"function W($s) {{ $s | Out-File -Encoding utf8 -FilePath '{log}' }}; " +
+                     $"try {{ $r = Add-WindowsCapability -Online -Name 'Language.OCR~~~{tag}~0.0.1.0'; W ('OK ' + $r.RestartNeeded) }} catch {{ W ('ERR ' + $_.Exception.Message) }}";
+        var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command \"{script}\"")
+        {
+            UseShellExecute = true, Verb = "runas", WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+        };
+        try
+        {
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return (false, "无法启动 PowerShell");
+            await p.WaitForExitAsync();
+        }
+        catch (System.ComponentModel.Win32Exception) { return (false, "已取消管理员授权"); }
+        catch (Exception ex) { return (false, "启动安装失败：" + ex.Message); }
+        string text;
+        try { text = File.Exists(log) ? File.ReadAllText(log).Trim() : ""; File.Delete(log); } catch { text = ""; }
+        if (text.StartsWith("OK")) return (true, text.Contains("True") ? "安装完成，需要重启系统后生效" : "安装完成");
+        if (text.StartsWith("ERR")) return (false, "安装失败：" + text[3..].Trim() + (text.Contains("0x800f0954") ? "（系统禁止从 Windows 更新下载可选功能，需在组策略里允许）" : ""));
+        return (false, "安装没有返回结果，可到「系统语言设置」里手动添加");
     }
 
     public void Dispose() { }
