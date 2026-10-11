@@ -45,12 +45,12 @@ public partial class PanelWindow : Window, IPanel
         TitleIcon.Icon = opt.Icon;
         if (!string.IsNullOrWhiteSpace(opt.Source))
         {
-            SourceText.Text = opt.Source.Trim();
+            _sourceFull = opt.Source.Trim();
+            ApplySource();
             SourceBox.Visibility = Visibility.Visible;
         }
         ResultBox.IsReadOnly = !opt.Editable;
-        _collapsedMax = opt.MaxBodyHeight;
-        ResultBox.MaxHeight = _collapsedMax;
+        ResultBox.MaxHeight = opt.MaxBodyHeight;
         TextArea.Visibility = opt.ShowTextArea ? Visibility.Visible : Visibility.Collapsed;
         if (opt.Pinned) { _pinned = true; PinIcon.Brush = (Brush)Resources["PAccent"]; }
         if (!opt.CloseOnOutsideClick) PinBtn.Visibility = Visibility.Collapsed;
@@ -78,9 +78,6 @@ public partial class PanelWindow : Window, IPanel
         if (y + h - m > work.Bottom) y = Math.Max(work.Top - m, anchorY - h - (int)(18 * scale) + m);
         _scale = scale;
         _work = work;
-        // 「显示全部」 may grow the body up to what the monitor can show: everything but the body plus the toggle row.
-        double body = TextArea.Visibility == Visibility.Visible ? ResultBox.DesiredSize.Height : CustomHost.DesiredSize.Height;
-        _expandedMax = Math.Max(_collapsedMax, work.Height / scale - (DesiredSize.Height - body) - 30);
         CaptureMonitorGlass(work);
         Left = x / scale; Top = y / scale; // DIP relative to the primary monitor; corrected below with SetWindowPos
         Show();
@@ -89,51 +86,90 @@ public partial class PanelWindow : Window, IPanel
         Activate();
         LocationChanged += (_, _) => UpdateGlassViewbox();
         Glass.SizeChanged += (_, _) => UpdateGlassViewbox();
-        SizeChanged += (_, e) => { if (e.HeightChanged) KeepOnScreen(); };
+        SizeChanged += (_, _) => KeepOnScreen();
     }
 
-    // ---- 「显示全部 / 收起」: the body starts at MaxBodyHeight and may grow to the monitor's height ----
+    // ---- source box 「显示全部 / 收起」 ----
 
-    private double _collapsedMax, _expandedMax = double.PositiveInfinity;
-    private bool _expanded;
+    private const double SourceCollapsedHeight = 52;   // three lines of the 12px source text
+    private const double SourceExpandedHeight = 240;   // beyond this the source scrolls
+    private string _sourceFull = "";
+    private bool _sourceCut, _sourceExpanded;
     private RECT _work;
 
-    private ScrollViewer? BodyScroller =>
-        CustomHost.Visibility == Visibility.Visible ? CustomHost.Content as ScrollViewer
-        : ResultBox.Template?.FindName("PART_ContentHost", ResultBox) as ScrollViewer;
-
-    /// <summary>Show the toggle while the body has more than fits (or is expanded, so it can be folded back).</summary>
-    private void UpdateExpandToggle()
+    /// <summary>
+    /// Collapsed, the box shows the head and the tail of the source with the middle elided (the ends are what
+    /// identifies a selection); expanded, all of it. The toggle appears only when something was cut.
+    /// </summary>
+    private void ApplySource()
     {
-        if (_closed) return;
-        var sv = BodyScroller;
-        bool overflow = _expanded || (sv != null && sv.ScrollableHeight > 0.5);
-        ExpandBtn.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
+        double width = Width - Root.Margin.Left - Root.Margin.Right - 32 - 20; // body margin + box padding
+        var fitted = MiddleEllipsis(_sourceFull, width, SourceCollapsedHeight);
+        _sourceCut = fitted.Length != _sourceFull.Length;
+        SourceText.Text = _sourceExpanded ? _sourceFull : fitted;
+        SourceText.ToolTip = _sourceCut && !_sourceExpanded ? _sourceFull : null;
+        SourceExpandBtn.Visibility = _sourceExpanded || _sourceCut ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void ScheduleExpandToggle() => Dispatcher.InvokeAsync(UpdateExpandToggle, System.Windows.Threading.DispatcherPriority.Loaded);
-
-    private void Expand_Click(object sender, RoutedEventArgs e)
+    private void SourceExpand_Click(object sender, RoutedEventArgs e)
     {
-        _expanded = !_expanded;
-        double max = _expanded ? _expandedMax : _collapsedMax;
-        ResultBox.MaxHeight = max;
-        if (CustomHost.Content is ScrollViewer sv) sv.MaxHeight = max;
-        ExpandText.Text = _expanded ? "收起" : "显示全部";
-        ExpandIcon.Icon = _expanded ? "chevron-up" : "chevron-down";
-        ScheduleExpandToggle();
+        _sourceExpanded = !_sourceExpanded;
+        SourceText.MaxHeight = _sourceExpanded ? double.PositiveInfinity : SourceCollapsedHeight;
+        SourceScroll.MaxHeight = _sourceExpanded ? SourceExpandedHeight : double.PositiveInfinity;
+        SourceScroll.VerticalScrollBarVisibility = _sourceExpanded ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
+        SourceExpandText.Text = _sourceExpanded ? "收起" : "显示全部";
+        SourceExpandIcon.Icon = _sourceExpanded ? "chevron-up" : "chevron-down";
+        ApplySource();
     }
 
-    private void Body_SizeChanged(object sender, SizeChangedEventArgs e) => ScheduleExpandToggle();
+    /// <summary>Keep as many characters as fit in <paramref name="maxHeight"/> at <paramref name="width"/>: 60% from the start, 40% from the end.</summary>
+    private string MiddleEllipsis(string text, double width, double maxHeight)
+    {
+        if (Measure(text) <= maxHeight + 0.5) return text;
+        int lo = 0, hi = text.Length;
+        while (lo < hi)
+        {
+            int mid = (lo + hi + 1) / 2;
+            if (Measure(Compose(text, mid)) <= maxHeight + 0.5) lo = mid; else hi = mid - 1;
+        }
+        return Compose(text, lo);
 
-    /// <summary>After growing, slide the window up so its bottom stays inside the work area.</summary>
+        double Measure(string s) => new FormattedText(s, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(SourceText.FontFamily, SourceText.FontStyle, SourceText.FontWeight, SourceText.FontStretch),
+            SourceText.FontSize, Brushes.Black, VisualTreeHelper.GetDpi(this).PixelsPerDip) { MaxTextWidth = width }.Height;
+
+        static string Compose(string s, int keep)
+        {
+            int head = (int)Math.Ceiling(keep * 0.6), tail = keep - head;
+            return s[..head].TrimEnd() + " … " + (tail > 0 ? s[^tail..].TrimStart() : "");
+        }
+    }
+
+    public void SetSize(double? width = null, double? maxBodyHeight = null) => Ui(() =>
+    {
+        if (width is double w && w > 0 && Math.Abs(w - Width) > 0.5)
+        {
+            Width = w;
+            if (SourceBox.Visibility == Visibility.Visible) ApplySource();
+        }
+        if (maxBodyHeight is double h && h > 0)
+        {
+            ResultBox.MaxHeight = h;
+            if (CustomHost.Content is ScrollViewer sv) sv.MaxHeight = h;
+        }
+        KeepOnScreen();
+    });
+
+    /// <summary>After growing, slide the window so it stays inside the work area (the shadow margin may hang over).</summary>
     private void KeepOnScreen()
     {
         if (_hwnd == IntPtr.Zero || _work.Bottom == 0 || !GetWindowRect(_hwnd, out var r)) return;
         int m = (int)Math.Round(Root.Margin.Left * _scale);
-        if (r.Bottom - m <= _work.Bottom) return;
-        int y = Math.Max(_work.Top - m, _work.Bottom - (r.Bottom - r.Top) + m);
-        SetWindowPos(_hwnd, IntPtr.Zero, r.Left, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        int x = r.Left, y = r.Top;
+        if (r.Bottom - m > _work.Bottom) y = Math.Max(_work.Top - m, _work.Bottom - (r.Bottom - r.Top) + m);
+        if (r.Right - m > _work.Right) x = Math.Max(_work.Left - m, _work.Right - (r.Right - r.Left) + m);
+        if (x == r.Left && y == r.Top) return;
+        SetWindowPos(_hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     }
 
     private double _scale = 1;
@@ -242,14 +278,28 @@ public partial class PanelWindow : Window, IPanel
         BadgeBox.Visibility = string.IsNullOrWhiteSpace(badge) ? Visibility.Collapsed : Visibility.Visible;
         BadgeBox.ToolTip = badge;
     }
-    public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); });
-    public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); });
+    public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); ShowTextArea(); });
+    public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); ShowTextArea(); });
+
+    /// <summary>The text area hides while an error is the only content (no blank block above the red box) and returns with text.</summary>
+    private void ShowTextArea()
+    {
+        if (_opt.ShowTextArea && CustomHost.Visibility != Visibility.Visible && TextArea.Visibility != Visibility.Visible && ResultBox.Text.Length > 0)
+            TextArea.Visibility = Visibility.Visible;
+    }
     public void SetStatus(string status) => Ui(() => StatusText.Text = status);
     public void SetError(string? message) => Ui(() =>
     {
         ErrorText.Text = message ?? "";
-        ErrorBox.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
-        if (!string.IsNullOrWhiteSpace(message)) { SetBusyCore(false); StatusText.Text = ""; }
+        bool has = !string.IsNullOrWhiteSpace(message);
+        ErrorBox.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        if (has)
+        {
+            SetBusyCore(false);
+            StatusText.Text = "";
+            if (ResultBox.Text.Length == 0 && TextArea.Visibility == Visibility.Visible) TextArea.Visibility = Visibility.Collapsed;
+        }
+        else ShowTextArea();
     });
 
     public void SetBusy(bool busy) => Ui(() => SetBusyCore(busy));
@@ -324,12 +374,9 @@ public partial class PanelWindow : Window, IPanel
         try
         {
             var el = factory();
-            var sv = new ScrollViewer { Content = el, MaxHeight = _expanded ? _expandedMax : _collapsedMax, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Style = (Style)FindResource("PBodyScroll") };
-            sv.ScrollChanged += (_, _) => ScheduleExpandToggle();
-            CustomHost.Content = sv;
+            CustomHost.Content = new ScrollViewer { Content = el, MaxHeight = _opt.MaxBodyHeight, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Style = (Style)FindResource("PBodyScroll") };
             CustomHost.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
-            ScheduleExpandToggle();
         }
         catch (Exception ex) { Log.Error("panel SetContent", ex); }
     });
@@ -342,5 +389,5 @@ public partial class PanelWindow : Window, IPanel
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void ResultBox_TextChanged(object sender, TextChangedEventArgs e) => ScheduleExpandToggle();
+    private void ResultBox_TextChanged(object sender, TextChangedEventArgs e) { }
 }

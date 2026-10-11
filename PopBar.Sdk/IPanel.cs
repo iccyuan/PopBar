@@ -24,6 +24,11 @@ public interface IPanel
     void AddButton(string label, Action<string> onClick, string? icon = null);
     /// <summary>Replace the body with any WPF content (lists, images, forms...). Built on the UI thread via the factory.</summary>
     void SetContent(Func<System.Windows.FrameworkElement> factory);
+    /// <summary>
+    /// Resize the panel after it is shown: <paramref name="width"/> in DIP, <paramref name="maxBodyHeight"/> the body
+    /// height before it scrolls. Either may be null to keep the current value. The panel stays inside the work area.
+    /// </summary>
+    void SetSize(double? width = null, double? maxBodyHeight = null);
     /// <summary>Pin / unpin (pinned panels ignore outside clicks).</summary>
     bool Pinned { get; set; }
     void Close();

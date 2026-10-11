@@ -34,6 +34,25 @@ internal class OpenAiCompatibleProvider : ILlmProvider
     public static OpenAiCompatibleProvider DeepSeek() => new("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat", true,
         "需要 DeepSeek API Key");
 
+    /// <summary>
+    /// Send with one retry for transport-level failures (a TLS record mangled by a proxy / TUN, a reset connection).
+    /// Nothing of the response has been consumed at that point, so repeating the request is safe.
+    /// </summary>
+    private static async Task<HttpResponseMessage> SendAsync(LlmConnection c, Func<HttpRequestMessage> make, HttpCompletionOption option, CancellationToken ct)
+    {
+        for (int attempt = 0; ; attempt++)
+        {
+            var msg = make();
+            if (!string.IsNullOrWhiteSpace(c.ApiKey)) msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", c.ApiKey);
+            try { return await c.Http.SendAsync(msg, option, ct); }
+            catch (HttpRequestException ex) when (attempt == 0 && ex.StatusCode == null && ex.InnerException is System.IO.IOException or System.Net.Sockets.SocketException)
+            {
+                msg.Dispose();
+                await Task.Delay(300, ct);
+            }
+        }
+    }
+
     private static string Root(LlmConnection c)
     {
         var url = c.BaseUrl.TrimEnd('/');
@@ -48,10 +67,8 @@ internal class OpenAiCompatibleProvider : ILlmProvider
         messages.Add(new { role = "user", content = req.User });
         var body = JsonSerializer.Serialize(new { model = c.Model, max_tokens = req.MaxTokens, stream = true, messages });
 
-        using var msg = new HttpRequestMessage(HttpMethod.Post, Root(c) + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") };
-        if (!string.IsNullOrWhiteSpace(c.ApiKey)) msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", c.ApiKey);
-
-        using var resp = await c.Http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var resp = await SendAsync(c, () => new HttpRequestMessage(HttpMethod.Post, Root(c) + "/chat/completions") { Content = new StringContent(body, Encoding.UTF8, "application/json") },
+            HttpCompletionOption.ResponseHeadersRead, ct);
         if (!resp.IsSuccessStatusCode)
         {
             var err = await resp.Content.ReadAsStringAsync(ct);
@@ -86,9 +103,7 @@ internal class OpenAiCompatibleProvider : ILlmProvider
 
     public async Task<IReadOnlyList<string>> ListModelsAsync(LlmConnection c, CancellationToken ct)
     {
-        using var msg = new HttpRequestMessage(HttpMethod.Get, Root(c) + "/models");
-        if (!string.IsNullOrWhiteSpace(c.ApiKey)) msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", c.ApiKey);
-        using var resp = await c.Http.SendAsync(msg, ct);
+        using var resp = await SendAsync(c, () => new HttpRequestMessage(HttpMethod.Get, Root(c) + "/models"), HttpCompletionOption.ResponseContentRead, ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode) throw new HttpRequestException($"{(int)resp.StatusCode} {resp.ReasonPhrase}: {Truncate(body, 300)}");
         using var doc = JsonDocument.Parse(body);

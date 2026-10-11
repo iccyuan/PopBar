@@ -134,16 +134,40 @@
 
             <!-- body -->
             <StackPanel Margin="16,0,16,0">
+                <!-- source text: three lines with an ellipsis by default; 「显示全部」 appears only when it was cut -->
                 <Border x:Name="SourceBox" CornerRadius="8" Background="{DynamicResource PSource}" Padding="10,6" Margin="0,0,0,10" Visibility="Collapsed">
-                    <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
+                    <StackPanel>
+                        <ScrollViewer x:Name="SourceScroll" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource PBodyScroll}">
+                            <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
+                        </ScrollViewer>
+                        <Button x:Name="SourceExpandBtn" Visibility="Collapsed" Click="SourceExpand_Click" HorizontalAlignment="Right" Margin="0,3,-4,-2"
+                                Cursor="Hand" Focusable="False" Padding="5,1">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" CornerRadius="5" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="SourceExpandText" Text="显示全部" FontSize="11.5" Foreground="{DynamicResource PAccent}" VerticalAlignment="Center"/>
+                                <ui:IconImage x:Name="SourceExpandIcon" Icon="chevron-down" Size="12" Brush="{DynamicResource PAccent}" Margin="2,1,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
                 </Border>
                 <ContentControl x:Name="CustomHost" Visibility="Collapsed" Focusable="False"/>
                 <Grid x:Name="TextArea">
-                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="260" FontSize="13.5"
+                    <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
                              CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}"
                              TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True" IsReadOnlyCaretVisible="True"
-                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="ResultBox_TextChanged" SizeChanged="Body_SizeChanged">
+                             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="ResultBox_TextChanged">
                         <TextBox.Style>
                             <Style TargetType="TextBox">
                                 <Setter Property="Template">
@@ -157,26 +181,6 @@
                         </TextBox.Style>
                     </TextBox>
                 </Grid>
-                <!-- shown only when the body overflows its default height -->
-                <Button x:Name="ExpandBtn" Visibility="Collapsed" Click="Expand_Click" HorizontalAlignment="Center" Margin="0,6,0,-4"
-                        Cursor="Hand" Focusable="False" Padding="10,3">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" CornerRadius="6" Background="Transparent" Padding="{TemplateBinding Padding}">
-                                <ContentPresenter/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock x:Name="ExpandText" Text="显示全部" FontSize="12" Foreground="{DynamicResource PAccent}" VerticalAlignment="Center"/>
-                        <ui:IconImage x:Name="ExpandIcon" Icon="chevron-down" Size="13" Brush="{DynamicResource PAccent}" Margin="3,1,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
                 <!-- failures stand out instead of hiding in the grey status line -->
                 <Border x:Name="ErrorBox" CornerRadius="8" Background="{DynamicResource PErrBg}" Padding="10,8" Margin="0,4,0,2" Visibility="Collapsed">
                     <DockPanel>

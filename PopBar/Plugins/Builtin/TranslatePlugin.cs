@@ -72,7 +72,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         var text = ctx.Text.Trim();
         var panel = _host.ShowPanel(new PanelOptions
         {
-            Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text,
+            Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
             Badge = _cfg.Provider == "llm" ? _host.Llm.ModelName : "Google 翻译",
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
@@ -117,7 +117,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         }
         catch (Exception ex)
         {
-            panel.SetError("翻译失败：" + ex.Message);
+            panel.SetError("翻译失败：" + Errors.Describe(ex));
             _host.Log.Error("translate failed", ex);
         }
         finally { panel.SetBusy(false); }

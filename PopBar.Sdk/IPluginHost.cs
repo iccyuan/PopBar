@@ -92,7 +92,8 @@ public sealed class PanelOptions
     public int AnchorY { get; init; }
     /// <summary>Shown collapsed above the result, e.g. the source text.</summary>
     public string? Source { get; init; }
-    public double Width { get; init; } = 440;
+    /// <summary>Panel width in DIP. Plugins may change it later with <see cref="IPanel.SetSize"/>.</summary>
+    public double Width { get; init; } = 480;
     /// <summary>Allow the user to edit the result text (e.g. OCR output).</summary>
     public bool Editable { get; init; }
     /// <summary>Close when the user clicks outside the panel (unless pinned). Default true.</summary>
@@ -101,9 +102,6 @@ public sealed class PanelOptions
     public bool Pinned { get; init; }
     /// <summary>Show the built-in text result area. Set false when you supply your own content via <see cref="IPanel.SetContent"/>.</summary>
     public bool ShowTextArea { get; init; } = true;
-    /// <summary>
-    /// Body height (DIP) shown by default. Longer content scrolls inside it and the panel offers 「显示全部」, which
-    /// lets the body grow as far as the monitor allows (and scroll beyond that).
-    /// </summary>
-    public double MaxBodyHeight { get; init; } = 260;
+    /// <summary>Maximum height of the body before it scrolls (DIP).</summary>
+    public double MaxBodyHeight { get; init; } = 420;
 }

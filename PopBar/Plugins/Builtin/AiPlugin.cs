@@ -75,7 +75,7 @@ public sealed class AiPlugin : IPopBarPlugin
         var text = ctx.Text.Trim();
         var panel = _host.ShowPanel(new PanelOptions
         {
-            Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 480,
+            Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
             Badge = _host.Llm.ModelName,
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
@@ -110,7 +110,7 @@ public sealed class AiPlugin : IPopBarPlugin
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            panel.SetError("请求失败：" + ex.Message);
+            panel.SetError("请求失败：" + Errors.Describe(ex));
             _host.Log.Error("ai request failed", ex);
         }
         finally { panel.SetBusy(false); }
