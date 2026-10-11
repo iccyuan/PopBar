@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Windows.Threading;
 using PopBar.Config;
 using PopBar.Core;
@@ -29,10 +30,46 @@ internal sealed class HostServices
 
     public static HttpClient CreateHttp()
     {
-        var handler = new HttpClientHandler { Proxy = WebRequest.GetSystemWebProxy(), UseProxy = true, AutomaticDecompression = DecompressionMethods.All };
+        var handler = new SocketsHttpHandler
+        {
+            Proxy = WebRequest.GetSystemWebProxy(), UseProxy = true,
+            AutomaticDecompression = DecompressionMethods.All,
+            ConnectCallback = ConnectAsync,
+        };
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("PopBar/0.2 (+https://github.com/iccyuan/PopBar)");
         return http;
+    }
+
+    /// <summary>
+    /// .NET connects through a dual-mode IPv6 socket by default, i.e. to "::ffff:a.b.c.d" for IPv4 hosts. Some
+    /// machines (VPN / TUN adapters, filtering drivers) reject exactly that with WSAEACCES (10013) while plain IPv4
+    /// sockets work - curl and browsers are fine, PopBar is not. Connect with a socket of the address's own family.
+    /// </summary>
+    private static async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext ctx, CancellationToken ct)
+    {
+        var addresses = await Dns.GetHostAddressesAsync(ctx.DnsEndPoint.Host, ct);
+        Exception? last = null;
+        foreach (var ip in addresses.OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1))
+        {
+            var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try
+            {
+                await socket.ConnectAsync(new IPEndPoint(ip, ctx.DnsEndPoint.Port), ct);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch (SocketException ex)
+            {
+                socket.Dispose();
+                last = ex;
+            }
+            catch
+            {
+                socket.Dispose(); // cancelled: don't leak, don't try the next address
+                throw;
+            }
+        }
+        throw last ?? new SocketException((int)SocketError.HostNotFound);
     }
 }
 

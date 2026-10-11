@@ -361,7 +361,16 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="API Key" VerticalAlignment="Center"/>
-                                <PasswordBox x:Name="LlmKeyBox" Grid.Column="1" Width="330" VerticalAlignment="Center" PasswordChanged="Llm_Changed"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- masked by default; the eye swaps in a plain TextBox bound to the same value -->
+                                    <Grid Width="290">
+                                        <PasswordBox x:Name="LlmKeyBox" PasswordChanged="Llm_Changed"/>
+                                        <TextBox x:Name="LlmKeyPlain" Visibility="Collapsed" TextChanged="LlmKeyPlain_TextChanged"/>
+                                    </Grid>
+                                    <Button x:Name="LlmKeyEye" Style="{StaticResource IconButton}" Width="34" Height="34" Margin="6,0,0,0" ToolTip="显示 API Key" Click="LlmKeyEye_Click">
+                                        <ui:IconImage x:Name="LlmKeyEyeIcon" Icon="eye" Size="16" Brush="{DynamicResource MutedBrush}"/>
+                                    </Button>
+                                </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
                             <Grid Style="{StaticResource Row}">

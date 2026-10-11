@@ -241,6 +241,7 @@ public partial class SettingsWindow : Window
             if (LlmProtocolCombo.SelectedIndex < 0) LlmProtocolCombo.SelectedIndex = 0;
             LlmBaseUrlBox.Text = c.Llm.BaseUrl;
             LlmKeyBox.Password = c.Llm.ApiKey;
+            if (LlmKeyPlain.Visibility == Visibility.Visible) LlmKeyPlain.Text = c.Llm.ApiKey;
             LlmModelBox.Text = c.Llm.Model;
             _disabledPlugins.Clear();
             foreach (var id in c.DisabledPlugins) _disabledPlugins.Add(id);
@@ -567,6 +568,23 @@ public partial class SettingsWindow : Window
         Changed(sender, e);
     }
 
+    /// <summary>Show / hide the API key. The PasswordBox stays the source of truth; the TextBox mirrors it while shown.</summary>
+    private void LlmKeyEye_Click(object sender, RoutedEventArgs e)
+    {
+        bool show = LlmKeyPlain.Visibility != Visibility.Visible;
+        if (show) LlmKeyPlain.Text = LlmKeyBox.Password;
+        LlmKeyPlain.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        LlmKeyBox.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
+        LlmKeyEyeIcon.Icon = show ? "eye-off" : "eye";
+        LlmKeyEye.ToolTip = show ? "隐藏 API Key" : "显示 API Key";
+    }
+
+    private void LlmKeyPlain_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (LlmKeyPlain.Visibility == Visibility.Visible && LlmKeyBox.Password != LlmKeyPlain.Text)
+            LlmKeyBox.Password = LlmKeyPlain.Text; // raises PasswordChanged -> dirty tracking as usual
+    }
+
     private void Llm_Changed(object sender, RoutedEventArgs e)
     {
         if (sender == LlmProtocolCombo) BuildLlmFeatures();
@@ -638,8 +656,9 @@ public partial class SettingsWindow : Window
         ShowLlmResult("连接中…");
         try
         {
-            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 32, Effort = "low" });
-            ShowLlmResult("连接成功：" + reply.Trim().Replace("\n", " "), ok: true);
+            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = "low" }); // room for reasoning models that think before answering
+            var text = reply.Trim().Replace("\n", " ");
+            ShowLlmResult(text.Length > 0 ? "连接成功：" + text : "连接成功，但模型没有返回文字（可能是思考型模型输出被截断）", ok: true);
         }
         catch (Exception ex)
         {

@@ -18,8 +18,9 @@ internal sealed class AnthropicProvider : ILlmProvider
     public string? Hint => "接口地址留空即 api.anthropic.com；也可填兼容 Anthropic 协议的中转地址";
 
     private static AnthropicClient Client(LlmConnection c) => string.IsNullOrWhiteSpace(c.BaseUrl)
-        ? new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(c.ApiKey) ? null : c.ApiKey }
-        : new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(c.ApiKey) ? null : c.ApiKey, BaseUrl = c.BaseUrl.TrimEnd('/') };
+        // Share PopBar's HttpClient: its connect logic (IPv4 sockets for IPv4 hosts) and system proxy apply here too.
+        ? new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(c.ApiKey) ? null : c.ApiKey, HttpClient = c.Http }
+        : new AnthropicClient { ApiKey = string.IsNullOrWhiteSpace(c.ApiKey) ? null : c.ApiKey, BaseUrl = c.BaseUrl.TrimEnd('/'), HttpClient = c.Http };
 
     public async IAsyncEnumerable<string> StreamAsync(LlmConnection c, LlmRequest req, [EnumeratorCancellation] CancellationToken ct)
     {
