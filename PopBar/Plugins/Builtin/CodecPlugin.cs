@@ -171,8 +171,11 @@ public sealed partial class CodecPlugin : IPopBarPlugin
             var compact = JsonSerializer.Serialize(doc.RootElement, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             string shape = doc.RootElement.ValueKind == JsonValueKind.Array ? $"数组 · {doc.RootElement.GetArrayLength()} 项" : $"对象 · {doc.RootElement.EnumerateObject().Count()} 个键";
             var p = Panel(ctx, "JSON", "braces", pretty, shape, 520);
-            p.AddButton("压缩", _ => p.SetText(compact));
-            p.AddButton("格式化", _ => p.SetText(pretty));
+            // The hidden text area still holds the current text, which the copy / replace buttons use.
+            void Show(string t) { p.SetText(t); p.SetContent(() => CodeView.Json(t)); }
+            Show(pretty);
+            p.AddButton("压缩", _ => Show(compact));
+            p.AddButton("格式化", _ => Show(pretty));
         }
     }
 
@@ -204,7 +207,8 @@ public sealed partial class CodecPlugin : IPopBarPlugin
             if (times.Count > 0) sb.AppendLine().AppendLine("// 时间").AppendLine(string.Join("\n", times));
         }
         catch (Exception ex) { sb.AppendLine("解析失败：" + ex.Message); }
-        Panel(ctx, "JWT", "key", sb.ToString().TrimEnd(), status, 520);
+        var text = sb.ToString().TrimEnd();
+        Panel(ctx, "JWT", "key", text, status, 520).SetContent(() => CodeView.Json(text));
     }
 
     private void ShowTime(SelectionContext ctx)
