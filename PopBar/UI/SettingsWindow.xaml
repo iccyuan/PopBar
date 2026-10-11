@@ -44,8 +44,9 @@
         <TextBlock Grid.Column="0" Text="PopBar 设置" Style="{StaticResource Muted}" Margin="22,13,0,0" VerticalAlignment="Top" IsHitTestVisible="False"/>
 
         <!-- content -->
-        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Padding="32,26,32,96" Margin="0,44,0,0">
-            <Grid>
+        <!-- Spacing lives on the content, not the ScrollViewer: its padding would clip scrolled cards at a hard line. -->
+        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0">
+            <Grid x:Name="ContentRoot" Margin="32,26,32,32">
                 <!-- ===== General ===== -->
                 <StackPanel x:Name="PanelGeneral">
                     <TextBlock Style="{StaticResource H1}" Text="通用"/>
@@ -327,10 +328,11 @@
                 <!-- ===== Services: capabilities shared by plugins ===== -->
                 <StackPanel x:Name="PanelServices" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource H1}" Text="服务"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,-6,0,16" TextWrapping="Wrap" Text="插件之间共用的能力：在这里配置一次，所有用到它的插件都会使用。"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,-6,0,16" TextWrapping="Wrap" Text="多个功能共用的服务：在这里配置一次，用到它的功能都会使用。"/>
 
                     <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,2"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,8" Text="翻译的 AI 模式、AI 解释等插件都通过它调用大模型"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,6" Text="插件通过它调用大模型；当前协议支持："/>
+                    <WrapPanel x:Name="LlmFeatureChips" Margin="4,0,0,10"/>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
@@ -394,9 +396,6 @@
                     </Border>
 
 
-                    <TextBlock Style="{StaticResource H2}" Text="插件提供的服务" Margin="4,0,0,2"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,8" Text="由某个插件提供、其他插件调用；具体设置在提供它的插件里"/>
-                    <StackPanel x:Name="ServiceList"/>
                 </StackPanel>
 
                 <!-- ===== About ===== -->

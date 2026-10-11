@@ -163,19 +163,26 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
 
     public FrameworkElement? CreateSettingsView()
     {
-        void Save() => _host.Storage.Set(_cfg);
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg = SettingsDraft.Clone(d);
+            _host.Storage.Set(_cfg);
+            _host.UnregisterHotkey("capture");
+            if (_cfg.Hotkey.Length > 0 && !_host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync()))
+                _host.Log.Warn($"hotkey {_cfg.Hotkey} unavailable");
+        });
         return Form.Stack(
             Form.Card(
-                Form.Row("快捷键", _host.Ui.HotkeyBox(_cfg.Hotkey, v =>
+                Form.Row("快捷键", _host.Ui.HotkeyBox(d.Hotkey, v =>
                 {
-                    _cfg.Hotkey = v; Save();
-                    _host.UnregisterHotkey("capture");
-                    if (_cfg.Hotkey.Length > 0 && !_host.RegisterHotkey("capture", _cfg.Hotkey, () => _ = CaptureAsync()))
-                        _host.Log.Warn($"hotkey {_cfg.Hotkey} unavailable");
+                    d.Hotkey = v; Changed();
                 }), "点击后按下组合键；托盘菜单里也有入口"),
-                Form.Row("识别语言", Form.TextBox(_cfg.Language, 160, v => { _cfg.Language = v.Trim(); Save(); }), "留空按系统语言；可填 zh-Hans-CN、en-US、ja 等（需已安装对应语言包）"),
-                Form.Row("显示结果面板", Form.Toggle(_cfg.ShowPanel, v => { _cfg.ShowPanel = v; Save(); }), "关闭后只弹出操作条"),
-                Form.Row("英文按行合并为段落", Form.Toggle(_cfg.JoinLines, v => { _cfg.JoinLines = v; Save(); }))
+                Form.Row("识别语言", Form.TextBox(d.Language, 160, v => { d.Language = v.Trim(); Changed(); }), "留空按系统语言；可填 zh-Hans-CN、en-US、ja 等（需已安装对应语言包）"),
+                Form.Row("显示结果面板", Form.Toggle(d.ShowPanel, v => { d.ShowPanel = v; Changed(); }), "关闭后只弹出操作条"),
+                Form.Row("英文按行合并为段落", Form.Toggle(d.JoinLines, v => { d.JoinLines = v; Changed(); }))
             ),
             Form.Hint("可用语言：" + string.Join("、", OcrEngine.AvailableRecognizerLanguages.Select(l => l.LanguageTag))));
     }

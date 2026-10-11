@@ -114,7 +114,15 @@ public sealed class AiPlugin : IPopBarPlugin
 
     public FrameworkElement? CreateSettingsView()
     {
-        void Save() => _host.Storage.Set(_cfg);
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg = SettingsDraft.Clone(d);
+            _host.Storage.Set(_cfg);
+            _host.RefreshActions(); // prompt buttons may have been added / removed / renamed
+        });
         var ui = _host.Ui;
         var list = new StackPanel();
 
@@ -135,13 +143,13 @@ public sealed class AiPlugin : IPopBarPlugin
         void Rebuild()
         {
             list.Children.Clear();
-            foreach (var p in _cfg.Prompts)
+            foreach (var p in d.Prompts)
             {
                 var prompt = p;
                 list.Children.Add(Form.ListRow(prompt.Label, Summary(prompt), prompt.Enabled,
-                    on => { prompt.Enabled = on; Save(); },
-                    () => { if (Edit(prompt, false)) { Save(); Rebuild(); } },
-                    () => { _cfg.Prompts.Remove(prompt); Save(); Rebuild(); },
+                    on => { prompt.Enabled = on; Changed(); },
+                    () => { if (Edit(prompt, false)) { Changed(); Rebuild(); } },
+                    () => { d.Prompts.Remove(prompt); Changed(); Rebuild(); },
                     ui, prompt.Icon));
             }
         }
@@ -150,18 +158,18 @@ public sealed class AiPlugin : IPopBarPlugin
         var add = Form.Button("＋ 添加提示词", () =>
         {
             var p = new Prompt { Label = "", System = DefaultSystem, Template = "{text}" };
-            if (Edit(p, true)) { _cfg.Prompts.Add(p); Save(); Rebuild(); }
+            if (Edit(p, true)) { d.Prompts.Add(p); Changed(); Rebuild(); }
         }, accent: true);
 
         return Form.Stack(
             Form.Card(
-                Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, _cfg.Effort, v => { _cfg.Effort = v; Save(); }, 180), "对应模型的 effort 参数"),
-                Form.Row("最大输出 tokens", Form.TextBox(_cfg.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { _cfg.MaxTokens = n; Save(); } }))
+                Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
+                Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),
             list,
             Form.Buttons(add),
-            Form.Hint("新增或删除按钮后重启 PopBar 才会同步到操作条。"));
+            Form.Hint("保存后，提示词按钮的增删改会同步到操作条和「动作」页。"));
     }
 
     private static string Summary(Prompt p)

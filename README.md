@@ -125,6 +125,8 @@ App          组合根：装配以上各层、托盘、单实例、热键
 | 弹条/面板呈现 | `IPopupPresenter` / `IPanelRegistry` | `SelectionEngine` 构造注入 |
 | 插件间共享能力 | `IServiceRegistry`（契约定义在 SDK，如 `ITextTranslator`、`IOcrEngine`） | `host.Services.Provide<T>(impl)` / `Get<T>()` |
 | 插件设置页控件 | `IHostUi`（按键/快捷键录制、运行中程序、图标选择、文件选择、编辑对话框）+ `Form.ListRow` | 插件在 `CreateSettingsView` 里直接用 |
+| 设置保存后生效 | `ISettingsSession`（`host.Settings`）+ `SettingsDraft.Clone` | 设置视图改草稿并调 `Changed()`，`OnApply` 里写回、注册热键；用户点「保存」才执行，取消即丢弃 |
+| 模型后端能力 | `ILlmProvider.Features`（`LlmFeatures`：流式、系统提示词、思考深度、模型列表） | 「服务」页按所选协议展示 |
 
 ## 目录
 

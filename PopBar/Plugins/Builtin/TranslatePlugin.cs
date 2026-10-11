@@ -144,12 +144,19 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
 
     public FrameworkElement? CreateSettingsView()
     {
-        void Save() => _host.Storage.Set(_cfg);
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg = SettingsDraft.Clone(d);
+            _host.Storage.Set(_cfg);
+        });
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, _cfg.Provider, v => { _cfg.Provider = v; Save(); }, 260), "Google 走系统代理，国内需要代理"),
-                Form.Row("目标语言", Form.TextBox(_cfg.TargetLang, 120, v => { _cfg.TargetLang = v.Trim(); Save(); }), "如 zh-CN、en、ja"),
-                Form.Row("备用语言", Form.TextBox(_cfg.AltLang, 120, v => { _cfg.AltLang = v.Trim(); Save(); }), "选中内容已经是目标语言时，改译成这种语言")
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, d.Provider, v => { d.Provider = v; Changed(); }, 260), "Google 走系统代理，国内需要代理"),
+                Form.Row("目标语言", Form.TextBox(d.TargetLang, 120, v => { d.TargetLang = v.Trim(); Changed(); }), "如 zh-CN、en、ja"),
+                Form.Row("备用语言", Form.TextBox(d.AltLang, 120, v => { d.AltLang = v.Trim(); Changed(); }), "选中内容已经是目标语言时，改译成这种语言")
             ));
     }
 

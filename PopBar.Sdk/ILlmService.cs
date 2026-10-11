@@ -46,11 +46,28 @@ public interface ILlmProvider
     /// <summary>Suggested model when the model field is empty.</summary>
     string? DefaultModel { get; }
     bool RequiresApiKey { get; }
+    /// <summary>What this backend supports; shown on the settings "服务" page. Defaults to streaming + system prompt.</summary>
+    LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt;
     /// <summary>One-line help shown next to the provider.</summary>
     string? Hint { get; }
 
     IAsyncEnumerable<string> StreamAsync(LlmConnection connection, LlmRequest request, CancellationToken ct);
     Task<IReadOnlyList<string>> ListModelsAsync(LlmConnection connection, CancellationToken ct);
+}
+
+/// <summary>Capabilities a model backend declares.</summary>
+[Flags]
+public enum LlmFeatures
+{
+    None = 0,
+    /// <summary>Replies arrive incrementally.</summary>
+    Streaming = 1,
+    /// <summary>Honours <see cref="LlmRequest.System"/>.</summary>
+    SystemPrompt = 2,
+    /// <summary>Honours <see cref="LlmRequest.Effort"/> (reasoning depth).</summary>
+    Effort = 4,
+    /// <summary>Implements <see cref="ILlmProvider.ListModelsAsync"/>.</summary>
+    ModelList = 8,
 }
 
 /// <summary>Resolved connection settings handed to a provider (base URL already defaulted).</summary>

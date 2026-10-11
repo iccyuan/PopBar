@@ -23,6 +23,8 @@ public interface IPluginHost
     string DataDir { get; }
     /// <summary>Capabilities shared between plugins (translator, OCR...). See <see cref="IServiceRegistry"/>.</summary>
     IServiceRegistry Services { get; }
+    /// <summary>Settings-window session: views edit a draft and apply it on Save. See <see cref="ISettingsSession"/>.</summary>
+    ISettingsSession Settings { get; }
 
     // ---- UI ----
     /// <summary>Open a floating result panel anchored near the selection. Returns on the calling thread; the panel is created on the UI thread.</summary>

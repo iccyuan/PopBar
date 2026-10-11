@@ -23,6 +23,8 @@ internal class OpenAiCompatibleProvider : ILlmProvider
     public string? DefaultBaseUrl { get; }
     public string? DefaultModel { get; }
     public bool RequiresApiKey { get; }
+    // No effort: /chat/completions has no portable reasoning-depth field.
+    public LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.ModelList;
     public string? Hint { get; }
 
     public static OpenAiCompatibleProvider Generic() => new("openai", "OpenAI 兼容", null, null, false,

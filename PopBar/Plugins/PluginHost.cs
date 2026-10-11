@@ -25,6 +25,7 @@ internal sealed class HostServices
     public required Action<string> ResyncActions { get; init; }
     public required PanelRegistry Panels { get; init; }
     public ServiceRegistry Services { get; } = new();
+    public SettingsHub SettingsHub { get; } = new();
 
     public static HttpClient CreateHttp()
     {
@@ -39,21 +40,11 @@ internal sealed class HostServices
 internal sealed class ServiceRegistry : IServiceRegistry
 {
     private readonly Dictionary<Type, object> _map = new();
-    private readonly Dictionary<Type, string> _owners = new();
 
-    public void Provide<T>(T service) where T : class => Provide(service, "");
-
-    /// <summary>Register on behalf of a plugin, so settings can show who provides each service.</summary>
-    public void Provide<T>(T service, string owner) where T : class
+    public void Provide<T>(T service) where T : class
     {
         ArgumentNullException.ThrowIfNull(service);
-        lock (_map) { _map[typeof(T)] = service; _owners[typeof(T)] = owner; }
-    }
-
-    /// <summary>Registered contracts and the plugin that provides each (empty = the host).</summary>
-    public IReadOnlyList<(Type Contract, string Owner)> Entries
-    {
-        get { lock (_map) return _owners.Select(kv => (kv.Key, kv.Value)).ToList(); }
+        lock (_map) _map[typeof(T)] = service;
     }
 
     public T? Get<T>() where T : class
@@ -62,11 +53,37 @@ internal sealed class ServiceRegistry : IServiceRegistry
     }
 }
 
-/// <summary>A plugin's view of the registry: what it provides is recorded under its id.</summary>
-internal sealed class ScopedServices(ServiceRegistry registry, string owner) : IServiceRegistry
+/// <summary>Pending plugin-settings drafts of the open settings window; Save applies them, Cancel drops them.</summary>
+internal sealed class SettingsHub
 {
-    public void Provide<T>(T service) where T : class => registry.Provide(service, owner);
-    public T? Get<T>() where T : class => registry.Get<T>();
+    private readonly Dictionary<string, Action> _apply = new();
+    private readonly HashSet<string> _pending = new();
+
+    /// <summary>Some plugin draft changed (UI thread).</summary>
+    public event Action? Changed;
+    public bool AnyPending => _pending.Count > 0;
+
+    public void Register(string plugin, Action apply) => _apply[plugin] = apply;
+    public void MarkChanged(string plugin) { _pending.Add(plugin); Changed?.Invoke(); }
+
+    public void ApplyAll()
+    {
+        foreach (var id in _pending.ToList())
+        {
+            try { if (_apply.TryGetValue(id, out var a)) a(); }
+            catch (Exception ex) { PopBar.Log.Error($"plugin {id} apply settings", ex); }
+        }
+        _pending.Clear();
+    }
+
+    /// <summary>Drop all drafts; the window rebuilds the views (which register again).</summary>
+    public void DiscardAll() { _pending.Clear(); _apply.Clear(); }
+}
+
+internal sealed class SettingsSession(SettingsHub hub, string plugin) : ISettingsSession
+{
+    public void Changed() => hub.MarkChanged(plugin);
+    public void OnApply(Action apply) => hub.Register(plugin, apply);
 }
 
 /// <summary>Tracks open panels so outside clicks can close the unpinned ones.</summary>
@@ -123,7 +140,7 @@ internal sealed class PluginHost : IPluginHost
         _log = new PluginLogger(pluginId);
         _storage = new PluginStorage(pluginId);
         DataDir = Path.Combine(PluginStorage.PluginsDir, pluginId);
-        Services = new ScopedServices(s.Services, pluginId);
+        Settings = new SettingsSession(s.SettingsHub, pluginId);
     }
 
     public IPluginLogger Log => _log;
@@ -134,7 +151,8 @@ internal sealed class PluginHost : IPluginHost
     public IHostUi Ui { get; } = new HostUi();
     public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
-    public IServiceRegistry Services { get; }
+    public IServiceRegistry Services => _s.Services;
+    public ISettingsSession Settings { get; }
 
     public IPanel ShowPanel(PanelOptions options)
     {

@@ -137,56 +137,64 @@ public sealed class SendToPlugin : IPopBarPlugin
 
     public FrameworkElement? CreateSettingsView()
     {
-        void Save() => _host.Storage.Set(_cfg);
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg = SettingsDraft.Clone(d);
+            _host.Storage.Set(_cfg);
+            _host.RefreshActions();
+        });
         var ui = _host.Ui;
         var list = new StackPanel();
 
         bool Edit(Target t, bool isNew)
         {
-            var d = new Target { Id = t.Id, Label = t.Label, Icon = t.Icon, Mode = t.Mode, Program = t.Program, Args = t.Args, LaunchIfMissing = t.LaunchIfMissing, Enabled = t.Enabled };
-            var programBox = Form.TextBox(d.Program, 240, v => d.Program = v.Trim());
+            var draft = new Target { Id = t.Id, Label = t.Label, Icon = t.Icon, Mode = t.Mode, Program = t.Program, Args = t.Args, LaunchIfMissing = t.LaunchIfMissing, Enabled = t.Enabled };
+            var programBox = Form.TextBox(draft.Program, 240, v => draft.Program = v.Trim());
             var programRow = new StackPanel { Orientation = Orientation.Horizontal };
             programRow.Children.Add(programBox);
-            var pick = ui.AppPicker(exe => { d.Program = exe; programBox.Text = exe; }, 36);
+            var pick = ui.AppPicker(exe => { draft.Program = exe; programBox.Text = exe; }, 36);
             pick.Margin = new Thickness(6, 0, 0, 0); pick.ToolTip = "从运行中的程序选择";
             programRow.Children.Add(pick);
-            var browse = ui.FileBrowse("浏览…", "程序 (*.exe)|*.exe", path => { d.Program = path; programBox.Text = path; });
+            var browse = ui.FileBrowse("浏览…", "程序 (*.exe)|*.exe", path => { draft.Program = path; programBox.Text = path; });
             browse.Margin = new Thickness(6, 0, 0, 0);
             programRow.Children.Add(browse);
             var content = Form.Stack(
-                Form.Row("名称", Form.TextBox(d.Label, 240, v => d.Label = v)),
-                Form.Row("图标", ui.IconPicker(d.Icon, v => d.Icon = v)),
-                Form.Row("方式", Form.Combo(new[] { ("paste", "粘贴到程序窗口"), ("launch", "带参数启动程序"), ("url", "打开 URL 协议") }, d.Mode, v => d.Mode = v, 200)),
+                Form.Row("名称", Form.TextBox(draft.Label, 240, v => draft.Label = v)),
+                Form.Row("图标", ui.IconPicker(draft.Icon, v => draft.Icon = v)),
+                Form.Row("方式", Form.Combo(new[] { ("paste", "粘贴到程序窗口"), ("launch", "带参数启动程序"), ("url", "打开 URL 协议") }, draft.Mode, v => draft.Mode = v, 200)),
                 Form.Row("程序", programRow, "粘贴方式填进程名（notepad.exe）；启动方式填可执行文件路径"),
-                Form.Row("参数 / URL", Form.TextBox(d.Args, 320, v => d.Args = v), "{text} = 选中内容"),
-                Form.Row("找不到窗口时启动", Form.Toggle(d.LaunchIfMissing, v => d.LaunchIfMissing = v)));
+                Form.Row("参数 / URL", Form.TextBox(draft.Args, 320, v => draft.Args = v), "{text} = 选中内容"),
+                Form.Row("找不到窗口时启动", Form.Toggle(draft.LaunchIfMissing, v => draft.LaunchIfMissing = v)));
             if (!ui.EditDialog(isNew ? "添加发送目标" : "编辑发送目标", content, 600)) return false;
-            if (string.IsNullOrWhiteSpace(d.Label)) return false;
-            t.Label = d.Label.Trim(); t.Icon = d.Icon; t.Mode = d.Mode; t.Program = d.Program; t.Args = d.Args; t.LaunchIfMissing = d.LaunchIfMissing;
+            if (string.IsNullOrWhiteSpace(draft.Label)) return false;
+            t.Label = draft.Label.Trim(); t.Icon = draft.Icon; t.Mode = draft.Mode; t.Program = draft.Program; t.Args = draft.Args; t.LaunchIfMissing = draft.LaunchIfMissing;
             return true;
         }
 
         void Rebuild()
         {
             list.Children.Clear();
-            foreach (var t in _cfg.Targets)
+            foreach (var t in d.Targets)
             {
                 var target = t;
                 var sub = target.Mode switch { "launch" => "启动 " + target.Program, "url" => target.Args, _ => "粘贴到 " + target.Program };
                 list.Children.Add(Form.ListRow(target.Label, sub, target.Enabled,
-                    on => { target.Enabled = on; Save(); _host.RefreshActions(); },
-                    () => { if (Edit(target, false)) { Save(); Rebuild(); _host.RefreshActions(); } },
-                    () => { _cfg.Targets.Remove(target); Save(); Rebuild(); _host.RefreshActions(); },
+                    on => { target.Enabled = on; Changed(); },
+                    () => { if (Edit(target, false)) { Changed(); Rebuild(); } },
+                    () => { d.Targets.Remove(target); Changed(); Rebuild(); },
                     ui, target.Icon));
             }
         }
         Rebuild();
 
         return Form.Stack(
-            Form.Card(Form.Row("合并为一个按钮", Form.Toggle(_cfg.Fold, v => { _cfg.Fold = v; Save(); _host.RefreshActions(); }),
+            Form.Card(Form.Row("合并为一个按钮", Form.Toggle(d.Fold, v => { d.Fold = v; Changed(); }),
                 "开启多个目标时，操作条上只占一个「发送到」按钮，点击后展开选择目标")),
             list,
-            Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { _cfg.Targets.Add(t); Save(); Rebuild(); _host.RefreshActions(); } }, accent: true)),
+            Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { d.Targets.Add(t); Changed(); Rebuild(); } }, accent: true)),
             Form.Hint("可以同时开启多个目标；合并时按钮出现在第一个目标的位置，展开后的顺序与「动作」页一致。"));
     }
 

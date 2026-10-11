@@ -156,6 +156,11 @@ public partial class SettingsWindow : Window
         LogPathRun.Text = System.IO.Path.Combine(ConfigStore.Dir, "popbar.log");
 
         LoadFromConfig(_store.Current);
+        if (PluginDrafts != null)
+        {
+            PluginDrafts.Changed += UpdateSaveBar;
+            Closed += (_, _) => { PluginDrafts.Changed -= UpdateSaveBar; PluginDrafts.DiscardAll(); };
+        }
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == System.Windows.Input.Key.S && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
@@ -296,12 +301,15 @@ public partial class SettingsWindow : Window
     private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(BuildConfig());
 
     /// <summary>Edits are held in the form until saved; changing something back clears the flag again.</summary>
-    private bool IsDirty => _baseline.Length > 0 && Snapshot() != _baseline;
+    private bool IsDirty => (_baseline.Length > 0 && Snapshot() != _baseline) || PluginDrafts?.AnyPending == true;
 
     private void UpdateSaveBar()
     {
         if (SaveBar == null) return;
-        SaveBar.Visibility = IsDirty ? Visibility.Visible : Visibility.Collapsed;
+        bool dirty = IsDirty;
+        SaveBar.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
+        // Room under the last card only while the bar floats over it.
+        ContentRoot.Margin = new Thickness(32, 26, 32, dirty ? 96 : 32);
     }
 
     private void SaveNow()
@@ -309,6 +317,7 @@ public partial class SettingsWindow : Window
         if (_loading) return;
         _store.Replace(BuildConfig());
         _baseline = Snapshot();
+        PluginDrafts?.ApplyAll(); // plugin settings edited in their cards
         UpdateSaveBar();
         StatusText.Text = "已保存 " + DateTime.Now.ToString("HH:mm:ss");
     }
@@ -317,8 +326,9 @@ public partial class SettingsWindow : Window
 
     private void CancelChanges_Click(object sender, RoutedEventArgs e)
     {
+        PluginDrafts?.DiscardAll();
         LoadFromConfig(_store.Current);
-        BuildPluginList(); // plugin on/off switches were edited in place
+        BuildPluginList(); // plugin switches and settings views start again from the live settings
         StatusText.Text = "已撤销未保存的更改";
     }
 
@@ -355,62 +365,42 @@ public partial class SettingsWindow : Window
         PanelApps.Visibility = NavApps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelServices.Visibility = NavServices.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
-        if (NavServices.IsChecked == true) BuildServiceList();
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ------------------------------------------------------------------ plugins
 
-    /// <summary>Set by the app: registered services and their providers.</summary>
-    internal static Func<IReadOnlyList<(Type Contract, string Owner)>>? ServiceEntries;
+    /// <summary>Set by the app: plugin settings drafts waiting for Save.</summary>
+    internal static Plugins.SettingsHub? PluginDrafts;
 
-    /// <summary>Friendly names for the SDK's service contracts; unknown contracts show their type name.</summary>
-    private static (string Name, string Icon, string Desc) DescribeService(Type t) => t.Name switch
+    /// <summary>Chips under the AI service: what the selected protocol supports (declared by its provider).</summary>
+    private void BuildLlmFeatures()
     {
-        nameof(Sdk.ITextTranslator) => ("文本翻译", "languages", "把文字翻译成目标语言；屏幕翻译等插件调用它，目标语言与引擎跟随提供者的设置"),
-        nameof(Sdk.IOcrEngine) => ("文字识别", "scan-text", "识别图片里的文字和位置；屏幕翻译等插件调用它，识别语言跟随提供者的设置"),
-        _ => (t.Name, "puzzle", t.FullName ?? t.Name),
-    };
-
-    private void BuildServiceList()
-    {
-        ServiceList.Children.Clear();
-        var entries = ServiceEntries?.Invoke() ?? Array.Empty<(Type, string)>();
-        foreach (var (contract, owner) in entries.OrderBy(e => e.Owner))
+        if (LlmFeatureChips == null) return;
+        LlmFeatureChips.Children.Clear();
+        var id = LlmProtocolCombo.SelectedValue as string;
+        var provider = _llm.Providers.FirstOrDefault(p => p.Id == id);
+        if (provider == null) return;
+        foreach (var (flag, text, icon, tip) in new (Sdk.LlmFeatures, string, string, string)[]
         {
-            var (name, icon, desc) = DescribeService(contract);
-            var provider = _plugins.Plugins.FirstOrDefault(l => string.Equals(l.Plugin.Id, owner, StringComparison.OrdinalIgnoreCase))?.Plugin;
-            var card = new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 10) };
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.Children.Add(new Border
+            (Sdk.LlmFeatures.Streaming, "流式输出", "zap", "回答边生成边显示"),
+            (Sdk.LlmFeatures.SystemPrompt, "系统提示词", "message-square", "支持为请求设置系统提示（角色、口吻）"),
+            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "支持 low / medium / high 推理深度"),
+            (Sdk.LlmFeatures.ModelList, "获取模型列表", "search", "可从接口拉取可用模型"),
+        })
+        {
+            bool on = provider.Features.HasFlag(flag);
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var brush = (Brush)FindResource(on ? "AccentHoverBrush" : "MutedBrush");
+            row.Children.Add(new IconImage { Icon = on ? icon : "x", Size = 13, Brush = brush, VerticalAlignment = VerticalAlignment.Center });
+            row.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = brush, Margin = new Thickness(5, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
+            LlmFeatureChips.Children.Add(new Border
             {
-                Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Background = (Brush)FindResource("AccentSoftBrush"), VerticalAlignment = VerticalAlignment.Center,
-                Child = new IconImage { Icon = icon, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+                CornerRadius = new CornerRadius(10), Padding = new Thickness(9, 3, 10, 3), Margin = new Thickness(0, 0, 6, 6),
+                Background = (Brush)FindResource(on ? "AccentSoftBrush" : "HoverBrush"), Child = row,
+                ToolTip = on ? tip : "此协议不支持：" + tip,
             });
-            var text = new StackPanel { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
-            var title = new TextBlock { FontWeight = FontWeights.SemiBold };
-            title.Inlines.Add(name);
-            title.Inlines.Add(new System.Windows.Documents.Run("  · 由「" + (provider?.Name ?? (owner.Length == 0 ? "PopBar" : owner)) + "」提供")
-                { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
-            text.Children.Add(title);
-            text.Children.Add(new TextBlock { Text = desc, Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap });
-            Grid.SetColumn(text, 1);
-            grid.Children.Add(text);
-            if (provider != null)
-            {
-                var go = new Button { Content = "设置", VerticalAlignment = VerticalAlignment.Center, ToolTip = "到插件页修改提供者的设置" };
-                go.Click += (_, _) => ShowPluginsPage(provider.Id);
-                Grid.SetColumn(go, 2);
-                grid.Children.Add(go);
-            }
-            card.Child = grid;
-            ServiceList.Children.Add(card);
         }
-        if (ServiceList.Children.Count == 0)
-            ServiceList.Children.Add(new TextBlock { Text = "目前没有插件提供服务。", Style = (Style)FindResource("Muted"), Margin = new Thickness(4, 0, 0, 0) });
     }
 
     public void ShowPluginsPage(string? pluginId = null)
@@ -575,7 +565,11 @@ public partial class SettingsWindow : Window
         Changed(sender, e);
     }
 
-    private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);
+    private void Llm_Changed(object sender, RoutedEventArgs e)
+    {
+        if (sender == LlmProtocolCombo) BuildLlmFeatures();
+        Changed(sender, e);
+    }
 
     /// <summary>
     /// "获取模型" / "测试连接" talk to the endpoint typed in the form, so the AI service fields are saved right then

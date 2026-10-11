@@ -134,12 +134,25 @@ public sealed class NotesPlugin : IPopBarPlugin
 
     private void Save() => _host.Storage.Set(_cfg);
 
-    public FrameworkElement? CreateSettingsView() => Form.Stack(
-        Form.Card(
-            Form.Row("新建便签", _host.Ui.HotkeyBox(_cfg.NewHotkey, v => { _cfg.NewHotkey = v; Save(); RegisterHotkeys(); }), "全局快捷键，在鼠标位置新建空白便签"),
-            Form.Row("显示全部便签", _host.Ui.HotkeyBox(_cfg.ShowAllHotkey, v => { _cfg.ShowAllHotkey = v; Save(); RegisterHotkeys(); }), "全局快捷键，把所有便签带到最前"),
-            Form.Row("便签数量", new TextBlock { Text = _cfg.Notes.Count.ToString(), VerticalAlignment = VerticalAlignment.Center })),
-        Form.Hint("选中文字后点操作条上的「便签」，或从托盘菜单「新建便签」。拖动顶部移动，右下角调整大小，Ctrl+滚轮调透明度；删除后不可恢复。"));
+    public FrameworkElement? CreateSettingsView()
+    {
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg.NewHotkey = d.NewHotkey;
+            _cfg.ShowAllHotkey = d.ShowAllHotkey;
+            Save();
+            RegisterHotkeys();
+        });
+        return Form.Stack(
+            Form.Card(
+                Form.Row("新建便签", _host.Ui.HotkeyBox(d.NewHotkey, v => { d.NewHotkey = v; Changed(); }), "全局快捷键，在鼠标位置新建空白便签"),
+                Form.Row("显示全部便签", _host.Ui.HotkeyBox(d.ShowAllHotkey, v => { d.ShowAllHotkey = v; Changed(); }), "全局快捷键，把所有便签带到最前"),
+                Form.Row("便签数量", new TextBlock { Text = _cfg.Notes.Count.ToString(), VerticalAlignment = VerticalAlignment.Center })),
+            Form.Hint("选中文字后点操作条上的「便签」，或从托盘菜单「新建便签」。拖动顶部移动，右下角调整大小，Ctrl+滚轮调透明度；删除后不可恢复。"));
+    }
 
     public void Dispose()
     {

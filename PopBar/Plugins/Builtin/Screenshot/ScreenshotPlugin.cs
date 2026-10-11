@@ -176,10 +176,22 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 
     public FrameworkElement? CreateSettingsView()
     {
-        void Save() => _host.Storage.Set(_cfg);
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        var origDir = d.SaveDir;
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            // The capture overlay remembers the last save folder at runtime; keep it unless the draft changed the folder.
+            var folder = d.SaveDir == origDir ? _cfg.SaveDir : d.SaveDir;
+            _cfg = SettingsDraft.Clone(d);
+            _cfg.SaveDir = folder;
+            _host.Storage.Set(_cfg);
+            RegisterHotkeys();
+        });
         var ui = _host.Ui;
 
-        var dirBox = Form.TextBox(string.IsNullOrWhiteSpace(_cfg.SaveDir) ? DefaultSaveDir : _cfg.SaveDir, 260, v => { _cfg.SaveDir = v.Trim(); Save(); });
+        var dirBox = Form.TextBox(string.IsNullOrWhiteSpace(d.SaveDir) ? DefaultSaveDir : d.SaveDir, 260, v => { d.SaveDir = v.Trim(); Changed(); });
         var browse = Form.Button("选择…", () =>
         {
             var dlg = new Microsoft.Win32.OpenFolderDialog { InitialDirectory = dirBox.Text };
@@ -192,35 +204,35 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 
         return Form.Stack(
             Form.Card(
-                Form.Row("截图快捷键", ui.HotkeyBox(_cfg.CaptureHotkey, v => { _cfg.CaptureHotkey = v; Save(); RegisterHotkeys(); }), "托盘菜单里也有「截图」"),
-                Form.Row("贴图快捷键", ui.HotkeyBox(_cfg.PinHotkey, v => { _cfg.PinHotkey = v; Save(); RegisterHotkeys(); }), "把剪贴板里的图片或文字贴到屏幕上"),
+                Form.Row("截图快捷键", ui.HotkeyBox(d.CaptureHotkey, v => { d.CaptureHotkey = v; Changed(); }), "托盘菜单里也有「截图」"),
+                Form.Row("贴图快捷键", ui.HotkeyBox(d.PinHotkey, v => { d.PinHotkey = v; Changed(); }), "把剪贴板里的图片或文字贴到屏幕上"),
                 Form.Row("保存目录", dirRow),
-                Form.Row("显示放大镜", Form.Toggle(_cfg.ShowMagnifier, v => { _cfg.ShowMagnifier = v; Save(); })),
-                Form.Row("自动识别窗口", Form.Toggle(_cfg.DetectWindows, v => { _cfg.DetectWindows = v; Save(); }), "鼠标悬停时高亮窗口，单击直接选中")),
+                Form.Row("显示放大镜", Form.Toggle(d.ShowMagnifier, v => { d.ShowMagnifier = v; Changed(); })),
+                Form.Row("自动识别窗口", Form.Toggle(d.DetectWindows, v => { d.DetectWindows = v; Changed(); }), "鼠标悬停时高亮窗口，单击直接选中")),
             Form.Card(
-                Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, _cfg.GifFps.ToString(), v => { _cfg.GifFps = int.Parse(v); Save(); }, 140), "帧率越高越流畅，文件也越大"),
-                Form.Row("GIF 最长时长", Form.Combo(new[] { ("30", "30 秒"), ("60", "1 分钟"), ("180", "3 分钟"), ("600", "10 分钟") }, _cfg.GifMaxSeconds.ToString(), v => { _cfg.GifMaxSeconds = int.Parse(v); Save(); }, 140)),
-                Form.Row("录入鼠标指针", Form.Toggle(_cfg.GifCursor, v => { _cfg.GifCursor = v; Save(); }))),
+                Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, d.GifFps.ToString(), v => { d.GifFps = int.Parse(v); Changed(); }, 140), "帧率越高越流畅，文件也越大"),
+                Form.Row("GIF 最长时长", Form.Combo(new[] { ("30", "30 秒"), ("60", "1 分钟"), ("180", "3 分钟"), ("600", "10 分钟") }, d.GifMaxSeconds.ToString(), v => { d.GifMaxSeconds = int.Parse(v); Changed(); }, 140)),
+                Form.Row("录入鼠标指针", Form.Toggle(d.GifCursor, v => { d.GifCursor = v; Changed(); }))),
             Form.Card(
-                KeyRow("复制", () => _cfg.KeyCopy, v => _cfg.KeyCopy = v, "截图和贴图里都生效；Enter / 双击也能复制"),
-                KeyRow("保存", () => _cfg.KeySave, v => _cfg.KeySave = v, "截图和贴图里都生效"),
-                KeyRow("贴到屏幕", () => _cfg.KeyPin, v => _cfg.KeyPin = v),
-                KeyRow("撤销", () => _cfg.KeyUndo, v => _cfg.KeyUndo = v),
-                KeyRow("长截图", () => _cfg.KeyLong, v => _cfg.KeyLong = v),
-                KeyRow("录制 GIF", () => _cfg.KeyGif, v => _cfg.KeyGif = v),
-                KeyRow("复制色值", () => _cfg.KeyColor, v => _cfg.KeyColor = v, "未框选时复制放大镜下的颜色"),
-                KeyRow("矩形", () => _cfg.KeyRect, v => _cfg.KeyRect = v),
-                KeyRow("椭圆", () => _cfg.KeyEllipse, v => _cfg.KeyEllipse = v),
-                KeyRow("箭头", () => _cfg.KeyArrow, v => _cfg.KeyArrow = v),
-                KeyRow("画笔", () => _cfg.KeyPen, v => _cfg.KeyPen = v),
-                KeyRow("马赛克", () => _cfg.KeyMosaic, v => _cfg.KeyMosaic = v),
-                KeyRow("文字", () => _cfg.KeyText, v => _cfg.KeyText = v)),
+                KeyRow("复制", () => d.KeyCopy, v => d.KeyCopy = v, "截图和贴图里都生效；Enter / 双击也能复制"),
+                KeyRow("保存", () => d.KeySave, v => d.KeySave = v, "截图和贴图里都生效"),
+                KeyRow("贴到屏幕", () => d.KeyPin, v => d.KeyPin = v),
+                KeyRow("撤销", () => d.KeyUndo, v => d.KeyUndo = v),
+                KeyRow("长截图", () => d.KeyLong, v => d.KeyLong = v),
+                KeyRow("录制 GIF", () => d.KeyGif, v => d.KeyGif = v),
+                KeyRow("复制色值", () => d.KeyColor, v => d.KeyColor = v, "未框选时复制放大镜下的颜色"),
+                KeyRow("矩形", () => d.KeyRect, v => d.KeyRect = v),
+                KeyRow("椭圆", () => d.KeyEllipse, v => d.KeyEllipse = v),
+                KeyRow("箭头", () => d.KeyArrow, v => d.KeyArrow = v),
+                KeyRow("画笔", () => d.KeyPen, v => d.KeyPen = v),
+                KeyRow("马赛克", () => d.KeyMosaic, v => d.KeyMosaic = v),
+                KeyRow("文字", () => d.KeyText, v => d.KeyText = v)),
             Form.Hint("框选后工具栏里的「长截图」会自动向下滚动并拼接（滚动期间别动鼠标），「GIF」开始录制，结果保存到上面的目录并复制到剪贴板。"),
             Form.Hint("截图中：拖动框选，单击选中窗口；方向键微调，Esc / 右键 取消。贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，右键更多操作。快捷键点击后按下新组合键，Backspace 清除。"));
     }
 
     private FrameworkElement KeyRow(string label, Func<string> get, Action<string> set, string? hint = null) =>
-        Form.Row(label, _host.Ui.HotkeyBox(get(), v => { set(v); _host.Storage.Set(_cfg); }), hint);
+        Form.Row(label, _host.Ui.HotkeyBox(get(), v => { set(v); _host.Settings.Changed(); }), hint);
 
     public void Dispose() { }
 }

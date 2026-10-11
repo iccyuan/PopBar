@@ -11,6 +11,7 @@ internal sealed class AnthropicProvider : ILlmProvider
 {
     public string Id => "anthropic";
     public string Name => "Anthropic（官方 SDK）";
+    public LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.Effort | LlmFeatures.ModelList;
     public string? DefaultBaseUrl => null;
     public string? DefaultModel => "claude-opus-5-5";
     public bool RequiresApiKey => true;

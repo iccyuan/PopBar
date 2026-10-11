@@ -48,8 +48,19 @@ public sealed class HelloPlugin : IPopBarPlugin
         },
     };
 
-    public FrameworkElement? CreateSettingsView() => Form.Card(
-        Form.Row("字符数包含空白", Form.Toggle(_cfg.CountSpaces, v => { _cfg.CountSpaces = v; _host.Storage.Set(_cfg); })));
+    public FrameworkElement? CreateSettingsView()
+    {
+        // Edit a draft; it only takes effect when the settings window is saved.
+        var d = SettingsDraft.Clone(_cfg);
+        void Changed() => _host.Settings.Changed();
+        _host.Settings.OnApply(() =>
+        {
+            _cfg = SettingsDraft.Clone(d);
+            _host.Storage.Set(_cfg);
+        });
+        return Form.Card(
+            Form.Row("字符数包含空白", Form.Toggle(d.CountSpaces, v => { d.CountSpaces = v; Changed(); })));
+    }
 
     public void Dispose() { }
 }
