@@ -324,7 +324,7 @@ public partial class PanelWindow : Window, IPanel
 
     private void StartComet()
     {
-        double w = BusyTrack.ActualWidth > 0 ? BusyTrack.ActualWidth : Math.Max(120, _opt.Width - 32);
+        double w = BusyTrack.ActualWidth > 0 ? BusyTrack.ActualWidth : Math.Max(120, _opt.Width);
         BusyComet.Width = Math.Clamp(w * 0.38, 80, 260);
         var run = new DoubleAnimation(-BusyComet.Width, w, TimeSpan.FromMilliseconds(1400))
         {
@@ -334,9 +334,13 @@ public partial class PanelWindow : Window, IPanel
         BusyX.BeginAnimation(TranslateTransform.XProperty, run);
     }
 
-    /// <summary>The panel grew (e.g. first layout, custom content): re-fit the sweep to the new width.</summary>
+    /// <summary>
+    /// The panel grew (e.g. first layout, custom content): keep the clip on the frame's rounded corners and re-fit the sweep.
+    /// The clip is a tall rounded rect so only its top corners fall inside the 3px line.
+    /// </summary>
     private void BusyTrack_SizeChanged(object sender, SizeChangedEventArgs e)
     {
+        BusyClip.Rect = new Rect(0, 0, e.NewSize.Width, 24);
         if (_busy && e.WidthChanged) StartComet();
     }
 
