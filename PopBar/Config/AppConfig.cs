@@ -31,6 +31,8 @@ public sealed class AppConfig
     /// <summary>"dark" or "light".</summary>
     public string Theme { get; set; } = "system";
     public bool ShowLabels { get; set; } = true;
+    /// <summary>Bar buttons shown at once; the rest fold behind a "更多" button. 0 = no limit.</summary>
+    public int MaxBarItems { get; set; } = 7;
     /// <summary>Opacity (40-100 %) of the tint over the blurred backdrop of the bar and panels.</summary>
     public int BlurOpacity { get; set; } = 88;
 

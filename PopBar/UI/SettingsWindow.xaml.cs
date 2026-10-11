@@ -167,6 +167,7 @@ public partial class SettingsWindow : Window
             new("dark", "深色"),
             new("light", "浅色"),
         };
+        MaxItemsCombo.ItemsSource = new[] { 4, 5, 6, 7, 8, 10, 12 }.Select(n => new KeyValuePair<string, string>(n.ToString(), $"{n} 个")).Append(new("0", "不限制")).ToList();
         SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Mica, ThemeManager.IsDark, roundCorners: true);
         ThemeManager.Changed += OnThemeChanged;
         Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
@@ -255,6 +256,8 @@ public partial class SettingsWindow : Window
             ThemeCombo.SelectedValue = c.Theme;
             if (ThemeCombo.SelectedIndex < 0) ThemeCombo.SelectedIndex = 0;
             LabelsSw.IsChecked = c.ShowLabels;
+            MaxItemsCombo.SelectedValue = c.MaxBarItems.ToString();
+            if (MaxItemsCombo.SelectedIndex < 0) MaxItemsCombo.SelectedValue = "7";
             BlurSlider.Value = Math.Clamp(c.BlurOpacity, 40, 100);
             BlurValueText.Text = $"{(int)BlurSlider.Value}%";
             _excluded.Clear(); _excluded.AddRange(c.ExcludedApps);
@@ -294,6 +297,7 @@ public partial class SettingsWindow : Window
             MaxTextLength = ParseInt(MaxLenBox.Text, 10000, 1, 1_000_000),
             Theme = ThemeCombo.SelectedValue as string ?? "dark",
             ShowLabels = LabelsSw.IsChecked == true,
+            MaxBarItems = int.TryParse(MaxItemsCombo.SelectedValue as string, out var mx) ? mx : 7,
             BlurOpacity = (int)BlurSlider.Value,
             ExcludedApps = _excluded.ToList(),
             NoClipboardApps = _noClip.ToList(),

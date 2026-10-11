@@ -151,6 +151,15 @@
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
                             <Grid Style="{StaticResource Row}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="最多显示按钮数" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="超出的按钮折叠到操作条末尾的「更多」里，点开后在原位展开"/>
+                                </StackPanel>
+                                <ComboBox x:Name="MaxItemsCombo" Width="160" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                          DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>

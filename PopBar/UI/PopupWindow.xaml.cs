@@ -85,6 +85,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         ApplyTheme(cfg.Theme);
         _actions = actions;
         _showLabels = cfg.ShowLabels;
+        _maxItems = cfg.MaxBarItems;
         BuildButtons();
 
         var (work, dpi) = GetMonitorAt(x, y);
@@ -147,9 +148,10 @@ public partial class PopupWindow : Window, IPopupPresenter
         if (!_visible) { ShowFor(sel, actions, cfg); return; }
         _selection = sel;
         // Same buttons (the usual case): nothing on screen changes, the actions just act on the new text.
-        if (cfg.ShowLabels == _showLabels && actions.SequenceEqual(_actions)) return;
+        if (cfg.ShowLabels == _showLabels && cfg.MaxBarItems == _maxItems && actions.SequenceEqual(_actions)) return;
         _actions = actions;
         _showLabels = cfg.ShowLabels;
+        _maxItems = cfg.MaxBarItems;
         BuildButtons();
         Relayout();
     }
@@ -228,11 +230,33 @@ public partial class PopupWindow : Window, IPopupPresenter
         return b;
     }
 
-    /// <summary>The main page: every action, with each plugin group of two or more members folded into one button.</summary>
+    /// <summary>One top-level bar button: an action, or a folded plugin group.</summary>
+    private sealed record Entry(string Icon, string Label, Action OnClick, bool More);
+
+    private int _maxItems;
+
+    /// <summary>
+    /// The main page: every action, with each plugin group of two or more members folded into one button, and
+    /// everything past <see cref="AppConfig.MaxBarItems"/> folded behind a "更多" button so the bar stays short.
+    /// </summary>
     private void BuildButtons()
     {
         Buttons.Children.Clear();
-        _hasGroup = false;
+        var entries = TopLevelEntries();
+        _hasGroup = entries.Any(e => e.More);
+        int limit = _maxItems;
+        if (limit > 0 && entries.Count > limit)
+        {
+            var rest = entries.Skip(limit - 1).ToList();
+            foreach (var e in entries.Take(limit - 1)) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
+            AddButton("ellipsis", "更多", false, () => Overflow(rest), compact: true);
+            _hasGroup = true; // the bar can widen later: keep the full-width glass strip
+        }
+        else foreach (var e in entries) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
+    }
+
+    private List<Entry> TopLevelEntries()
+    {
         var groupOf = new Dictionary<ActionDefinition, BarGroup>();
         var members = new Dictionary<string, List<ActionDefinition>>();
         foreach (var a in _actions)
@@ -243,6 +267,7 @@ public partial class PopupWindow : Window, IPopupPresenter
             list.Add(a);
         }
 
+        var entries = new List<Entry>();
         var placed = new HashSet<string>();
         foreach (var a in _actions)
         {
@@ -251,11 +276,20 @@ public partial class PopupWindow : Window, IPopupPresenter
                 // The folded button sits where the group's first member would be.
                 if (!placed.Add(g.Key)) continue;
                 var list = members[g.Key];
-                AddButton(g.Icon, g.Label, _showLabels, () => Expand(list), more: true);
-                _hasGroup = true;
+                entries.Add(new Entry(g.Icon, g.Label, () => Expand(list), true));
             }
-            else AddButton(a.Icon, a.Label, _showLabels, () => Run(a));
+            else entries.Add(new Entry(a.Icon, a.Label, () => Run(a), false));
         }
+        return entries;
+    }
+
+    /// <summary>The buttons that did not fit, with a back button; groups among them still open their own list.</summary>
+    private void Overflow(IReadOnlyList<Entry> rest)
+    {
+        Buttons.Children.Clear();
+        AddButton("chevron-left", "返回", false, Collapse, compact: true);
+        foreach (var e in rest) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
+        Relayout();
     }
 
     /// <summary>Swap the bar to a group's members, with a back button. Labels always show: this is a chooser.</summary>

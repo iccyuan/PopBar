@@ -48,6 +48,7 @@ public static class Icons
         ["chevron-down"] = "M6 9l6 6 6-6",
         ["chevron-right"] = "M9 18l6-6-6-6",
         ["chevron-left"] = "M15 18l-6-6 6-6",
+        ["ellipsis"] = "M13 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0 M20 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0 M6 12a1 1 0 1 1-2 0a1 1 0 1 1 2 0",
         ["power"] = "M12 2v10 M18.4 6.6a9 9 0 1 1-12.77.04",
         ["toggle-right"] = "M2 12a5 5 0 0 1 5-5h10a5 5 0 0 1 0 10H7a5 5 0 0 1-5-5z M17 12a2 2 0 1 1-4 0a2 2 0 0 1 4 0",
         ["toggle-left"] = "M2 12a5 5 0 0 1 5-5h10a5 5 0 0 1 0 10H7a5 5 0 0 1-5-5z M11 12a2 2 0 1 1-4 0a2 2 0 0 1 4 0",
