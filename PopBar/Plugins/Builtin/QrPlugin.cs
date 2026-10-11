@@ -51,6 +51,7 @@ public sealed class QrPlugin : IPopBarPlugin
         {
             Id = "make", Label = "二维码", Icon = "qr-code",
             Description = "把选中内容生成二维码",
+            EnabledByDefault = false,
             IsApplicable = ctx => ctx.Text.Trim().Length is > 0 and <= 1200,
             Execute = (ctx, _) => { ShowCode(ctx); return Task.CompletedTask; },
         },

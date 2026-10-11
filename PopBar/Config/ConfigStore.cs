@@ -74,6 +74,13 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 4;
                         migrated = true;
                     }
+                    if (cfg.ConfigVersion < 5)
+                    {
+                        // v0.3: QR and sticky-note buttons start switched off (they briefly shipped on).
+                        foreach (var a in cfg.Actions.Where(a => a.Ref is "qr:make" or "notes:pin")) a.Enabled = false;
+                        cfg.ConfigVersion = 5;
+                        migrated = true;
+                    }
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();

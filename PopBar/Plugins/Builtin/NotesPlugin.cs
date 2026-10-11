@@ -72,6 +72,7 @@ public sealed class NotesPlugin : IPopBarPlugin
         new PluginAction
         {
             Id = "pin", Label = "便签", Icon = "sticky-note", Description = "把选中内容贴成桌面便签",
+            EnabledByDefault = false,
             IsApplicable = ctx => ctx.Text.Trim().Length is > 0 and <= 20000,
             Execute = (ctx, _) =>
             {
