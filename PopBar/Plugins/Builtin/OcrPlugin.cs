@@ -212,6 +212,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
         static bool Has(string tag) => OcrEngine.AvailableRecognizerLanguages.Any(l => l.LanguageTag.StartsWith(
             tag switch { "zh-CN" => "zh-Hans", "zh-TW" => "zh-Hant", _ => tag[..tag.IndexOf('-')] }, StringComparison.OrdinalIgnoreCase));
         var combo = Form.Combo(Packs.Select(p => (p.Tag, Has(p.Tag) ? p.Label + "（已安装）" : p.Label)), Packs.FirstOrDefault(p => !Has(p.Tag)).Tag ?? "zh-CN", width: 180);
+        combo.Margin = new Thickness(0, 0, 8, 0);
         System.Windows.Controls.Button install = null!;
         install = Form.Button("安装", () =>
         {
@@ -235,9 +236,12 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:regionlanguage") { UseShellExecute = true }); } catch { }
         });
-        return Form.Card(
-            Form.Row("已安装的识别语言", installed),
-            Form.Row("安装语言包", Form.Buttons(combo, install, open), "走系统可选功能安装（需联网、会弹一次管理员授权）；装完若列表没刷新，重启 PopBar"),
+        // The status line lives under the card: inside it, even collapsed, it would draw a separator.
+        status.Margin = new Thickness(4, 0, 0, 8);
+        return Form.Stack(
+            Form.Card(
+                Form.Row("已安装的识别语言", installed),
+                Form.Row("安装语言包", Form.Buttons(combo, install, open), "走系统可选功能安装（需联网、会弹一次管理员授权）；装完若列表没刷新，重启 PopBar")),
             status);
     }
 
