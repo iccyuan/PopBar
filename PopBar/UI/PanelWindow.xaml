@@ -136,28 +136,27 @@
             <StackPanel Margin="16,0,16,0">
                 <!-- source text: three lines with an ellipsis by default; 「显示全部」 appears only when it was cut -->
                 <Border x:Name="SourceBox" CornerRadius="8" Background="{DynamicResource PSource}" Padding="10,6" Margin="0,0,0,10" Visibility="Collapsed">
-                    <StackPanel>
+                    <Grid>
                         <ScrollViewer x:Name="SourceScroll" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource PBodyScroll}">
                             <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
                         </ScrollViewer>
-                        <!-- icon-only toggle: a round chip with a double chevron, accent on hover, tooltip spells it out -->
-                        <Button x:Name="SourceExpandBtn" Visibility="Collapsed" Click="SourceExpand_Click" HorizontalAlignment="Right" Margin="0,4,-4,-2"
-                                Cursor="Hand" Focusable="False" Width="24" Height="24" ToolTip="显示全部" Tag="chevrons-down">
+                        <!-- icon-only toggle in the corner, over the text's reserved right margin: double chevron, plain until hovered -->
+                        <Button x:Name="SourceExpandBtn" Visibility="Collapsed" Click="SourceExpand_Click" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-6,-3"
+                                Cursor="Hand" Focusable="False" Width="22" Height="22" ToolTip="显示全部" Tag="chevrons-down">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bd" CornerRadius="12" Background="{DynamicResource PHover}">
-                                        <ui:IconImage x:Name="Ic" Icon="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Size="15" Brush="{DynamicResource PAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Border x:Name="Bd" CornerRadius="11" Background="Transparent">
+                                        <ui:IconImage Icon="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Size="15" Brush="{DynamicResource PAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PAccent}"/>
-                                            <Setter TargetName="Ic" Property="Brush" Value="White"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                    </StackPanel>
+                    </Grid>
                 </Border>
                 <ContentControl x:Name="CustomHost" Visibility="Collapsed" Focusable="False"/>
                 <Grid x:Name="TextArea">

@@ -101,11 +101,16 @@ public partial class PanelWindow : Window, IPanel
     /// Collapsed, the box shows the head and the tail of the source with the middle elided (the ends are what
     /// identifies a selection); expanded, all of it. The toggle appears only when something was cut.
     /// </summary>
+    private const double SourceToggleGutter = 20;   // right margin the text leaves for the corner toggle
+
     private void ApplySource()
     {
         double width = Width - Root.Margin.Left - Root.Margin.Right - 32 - 20; // body margin + box padding
         var fitted = MiddleEllipsis(_sourceFull, width, SourceCollapsedHeight);
         _sourceCut = fitted.Length != _sourceFull.Length;
+        // Only a cut text gets the toggle, and then it wraps in the narrower column so the icon never sits on a word.
+        if (_sourceCut) fitted = MiddleEllipsis(_sourceFull, width - SourceToggleGutter, SourceCollapsedHeight);
+        SourceScroll.Margin = new Thickness(0, 0, _sourceCut ? SourceToggleGutter : 0, 0);
         SourceText.Text = _sourceExpanded ? _sourceFull : fitted;
         SourceText.ToolTip = _sourceCut && !_sourceExpanded ? _sourceFull : null;
         SourceExpandBtn.Visibility = _sourceExpanded || _sourceCut ? Visibility.Visible : Visibility.Collapsed;
