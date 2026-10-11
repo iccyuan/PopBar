@@ -11,6 +11,23 @@ using PopBar.Core;
 
 namespace PopBar.UI;
 
+/// <summary>Several actions contributed by one plugin, shown as one card so their relation is visible.</summary>
+public sealed class ActionGroupRow : INotifyPropertyChanged
+{
+    public required string Owner { get; init; }
+    public required string Name { get; init; }
+    public required string Icon { get; init; }
+    public string Note { get; set; } = "";
+    public ObservableCollection<ActionRow> Members { get; } = new();
+    public string CountText => $"{Members.Count} 个动作";
+
+    private bool _isDragging;
+    public bool IsDragging { get => _isDragging; set { _isDragging = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DragOpacity))); } }
+    public double DragOpacity => _isDragging ? 0.45 : 1.0;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
 /// <summary>Row view-model for the actions list.</summary>
 public sealed class ActionRow : INotifyPropertyChanged
 {
@@ -79,7 +96,11 @@ public partial class SettingsWindow : Window
     private readonly ConfigStore _store;
     private readonly Plugins.PluginManager _plugins;
     private readonly Sdk.ILlmService _llm;
+    /// <summary>Flat action order, as saved to config.</summary>
     private readonly ObservableCollection<ActionRow> _rows = new();
+    /// <summary>What the list shows: stand-alone rows and plugin groups (rebuilt from <see cref="_rows"/>).</summary>
+    private readonly ObservableCollection<object> _items = new();
+    private bool _flattening;
     private readonly DispatcherTimer _saveTimer;
     private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _excluded = new();
@@ -94,6 +115,7 @@ public partial class SettingsWindow : Window
         _plugins = plugins;
         _llm = llm;
         ActionRow.PluginDescription = id => _plugins.TryGet(id, out _, out var a) ? a.Description : null;
+        _rows.CollectionChanged += (_, _) => { if (!_flattening) Regroup(); };
         InitializeComponent();
 
         LlmProtocolCombo.ItemsSource = _llm.Providers.Select(p => new KeyValuePair<string, string>(p.Id, p.Name)).ToList();
@@ -123,7 +145,7 @@ public partial class SettingsWindow : Window
         SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Mica, ThemeManager.IsDark, roundCorners: true);
         ThemeManager.Changed += OnThemeChanged;
         Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
-        ActionsList.ItemsSource = _rows;
+        ActionsList.ItemsSource = _items;
 
         var ver = typeof(SettingsWindow).Assembly.GetName().Version;
         var vs = "v" + (ver == null ? "0.1.0" : $"{ver.Major}.{ver.Minor}.{ver.Build}");
@@ -300,7 +322,7 @@ public partial class SettingsWindow : Window
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send", "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle" };
+            var iconName = PluginIcon(plugin.Id);
             var iconImg = new IconImage { Icon = iconName, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
             head.Children.Add(iconBox);
@@ -491,49 +513,123 @@ public partial class SettingsWindow : Window
 
     private ActionRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as ActionRow;
 
-    // ---- drag to reorder ----
+    private static string PluginIcon(string id) => id switch
+    {
+        "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send",
+        "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle",
+    };
 
-    private ActionRow? _dragRow;
+    private static string? OwnerOf(ActionRow r) =>
+        r.Def.IsPlugin && r.Def.Ref is { } id && id.IndexOf(':') is var i and > 0 ? id[..i] : null;
+
+    /// <summary>
+    /// Rebuild the displayed list: a plugin with two or more actions becomes one group card, placed where its first
+    /// action is. Members of a group are kept together, so the saved order is normalised on the next save.
+    /// </summary>
+    private void Regroup()
+    {
+        _items.Clear();
+        var multi = _rows.Select(OwnerOf).Where(o => o != null).GroupBy(o => o!).Where(g => g.Count() > 1).Select(g => g.Key).ToHashSet();
+        var groups = new Dictionary<string, ActionGroupRow>();
+        foreach (var r in _rows)
+        {
+            var owner = OwnerOf(r);
+            if (owner == null || !multi.Contains(owner)) { _items.Add(r); continue; }
+            if (!groups.TryGetValue(owner, out var g))
+            {
+                var plugin = _plugins.Plugins.FirstOrDefault(l => string.Equals(l.Plugin.Id, owner, StringComparison.OrdinalIgnoreCase))?.Plugin;
+                groups[owner] = g = new ActionGroupRow { Owner = owner, Name = plugin?.Name ?? owner, Icon = PluginIcon(owner) };
+                // Folded groups say how they look on the bar; others fall back to what the plugin does.
+                g.Note = _plugins.GroupOf(r.Def) is { } bar
+                    ? $"操作条上合并为一个「{bar.Label}」按钮，点击后展开选择"
+                    : plugin?.Description ?? "";
+                _items.Add(g);
+            }
+            g.Members.Add(r);
+        }
+    }
+
+    /// <summary>Write the displayed order back into the flat list.</summary>
+    private void Flatten()
+    {
+        _flattening = true;
+        try
+        {
+            _rows.Clear();
+            foreach (var it in _items)
+            {
+                if (it is ActionRow r) _rows.Add(r);
+                else if (it is ActionGroupRow g) foreach (var m in g.Members) _rows.Add(m);
+            }
+        }
+        finally { _flattening = false; }
+    }
+
+    // ---- drag to reorder: stand-alone rows and whole groups move in the list, members move inside their group ----
+
+    private object? _dragItem;
+    private ActionGroupRow? _dragParent;
+    private bool _dragMoved;
+
+    private static void SetDragging(object item, bool on)
+    {
+        if (item is ActionRow r) r.IsDragging = on;
+        else if (item is ActionGroupRow g) g.IsDragging = on;
+    }
 
     private void DragHandle_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
-        var row = RowOf(sender); if (row == null) return;
-        _dragRow = row;
-        row.IsDragging = true;
-        try { DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(typeof(ActionRow), row), DragDropEffects.Move); }
+        var item = (sender as FrameworkElement)?.DataContext;
+        if (item is not (ActionRow or ActionGroupRow)) return;
+        _dragItem = item;
+        _dragParent = item is ActionRow row ? _items.OfType<ActionGroupRow>().FirstOrDefault(g => g.Members.Contains(row)) : null;
+        _dragMoved = false;
+        SetDragging(item, true);
+        try { DragDrop.DoDragDrop((DependencyObject)sender, new DataObject("PopBarAction", item), DragDropEffects.Move); }
         finally
         {
-            row.IsDragging = false;
-            _dragRow = null;
+            SetDragging(item, false);
+            _dragItem = null;
+            _dragParent = null;
+            if (_dragMoved) { Flatten(); Changed(sender, e); }
         }
         e.Handled = true;
     }
 
-    /// <summary>Live reorder: move the dragged row to the slot under the cursor as it moves.</summary>
+    /// <summary>Live reorder: move the dragged item to the slot under the cursor as it moves.</summary>
     private void ActionsList_DragOver(object sender, DragEventArgs e)
     {
         e.Effects = DragDropEffects.None;
-        if (_dragRow == null) return;
+        if (_dragItem == null) return;
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
-        var target = RowAtPoint(e.GetPosition(ActionsList));
-        if (target == null || ReferenceEquals(target, _dragRow)) return;
-        int from = _rows.IndexOf(_dragRow), to = _rows.IndexOf(target);
-        if (from >= 0 && to >= 0 && from != to) _rows.Move(from, to);
+        var hit = ActionsList.InputHitTest(e.GetPosition(ActionsList)) as DependencyObject;
+        if (_dragParent != null)
+        {
+            // Inside a group: the nearest element bound to a member row.
+            var members = _dragParent.Members;
+            for (var d = hit; d != null; d = VisualTreeHelper.GetParent(d))
+            {
+                if (d is FrameworkElement { DataContext: ActionRow t } && members.Contains(t))
+                {
+                    int from = members.IndexOf((ActionRow)_dragItem), to = members.IndexOf(t);
+                    if (from != to) { members.Move(from, to); _dragMoved = true; }
+                    return;
+                }
+            }
+            return;
+        }
+        while (hit != null && hit is not ListBoxItem) hit = VisualTreeHelper.GetParent(hit);
+        if ((hit as ListBoxItem)?.DataContext is { } target && !ReferenceEquals(target, _dragItem))
+        {
+            int from = _items.IndexOf(_dragItem), to = _items.IndexOf(target);
+            if (from >= 0 && to >= 0) { _items.Move(from, to); _dragMoved = true; }
+        }
     }
 
     private void ActionsList_Drop(object sender, DragEventArgs e)
     {
-        if (_dragRow == null) return;
-        e.Handled = true;
-        Changed(sender, e);
-    }
-
-    private ActionRow? RowAtPoint(Point p)
-    {
-        var hit = ActionsList.InputHitTest(p) as DependencyObject;
-        while (hit != null && hit is not ListBoxItem) hit = VisualTreeHelper.GetParent(hit);
-        return (hit as ListBoxItem)?.DataContext as ActionRow;
+        if (_dragItem != null) e.Handled = true;
     }
 
     private void EditAction_Click(object sender, RoutedEventArgs e)
