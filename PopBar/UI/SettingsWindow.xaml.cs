@@ -19,7 +19,31 @@ public sealed class ActionGroupRow : INotifyPropertyChanged
     public required string Icon { get; init; }
     public string Note { get; set; } = "";
     public ObservableCollection<ActionRow> Members { get; } = new();
-    public string CountText => $"{Members.Count} 个动作";
+    /// <summary>Expanded: how many actions; collapsed: how many of them are on, since the switches are hidden.</summary>
+    public string CountText => IsExpanded ? $"{Members.Count} 个动作" : $"已开启 {Members.Count(m => m.Enabled)}/{Members.Count}";
+
+    /// <summary>Groups the user folded; kept for the app's lifetime so reopening settings keeps the layout.</summary>
+    private static readonly HashSet<string> Collapsed = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool IsExpanded
+    {
+        get => !Collapsed.Contains(Owner);
+        set
+        {
+            if (value) Collapsed.Remove(Owner); else Collapsed.Add(Owner);
+            Notify(nameof(IsExpanded)); Notify(nameof(ChevronIcon)); Notify(nameof(CountText));
+        }
+    }
+    public string ChevronIcon => IsExpanded ? "chevron-down" : "chevron-right";
+
+    public void Add(ActionRow row)
+    {
+        Members.Add(row);
+        // A member switch flipping changes the collapsed summary.
+        row.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(ActionRow.Enabled)) Notify(nameof(CountText)); };
+    }
+
+    private void Notify(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
     private bool _isDragging;
     public bool IsDragging { get => _isDragging; set { _isDragging = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DragOpacity))); } }
@@ -702,7 +726,7 @@ public partial class SettingsWindow : Window
                     : plugin?.Description ?? "";
                 _items.Add(g);
             }
-            g.Members.Add(r);
+            g.Add(r);
         }
     }
 
@@ -720,6 +744,11 @@ public partial class SettingsWindow : Window
             }
         }
         finally { _flattening = false; }
+    }
+
+    private void GroupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ActionGroupRow g) g.IsExpanded = !g.IsExpanded;
     }
 
     // ---- drag to reorder: stand-alone rows and whole groups move in the list, members move inside their group ----

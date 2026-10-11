@@ -213,6 +213,7 @@
 
                     <ListBox x:Name="ActionsList" Style="{StaticResource PlainList}" AllowDrop="True" DragOver="ActionsList_DragOver" Drop="ActionsList_Drop">
                         <ListBox.Resources>
+                            <BooleanToVisibilityConverter x:Key="BoolVis"/>
                             <!-- a stand-alone action -->
                             <DataTemplate DataType="{x:Type ui:ActionRow}">
                                 <Border Style="{StaticResource Card}" Padding="6,10,14,10" Opacity="{Binding DragOpacity}">
@@ -257,6 +258,7 @@
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Grid.Column="0" Width="24" Height="36" Background="Transparent" Cursor="SizeAll" ToolTip="拖动整组排序" VerticalAlignment="Center" Margin="0,0,6,0" PreviewMouseLeftButtonDown="DragHandle_MouseDown">
                                                 <ui:IconImage Icon="grip-vertical" Size="16" Brush="{DynamicResource MutedBrush}"/>
@@ -264,16 +266,21 @@
                                             <Border Grid.Column="1" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center">
                                                 <ui:IconImage Icon="{Binding Icon}" Size="18" Brush="White"/>
                                             </Border>
-                                            <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">
+                                            <!-- the whole title area folds / unfolds the group, like the chevron -->
+                                            <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="GroupToggle_Click">
                                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
                                                 <TextBlock Text="{Binding Note}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             </StackPanel>
                                             <Border Grid.Column="3" CornerRadius="10" Padding="9,2,9,3" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource AccentHoverBrush}"/>
                                             </Border>
+                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="收起 / 展开" Click="GroupToggle_Click">
+                                                <ui:IconImage Icon="{Binding ChevronIcon}" Size="16" Brush="{DynamicResource MutedBrush}"/>
+                                            </Button>
                                         </Grid>
                                         <!-- guide line under the plugin icon ties the members to it -->
-                                        <Border Margin="47,6,0,0" BorderThickness="2,0,0,0" BorderBrush="{DynamicResource AccentSoftBrush}">
+                                        <Border Margin="47,6,0,0" BorderThickness="2,0,0,0" BorderBrush="{DynamicResource AccentSoftBrush}"
+                                                Visibility="{Binding IsExpanded, Converter={StaticResource BoolVis}}">
                                             <ItemsControl ItemsSource="{Binding Members}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
