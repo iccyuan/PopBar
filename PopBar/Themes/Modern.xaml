@@ -745,6 +745,28 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <Style x:Key="TrayMenu" TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContextMenu">
+                    <Grid Margin="10">
+                        <!-- shadow caster; its opaque body sits under the glass snapshot so only the shadow shows -->
+                        <Border CornerRadius="12" Background="{DynamicResource PopupBrush}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.18"/>
+                            </Border.Effect>
+                        </Border>
+                        <!-- blurred screenshot of what is underneath, set from code once the menu knows where it landed -->
+                        <Border x:Name="Glass" CornerRadius="12" Background="{TemplateBinding Tag}"/>
+                        <Border CornerRadius="12" Background="{TemplateBinding Background}" Padding="4" MinWidth="176" RenderOptions.ClearTypeHint="Enabled">
+                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     <Style TargetType="MenuItem">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Cursor" Value="Hand"/>
