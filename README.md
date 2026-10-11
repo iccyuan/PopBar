@@ -48,8 +48,12 @@ WH_MOUSE_LL / WH_KEYBOARD_LL  ──► SelectionEngine（钩子线程里只做�
 | 翻译 `translate` | 浮动面板内直接显示译文；Google（免费，走系统代理）或 AI 模型两种后端；源语言已是目标语言时自动改译备用语言 | 目标语言、备用语言、服务 |
 | AI 助手 `ai` | 解释 / 总结 / 润色，流式输出到面板；每个提示词一个按钮，可自定义系统提示和模板 | 提示词列表、effort、最大 tokens |
 | 屏幕 OCR `ocr` | 热键（默认 Ctrl+Alt+O）或托盘菜单 → 框选屏幕区域 → Windows 内置 OCR → 弹出操作栏 + 可编辑结果面板 | 热键、识别语言、是否显示面板 |
-| 截图 `screenshot` | 对标 Snipaste：F1 冻结屏幕截图，悬停自动识别窗口、单击选中，拖动框选，八向手柄调整、方向键微调；放大镜取色（C 复制色值）；矩形 / 椭圆 / 箭头 / 画笔 / 马赛克 / 文字标注，撤销；Enter·双击复制、Ctrl+S 保存、Ctrl+T 贴图。F3 把剪贴板图片或文字贴到屏幕：拖动、滚轮缩放、Ctrl+滚轮透明度、双击关闭 | 热键、保存目录、放大镜、窗口识别 |
-| 发送到应用 `sendto` | 把选中内容粘贴进指定进程的窗口（找不到可自动启动）、带参数启动程序、或打开 URL 协议（如 `obsidian://`） | 目标列表 |
+| 截图 `screenshot` | 对标 Snipaste：F1 冻结屏幕截图，悬停自动识别窗口、单击选中，拖动框选，八向手柄调整、方向键微调；放大镜取色（C 复制色值）；矩形 / 椭圆 / 箭头 / 画笔 / 马赛克 / 文字标注，撤销；Enter·双击复制、Ctrl+S 保存、Ctrl+T 贴图。**长截图**：自动滚动目标窗口并按行哈希拼接（识别吸顶 / 吸底栏、忽略滚动条）；**录制 GIF**：流式编码，只存变化区域，可暂停、可录鼠标。F3 把剪贴板图片或文字贴到屏幕：拖动、滚轮缩放、Ctrl+滚轮透明度、双击销毁 | 热键、保存目录、放大镜、窗口识别、GIF 帧率 / 时长 / 鼠标 |
+| 发送到应用 `sendto` | 把选中内容粘贴进指定进程的窗口（找不到可自动启动）、带参数启动程序、或打开 URL 协议（如 `obsidian://`）；每个目标一个按钮，可同时显示多个，增删即时生效 | 目标列表 |
+| 二维码 `qr` | 选中内容生成二维码（复制图片 / 保存）；框选（Ctrl+Alt+Q）或整屏扫描识别二维码 / 条形码，结果弹出操作条 | 识别热键 |
+| 编码工具 `codec` | 选中内容符合格式时才出现：解码（Base64 / URL / Unicode / HTML 实体）、JSON 格式化、JWT 解析、时间戳互转；另有可选的「编码」面板（各种编码 + MD5/SHA 哈希） | — |
+| 便签 `notes` | 把选中内容贴成桌面便签：可编辑、换颜色、置顶、Ctrl+滚轮透明度，重启后自动恢复 | — |
+| 屏幕翻译 `screentranslate` | Ctrl+Alt+T 框选区域 → OCR → 按段落翻译 → 用取样的背景色 / 文字色把译文覆盖在原位置；按住空格看原文 | 热键 |
 
 AI 模型在 **设置 → 插件 → AI 模型服务** 统一配置：协议 `anthropic`（官方 SDK，默认模型 `claude-opus-5-5`）或 `openai`（任何 OpenAI 兼容的 `/chat/completions`：LiteLLM、Ollama、DeepSeek……）。
 
@@ -92,7 +96,7 @@ public sealed class HelloPlugin : IPopBarPlugin
 
 2. 把编译出的 DLL 放到 `%AppData%\PopBar\plugins\<任意目录名>\`，重启 PopBar。新动作会自动出现在「动作」页，顺序和启用状态由用户控制。
 
-`IPluginHost` 提供：日志、每插件 JSON 存储、共享 `HttpClient`、`ILlmService`（流式）、浮动面板 `ShowPanel`、`ShowPopup`（为任意文本弹操作栏）、`CaptureScreenRegionAsync`（框选截图）、剪贴板 / 粘贴 / 激活窗口、全局热键、托盘菜单项、`RunActionAsync`（调用其他动作，如 `"translate:panel"`）。`PopBar.Sdk.Ui.Form` 里是和设置页同款样式的表单助手。
+`IPluginHost` 提供：日志、每插件 JSON 存储、共享 `HttpClient`、`ILlmService`（流式）、浮动面板 `ShowPanel`、`ShowPopup`（为任意文本弹操作栏）、`CaptureScreenRegionAsync`（框选截图）、剪贴板 / 粘贴 / 激活窗口、全局热键、托盘菜单项、`RunActionAsync`（调用其他动作，如 `"translate:panel"`）、`RefreshActions`（动作列表变化后即时同步到操作条）、`Services`（插件间共享能力：内置翻译提供 `ITextTranslator`，OCR 提供带行坐标的 `IOcrEngine`，按类型取用，不必互相引用）。`PopBar.Sdk.Ui.Form` 里是和设置页同款样式的表单助手。
 
 第三方插件在独立的 `AssemblyLoadContext` 里加载，只与宿主共享 `PopBar.Sdk`；其他依赖随 DLL 一起放。
 
@@ -119,6 +123,7 @@ App          组合根：装配以上各层、托盘、单实例、热键
 | AI 模型提供商 | `ILlmProvider` | `host.Llm.RegisterProvider(...)`（内置：Anthropic、OpenAI 兼容、Ollama、DeepSeek） |
 | 取词方式 | `ITextCaptureStrategy` | `TextCapture` 构造时传入策略链 |
 | 弹条/面板呈现 | `IPopupPresenter` / `IPanelRegistry` | `SelectionEngine` 构造注入 |
+| 插件间共享能力 | `IServiceRegistry`（契约定义在 SDK，如 `ITextTranslator`、`IOcrEngine`） | `host.Services.Provide<T>(impl)` / `Get<T>()` |
 | 插件设置页控件 | `IHostUi`（按键/快捷键录制、运行中程序、图标选择、文件选择、编辑对话框）+ `Form.ListRow` | 插件在 `CreateSettingsView` 里直接用 |
 
 ## 目录
