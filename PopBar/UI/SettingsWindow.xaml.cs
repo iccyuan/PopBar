@@ -309,7 +309,7 @@ public partial class SettingsWindow : Window
         bool dirty = IsDirty;
         SaveBar.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
         // Room under the last card only while the bar floats over it.
-        ContentRoot.Margin = new Thickness(32, 26, 32, dirty ? 96 : 32);
+        ContentRoot.Margin = new Thickness(32, 12, 32, dirty ? 96 : 32);
     }
 
     private void SaveNow()
