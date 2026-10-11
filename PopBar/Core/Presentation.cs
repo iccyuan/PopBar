@@ -22,6 +22,9 @@ internal interface IPopupPresenter
     event Action? Hidden;
 }
 
+/// <summary>A folded set of bar buttons (see PluginAction.Group). Key is unique per plugin + group name.</summary>
+internal sealed record BarGroup(string Key, string Label, string Icon);
+
 /// <summary>Open floating panels, queried by the engine for click/selection arbitration.</summary>
 internal interface IPanelRegistry
 {

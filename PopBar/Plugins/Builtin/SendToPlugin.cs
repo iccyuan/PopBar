@@ -28,6 +28,8 @@ public sealed class SendToPlugin : IPopBarPlugin
     public sealed class Settings
     {
         public List<Target> Targets { get; set; } = new();
+        /// <summary>Two or more enabled targets share one bar button that expands into the list.</summary>
+        public bool Fold { get; set; } = true;
     }
 
     private IPluginHost _host = null!;
@@ -60,12 +62,28 @@ public sealed class SendToPlugin : IPopBarPlugin
         }
     }
 
-    public IReadOnlyList<PluginAction> GetActions() => _cfg.Targets.Where(t => t.Enabled).Select(t => new PluginAction
+    public IReadOnlyList<PluginAction> GetActions()
     {
-        Id = t.Id, Label = t.Label, Icon = t.Icon,
-        Description = Describe(t),
-        Execute = (ctx, _) => { Send(t, ctx); return Task.CompletedTask; },
-    }).ToList();
+        var on = _cfg.Targets.Where(t => t.Enabled).ToList();
+        bool folded = _cfg.Fold && on.Count > 1;
+        return on.Select(t => new PluginAction
+        {
+            // Inside the folded list a target named like the group itself ("发送到") says nothing: name its program.
+            Id = t.Id, Label = folded && t.Label == GroupName ? ProgramName(t) : t.Label, Icon = t.Icon,
+            Description = Describe(t),
+            Group = _cfg.Fold ? GroupName : null, GroupIcon = "send",
+            Execute = (ctx, _) => { Send(t, ctx); return Task.CompletedTask; },
+        }).ToList();
+    }
+
+    private const string GroupName = "发送到";
+
+    private static string ProgramName(Target t)
+    {
+        if (t.Mode == "url") return t.Args.Split(':')[0];
+        var name = System.IO.Path.GetFileNameWithoutExtension(t.Program);
+        return name.Equals("notepad", StringComparison.OrdinalIgnoreCase) ? "记事本" : name;
+    }
 
     private static string Describe(Target t) => t.Mode switch
     {
@@ -165,9 +183,11 @@ public sealed class SendToPlugin : IPopBarPlugin
         Rebuild();
 
         return Form.Stack(
+            Form.Card(Form.Row("合并为一个按钮", Form.Toggle(_cfg.Fold, v => { _cfg.Fold = v; Save(); _host.RefreshActions(); }),
+                "开启多个目标时，操作条上只占一个「发送到」按钮，点击后展开选择目标")),
             list,
             Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { _cfg.Targets.Add(t); Save(); Rebuild(); _host.RefreshActions(); } }, accent: true)),
-            Form.Hint("每个开启的目标都是操作条上的一个按钮，可以同时显示多个；顺序在「动作」页拖动调整。"));
+            Form.Hint("可以同时开启多个目标；合并时按钮出现在第一个目标的位置，展开后的顺序与「动作」页一致。"));
     }
 
     public void Dispose() { }

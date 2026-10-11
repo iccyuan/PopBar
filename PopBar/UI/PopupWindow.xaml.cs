@@ -26,6 +26,20 @@ public partial class PopupWindow : Window, IPopupPresenter
     private bool _visible;
     private string _theme = "";
 
+    /// <summary>Resolves the fold group of an action (plugin-declared); null = never fold.</summary>
+    internal Func<ActionDefinition, BarGroup?>? GroupOf { get; set; }
+
+    // Layout of the current show, kept so the bar can re-size in place when a group expands / collapses.
+    private IReadOnlyList<ActionDefinition> _actions = Array.Empty<ActionDefinition>();
+    private bool _showLabels, _above, _hasGroup;
+    private int _anchorX, _anchorY, _py, _m, _gap;
+    private double _scale = 1;
+    private RECT _work;
+    // Blurred strip of the whole work-area width at the bar's height: lets a wider (expanded) bar keep its glass
+    // without re-capturing the screen while the bar itself is on it.
+    private ImageSource? _strip;
+    private int _stripX, _stripY;
+
     public PopupWindow()
     {
         InitializeComponent();
@@ -69,7 +83,9 @@ public partial class PopupWindow : Window, IPopupPresenter
         _selection = sel;
         int x = sel.X, y = sel.Y;
         ApplyTheme(cfg.Theme);
-        BuildButtons(actions, cfg.ShowLabels);
+        _actions = actions;
+        _showLabels = cfg.ShowLabels;
+        BuildButtons();
 
         var (work, dpi) = GetMonitorAt(x, y);
         double scale = dpi / 96.0;
@@ -84,9 +100,20 @@ public partial class PopupWindow : Window, IPopupPresenter
         int py = above ? y - h + m - gap : y - m + (int)Math.Round(16 * scale);
         py = Math.Clamp(py, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
 
+        _anchorX = x; _anchorY = y; _above = above; _py = py; _m = m; _gap = gap; _scale = scale; _work = work;
+
         // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
         if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
-        Glass.Background = ThemeManager.BlurOpacity < 100 ? FrostedGlass.Brush(px + m, py + m, w - 2 * m, h - 2 * m) : null;
+        _strip = null;
+        if (ThemeManager.BlurOpacity >= 100) Glass.Background = null;
+        else if (_hasGroup)
+        {
+            // The bar may widen later: blur the full-width strip now, while nothing of ours is on screen.
+            _stripX = work.Left; _stripY = py + m;
+            _strip = FrostedGlass.Capture(_stripX, _stripY, work.Right - work.Left, h - 2 * m);
+            Glass.Background = StripBrush(px + m, py + m, w - 2 * m, h - 2 * m);
+        }
+        else Glass.Background = FrostedGlass.Brush(px + m, py + m, w - 2 * m, h - 2 * m);
         ApplyTint(Glass.Background != null);
 
         Root.Opacity = 0;
@@ -105,6 +132,7 @@ public partial class PopupWindow : Window, IPopupPresenter
             {
                 int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
                 int py2 = above ? y - h2 + m - gap : py;
+                if (_strip != null) Glass.Background = StripBrush(px2 + m, py2 + m, w2 - 2 * m, h2 - 2 * m);
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
             }
@@ -174,52 +202,130 @@ public partial class PopupWindow : Window, IPopupPresenter
         Resources[key] = b;
     }
 
-    private void BuildButtons(IReadOnlyList<ActionDefinition> actions, bool showLabels)
+    private ImageBrush? StripBrush(int x, int y, int w, int h)
+    {
+        if (_strip == null) return null;
+        var b = new ImageBrush(_strip)
+        {
+            Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute,
+            Viewbox = new Rect(x - _stripX, y - _stripY, w, h),
+        };
+        b.Freeze();
+        return b;
+    }
+
+    /// <summary>The main page: every action, with each plugin group of two or more members folded into one button.</summary>
+    private void BuildButtons()
     {
         Buttons.Children.Clear();
-        var fg = (Brush)Resources["BarFgBrush"];
-        for (int i = 0; i < actions.Count; i++)
+        _hasGroup = false;
+        var groupOf = new Dictionary<ActionDefinition, BarGroup>();
+        var members = new Dictionary<string, List<ActionDefinition>>();
+        foreach (var a in _actions)
         {
-            var a = actions[i];
-            if (i > 0)
+            if (GroupOf?.Invoke(a) is not { } g) continue;
+            groupOf[a] = g;
+            if (!members.TryGetValue(g.Key, out var list)) members[g.Key] = list = new();
+            list.Add(a);
+        }
+
+        var placed = new HashSet<string>();
+        foreach (var a in _actions)
+        {
+            if (groupOf.TryGetValue(a, out var g) && members[g.Key].Count > 1)
             {
-                Buttons.Children.Add(new Rectangle
-                {
-                    Width = 1, Margin = new Thickness(3, 9, 3, 9),
-                    Fill = (Brush)Resources["BarSepBrush"],
-                });
+                // The folded button sits where the group's first member would be.
+                if (!placed.Add(g.Key)) continue;
+                var list = members[g.Key];
+                AddButton(g.Icon, g.Label, _showLabels, () => Expand(list), more: true);
+                _hasGroup = true;
             }
-
-            // 16 DIP = 24 px at 150 % DPI, i.e. the icon's native grid: pixel-crisp strokes.
-            var icon = new IconImage { Icon = a.Icon, Size = 16, Brush = fg, Thickness = 1.9, VerticalAlignment = VerticalAlignment.Center };
-
-            var content = new StackPanel { Orientation = Orientation.Horizontal };
-            content.Children.Add(icon);
-            if (showLabels && !string.IsNullOrWhiteSpace(a.Label))
-            {
-                content.Children.Add(new TextBlock
-                {
-                    Text = a.Label, Foreground = fg, FontSize = 13,
-                    FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"),
-                    Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                });
-            }
-
-            var btn = new Button
-            {
-                Style = (Style)Resources["BarButton"],
-                Content = content,
-                Tag = a,
-                ToolTip = showLabels ? null : a.Label,
-            };
-            btn.Click += OnButtonClick;
-            Buttons.Children.Add(btn);
+            else AddButton(a.Icon, a.Label, _showLabels, () => Run(a));
         }
     }
 
-    private void OnButtonClick(object sender, RoutedEventArgs e)
+    /// <summary>Swap the bar to a group's members, with a back button. Labels always show: this is a chooser.</summary>
+    private void Expand(IReadOnlyList<ActionDefinition> list)
     {
-        if (sender is not Button { Tag: ActionDefinition a }) return;
+        Buttons.Children.Clear();
+        AddButton("chevron-left", "返回", false, Collapse, compact: true);
+        foreach (var a in list) AddButton(a.Icon, a.Label, true, () => Run(a));
+        Relayout();
+    }
+
+    private void Collapse()
+    {
+        BuildButtons();
+        Relayout();
+    }
+
+    /// <summary>Re-size the visible bar to its new content, staying centred on the original anchor.</summary>
+    private void Relayout()
+    {
+        if (!_visible) return;
+        var size = MeasureRoot();
+        int m = _m;
+        int w = (int)Math.Ceiling(size.Width * _scale);
+        int h = (int)Math.Ceiling(size.Height * _scale);
+        int px = Math.Clamp(_anchorX - w / 2, _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
+        int py = _above ? _anchorY - h + m - _gap : _py;
+        if (_strip != null) Glass.Background = StripBrush(px + m, py + m, w - 2 * m, h - 2 * m);
+        SetWindowPos(_hwnd, HWND_TOPMOST, px, py, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        Shown?.Invoke(new RECT { Left = px + m, Top = py + m, Right = px + w - m, Bottom = py + h - m });
+
+        var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        Buttons.BeginAnimation(OpacityProperty, fade);
+    }
+
+    private void AddButton(string iconName, string label, bool showLabel, Action onClick, bool more = false, bool compact = false)
+    {
+        var fg = (Brush)Resources["BarFgBrush"];
+        if (Buttons.Children.Count > 0)
+        {
+            Buttons.Children.Add(new Rectangle
+            {
+                Width = 1, Margin = new Thickness(3, 9, 3, 9),
+                Fill = (Brush)Resources["BarSepBrush"],
+            });
+        }
+
+        // 16 DIP = 24 px at 150 % DPI, i.e. the icon's native grid: pixel-crisp strokes.
+        var icon = new IconImage { Icon = iconName, Size = 16, Brush = fg, Thickness = 1.9, VerticalAlignment = VerticalAlignment.Center };
+
+        var content = new StackPanel { Orientation = Orientation.Horizontal };
+        content.Children.Add(icon);
+        if (showLabel && !string.IsNullOrWhiteSpace(label))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = label, Foreground = fg, FontSize = 13,
+                FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"),
+                Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+        if (more)
+        {
+            // Small caret: this button opens a list rather than acting.
+            content.Children.Add(new IconImage
+            {
+                Icon = "chevron-down", Size = 10, Brush = fg, Thickness = 2, Opacity = 0.65,
+                Margin = new Thickness(4, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+
+        var btn = new Button
+        {
+            Style = (Style)Resources["BarButton"],
+            Content = content,
+            ToolTip = showLabel ? null : label,
+        };
+        if (compact) btn.Padding = new Thickness(7, 0, 7, 0);
+        btn.Click += (_, _) => onClick();
+        Buttons.Children.Add(btn);
+    }
+
+    private void Run(ActionDefinition a)
+    {
         var sel = _selection;
         HideNow();
         ActionClicked?.Invoke(a, sel);

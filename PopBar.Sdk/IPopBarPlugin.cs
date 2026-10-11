@@ -38,6 +38,12 @@ public sealed class PluginAction
     public string? Description { get; init; }
     /// <summary>Whether the button is switched on when it is first added to the bar. Niche actions can start off.</summary>
     public bool EnabledByDefault { get; init; } = true;
+    /// <summary>
+    /// Actions of one plugin that share a group name fold into a single bar button (this label, <see cref="GroupIcon"/>)
+    /// that expands in place, whenever two or more of them apply to a selection. Keeps the bar short. Optional.
+    /// </summary>
+    public string? Group { get; init; }
+    public string GroupIcon { get; init; } = "circle";
     /// <summary>Return false to hide the button for this selection. Must be fast (runs on the capture thread).</summary>
     public Func<SelectionContext, bool>? IsApplicable { get; init; }
     /// <summary>Runs on a worker thread. Use <see cref="IPluginHost"/> for anything UI related.</summary>

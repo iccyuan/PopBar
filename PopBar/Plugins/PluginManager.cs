@@ -170,6 +170,13 @@ internal sealed class PluginManager : IDisposable
         return false;
     }
 
+    /// <summary>The fold group a plugin action belongs to, if its plugin declared one.</summary>
+    public Core.BarGroup? GroupOf(ActionDefinition def)
+    {
+        if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out var action) || string.IsNullOrWhiteSpace(action.Group)) return null;
+        return new Core.BarGroup(plugin.Id + "/" + action.Group, action.Group, action.GroupIcon);
+    }
+
     /// <summary>Does this plugin action exist, is its plugin enabled, and does it apply to the selection?</summary>
     public bool IsApplicable(ActionDefinition def, SelectionContext ctx, AppConfig cfg)
     {

@@ -75,6 +75,7 @@ public partial class App : Application
         ThemeManager.Apply(_store.Current.Theme);
 
         _popup = new PopupWindow();
+        _popup.GroupOf = a => _plugins?.GroupOf(a);
         _popup.Preload();
 
         // Plugin infrastructure.
