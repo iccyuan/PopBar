@@ -7,7 +7,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="True"
         ResizeMode="NoResize" SizeToContent="Height" Width="440"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType" TextOptions.TextHintingMode="Animated"
         FontFamily="Microsoft YaHei UI, Segoe UI">
     <Window.Resources>
         <SolidColorBrush x:Key="PBg" Color="#CCFFFFFF"/>

@@ -21,6 +21,7 @@ internal sealed class EditDialog : Window
         FontFamily = (System.Windows.Media.FontFamily)FindResource("UiFont");
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
         TextOptions.SetTextRenderingMode(this, TextRenderingMode.ClearType);
+        TextOptions.SetTextHintingMode(this, TextHintingMode.Animated); // unhinted outlines: smooth CJK like DirectWrite apps
         UseLayoutRounding = true;
         WindowChrome.SetWindowChrome(this, new WindowChrome { CaptionHeight = 40, GlassFrameThickness = new Thickness(-1), ResizeBorderThickness = new Thickness(0), CornerRadius = new CornerRadius(0), UseAeroCaptionButtons = true });
         SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Mica, ThemeManager.IsDark, roundCorners: true);

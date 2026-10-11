@@ -7,7 +7,7 @@
         Background="{DynamicResource WindowBgBrush}"
         FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True"
-        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType">
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType" TextOptions.TextHintingMode="Animated">
     <!-- Glass frame over the whole window so Mica shows through; DWM still draws the caption buttons. -->
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="True"/>

@@ -180,6 +180,7 @@ internal sealed class NoteWindow : Window
         Note = note; _host = host; _save = save; _delete = delete;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
+        TextOptions.SetTextHintingMode(this, TextHintingMode.Animated); // smooth CJK, matching the rest of PopBar
         Background = Brushes.Transparent;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
