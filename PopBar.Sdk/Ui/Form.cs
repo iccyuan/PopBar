@@ -145,7 +145,7 @@ public static class Form
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = title, FontSize = 14 });
+        text.Children.Add(new TextBlock { Text = title, FontSize = 15 });
         if (!string.IsNullOrEmpty(subtitle))
         {
             var sub = new TextBlock { Text = subtitle, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
