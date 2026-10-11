@@ -1,6 +1,7 @@
 # Simulates a text selection in Notepad and screenshots the result.
 # Usage: pwsh tools/test-popup.ps1 [-Mode dblclick|drag] [-Out path.png]
-param([string]$Mode = "dblclick", [string]$Out = "$env:TEMP\popbar-test.png", [int]$StartX = 60, [int]$DragSteps = 12)
+param([string]$Mode = "dblclick", [string]$Out = "$env:TEMP\popbar-test.png", [int]$StartX = 60, [int]$DragSteps = 12,
+      [string]$Text = "Hello PopBar world. Visit https://example.com or mail test@example.com for details.")
 
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
@@ -19,7 +20,7 @@ public static class U {
 [U]::SetProcessDpiAwarenessContext([IntPtr]::new(-4)) | Out-Null   # PER_MONITOR_AWARE_V2
 
 $file = "$env:TEMP\popbar-sample-$(Get-Date -Format HHmmss).txt"
-Set-Content $file "Hello PopBar world. Visit https://example.com or mail test@example.com for details." -Encoding UTF8
+Set-Content $file $Text -Encoding UTF8
 $np = Start-Process notepad.exe -ArgumentList $file -PassThru
 Start-Sleep 2
 $h = (Get-Process -Id $np.Id).MainWindowHandle
