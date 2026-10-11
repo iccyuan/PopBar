@@ -636,7 +636,36 @@ public partial class SettingsWindow : Window
     private void BlurSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (BlurValueText != null) BlurValueText.Text = $"{(int)e.NewValue}%";
-        Changed(sender, e);
+        Instant_Changed(sender, e);
+    }
+
+    // ---- appearance: previewed live and saved at once, no 保存 prompt (theme, labels, bar length, glass) ----
+
+    private DispatcherTimer? _instantTimer;
+
+    private void Instant_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _baseline.Length == 0) return;
+        if (_instantTimer == null)
+        {
+            // Slider drags fire many changes: coalesce into one write.
+            _instantTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            _instantTimer.Tick += (_, _) => { _instantTimer.Stop(); ApplyAppearance(); };
+        }
+        _instantTimer.Stop();
+        _instantTimer.Start();
+    }
+
+    private void ApplyAppearance()
+    {
+        var cur = BuildConfig();
+        void Copy(AppConfig to) { to.Theme = cur.Theme; to.ShowLabels = cur.ShowLabels; to.MaxBarItems = cur.MaxBarItems; to.BlurOpacity = cur.BlurOpacity; }
+        _store.Update(Copy);
+        // These are saved now, so they must not count as unsaved edits of the rest of the form.
+        var baseline = System.Text.Json.JsonSerializer.Deserialize<AppConfig>(_baseline)!;
+        Copy(baseline);
+        _baseline = System.Text.Json.JsonSerializer.Serialize(baseline);
+        UpdateSaveBar();
     }
 
     /// <summary>Progress in grey, success in green, failure in red with an icon.</summary>
