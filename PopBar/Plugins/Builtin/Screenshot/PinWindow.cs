@@ -8,6 +8,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using PopBar.Sdk;
+using PopBar.Sdk.Ui;
 
 namespace PopBar.Plugins.Builtin.Screenshot;
 
@@ -35,10 +36,11 @@ internal sealed class PinWindow : Window
     private double _s = 1;
     private readonly Int32Rect _origin;
     private readonly string _saveDir;
+    private readonly ScreenshotPlugin.Settings _cfg;
 
-    public PinWindow(IPluginHost host, BitmapSource image, Int32Rect screenRect, string saveDir)
+    public PinWindow(IPluginHost host, BitmapSource image, Int32Rect screenRect, string saveDir, ScreenshotPlugin.Settings cfg)
     {
-        _host = host; _image = image; _origin = screenRect; _saveDir = saveDir;
+        _host = host; _image = image; _origin = screenRect; _saveDir = saveDir; _cfg = cfg;
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -96,8 +98,8 @@ internal sealed class PinWindow : Window
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) Close();
-            else if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) Copy();
-            else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) Save();
+            else if (Shortcut.Matches(_cfg.KeyCopy, e)) Copy();
+            else if (Shortcut.Matches(_cfg.KeySave, e)) Save();
         };
         ContextMenu = BuildMenu();
         // Destroy, not hide: drop the bitmap so a closed pin frees its memory right away.
@@ -153,8 +155,8 @@ internal sealed class PinWindow : Window
             i.Click += (_, _) => a();
             m.Items.Add(i);
         }
-        Add("copy", "复制图片", "Ctrl+C", Copy);
-        Add("download", "另存为…", "Ctrl+S", Save);
+        Add("copy", "复制图片", Shortcut.Display(_cfg.KeyCopy), Copy);
+        Add("download", "另存为…", Shortcut.Display(_cfg.KeySave), Save);
         Add("search", "原始大小", "100%", () => { _zoom = 1; _stage.Opacity = 1; ApplyZoom(); ShowTag("100%"); });
         m.Items.Add(new Separator());
         Add("x", "销毁", "Esc", Close);

@@ -23,6 +23,9 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
     public sealed class Settings
     {
         public string Hotkey { get; set; } = "Ctrl+Alt+T";
+        /// <summary>Hold to show the original in the result window.</summary>
+        public string KeyCompare { get; set; } = "Space";
+        public string KeyCopy { get; set; } = "Ctrl+C";
     }
 
     private IPluginHost _host = null!;
@@ -71,7 +74,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
             var image = await _host.Dispatcher.InvokeAsync(() => Decode(region.Png));
             var win = await _host.Dispatcher.InvokeAsync(() =>
             {
-                var w = new TranslateOverlay(_host, image, new Int32Rect(region.X, region.Y, region.Width, region.Height));
+                var w = new TranslateOverlay(_host, image, new Int32Rect(region.X, region.Y, region.Width, region.Height), _cfg);
                 w.Show();
                 w.SetStatus("识别中…", busy: true);
                 return w;
@@ -88,7 +91,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
                 await _host.Dispatcher.InvokeAsync(() =>
                 {
                     win.ShowTranslation(paragraphs.Zip(translated, (p, t) => (p.Bounds, p.LineHeight, p.Text, t)).ToList());
-                    win.SetStatus("按住空格看原文 · 右键更多", busy: false, fadeOut: true);
+                    win.SetStatus(string.IsNullOrWhiteSpace(_cfg.KeyCompare) ? "右键更多" : $"按住 {Shortcut.Display(_cfg.KeyCompare)} 看原文 · 右键更多", busy: false, fadeOut: true);
                 });
             }
             catch (OperationCanceledException) { }
@@ -170,8 +173,11 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
     }
 
     public FrameworkElement? CreateSettingsView() => Form.Stack(
-        Form.Card(Form.Row("快捷键", _host.Ui.HotkeyBox(_cfg.Hotkey, v => { _cfg.Hotkey = v; _host.Storage.Set(_cfg); RegisterHotkey(); }), "框选区域后自动识别并翻译；托盘菜单里也有入口")),
-        Form.Hint("译文语言、翻译引擎跟随「翻译」插件的设置；识别语言跟随「屏幕 OCR」插件。结果窗口：按住空格看原文，拖动移动，双击 / Esc 关闭，右键复制。"));
+        Form.Card(
+            Form.Row("快捷键", _host.Ui.HotkeyBox(_cfg.Hotkey, v => { _cfg.Hotkey = v; _host.Storage.Set(_cfg); RegisterHotkey(); }), "框选区域后自动识别并翻译；托盘菜单里也有入口"),
+            Form.Row("按住看原文", _host.Ui.HotkeyBox(_cfg.KeyCompare, v => { _cfg.KeyCompare = v; _host.Storage.Set(_cfg); }), "结果窗口里按住时显示原文"),
+            Form.Row("复制译文", _host.Ui.HotkeyBox(_cfg.KeyCopy, v => { _cfg.KeyCopy = v; _host.Storage.Set(_cfg); }))),
+        Form.Hint("译文语言、翻译引擎跟随「翻译」插件的设置；识别语言跟随「屏幕 OCR」插件。结果窗口：拖动移动，双击 / Esc 关闭，右键更多；快捷键 Backspace 清除。"));
 
     public void Dispose() { }
 }
@@ -189,13 +195,14 @@ internal sealed class TranslateOverlay : Window
     private readonly Border _status = new() { CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 5, 12, 6), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 10, 0, 0), IsHitTestVisible = false };
     private readonly TextBlock _statusText = new() { Foreground = Brushes.White, FontSize = 12.5 };
     private readonly CancellationTokenSource _cts = new();
+    private readonly ScreenTranslatePlugin.Settings _cfg;
     private List<(Rect Bounds, double LineHeight, string Source, string Text)> _items = new();
 
     public CancellationToken Cancellation => _cts.Token;
 
-    public TranslateOverlay(IPluginHost host, BitmapSource image, Int32Rect rect)
+    public TranslateOverlay(IPluginHost host, BitmapSource image, Int32Rect rect, ScreenTranslatePlugin.Settings cfg)
     {
-        _host = host; _image = image; _rect = rect;
+        _host = host; _image = image; _rect = rect; _cfg = cfg;
         _stride = image.PixelWidth * 4;
         _px = new byte[_stride * image.PixelHeight];
         image.CopyPixels(_px, _stride, 0);
@@ -236,10 +243,10 @@ internal sealed class TranslateOverlay : Window
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape) Close();
-            else if (e.Key == Key.Space) { _layer.Visibility = Visibility.Hidden; e.Handled = true; }
-            else if (e.Key == Key.C && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) CopyTranslation();
+            else if (Shortcut.Matches(_cfg.KeyCompare, e)) { _layer.Visibility = Visibility.Hidden; e.Handled = true; }
+            else if (Shortcut.Matches(_cfg.KeyCopy, e)) CopyTranslation();
         };
-        KeyUp += (_, e) => { if (e.Key == Key.Space) _layer.Visibility = Visibility.Visible; };
+        KeyUp += (_, e) => { if (Shortcut.IsKeyOf(_cfg.KeyCompare, e)) _layer.Visibility = Visibility.Visible; };
         ContextMenu = BuildMenu();
     }
 
@@ -324,9 +331,9 @@ internal sealed class TranslateOverlay : Window
             i.Click += (_, _) => a();
             m.Items.Add(i);
         }
-        Add("copy", "复制译文", "Ctrl+C", CopyTranslation);
+        Add("copy", "复制译文", Shortcut.Display(_cfg.KeyCopy), CopyTranslation);
         Add("copy", "复制原文", "", () => _host.CopyToClipboard(string.Join("\n", _items.Select(i => i.Source))));
-        Add("eye", "显示 / 隐藏译文", "空格", () => _layer.Visibility = _layer.Visibility == Visibility.Visible ? Visibility.Hidden : Visibility.Visible);
+        Add("eye", "显示 / 隐藏译文", Shortcut.Display(_cfg.KeyCompare), () => _layer.Visibility = _layer.Visibility == Visibility.Visible ? Visibility.Hidden : Visibility.Visible);
         m.Items.Add(new Separator());
         Add("x", "关闭", "Esc", Close);
         return m;

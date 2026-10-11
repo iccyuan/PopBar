@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Path = System.Windows.Shapes.Path;
 using PopBar.Sdk;
+using PopBar.Sdk.Ui;
 
 namespace PopBar.Plugins.Builtin.Screenshot;
 
@@ -480,20 +481,20 @@ internal sealed class CaptureOverlay : Window
             _toolButtons[t] = b;
             panel.Children.Add(b);
         }
-        Tool(ShotTool.Rect, "square", "矩形（Shift 正方形）");
-        Tool(ShotTool.Ellipse, "circle", "椭圆（Shift 正圆）");
-        Tool(ShotTool.Arrow, "move-up-right", "箭头");
-        Tool(ShotTool.Pen, "pen", "画笔");
-        Tool(ShotTool.Mosaic, "grid", "马赛克");
-        Tool(ShotTool.Text, "type", "文字");
+        Tool(ShotTool.Rect, "square", Shortcut.Tip("矩形（Shift 正方形）", _cfg.KeyRect));
+        Tool(ShotTool.Ellipse, "circle", Shortcut.Tip("椭圆（Shift 正圆）", _cfg.KeyEllipse));
+        Tool(ShotTool.Arrow, "move-up-right", Shortcut.Tip("箭头", _cfg.KeyArrow));
+        Tool(ShotTool.Pen, "pen", Shortcut.Tip("画笔", _cfg.KeyPen));
+        Tool(ShotTool.Mosaic, "grid", Shortcut.Tip("马赛克", _cfg.KeyMosaic));
+        Tool(ShotTool.Text, "type", Shortcut.Tip("文字", _cfg.KeyText));
         panel.Children.Add(Separator());
-        panel.Children.Add(IconBtn("undo", "撤销  Ctrl+Z", Undo));
+        panel.Children.Add(IconBtn("undo", Shortcut.Tip("撤销", _cfg.KeyUndo), Undo));
         panel.Children.Add(Separator());
-        panel.Children.Add(IconBtn("scroll-capture", "长截图（自动滚动拼接）", () => Live("long")));
-        panel.Children.Add(IconBtn("film", "录制 GIF", () => Live("gif")));
+        panel.Children.Add(IconBtn("scroll-capture", Shortcut.Tip("长截图（自动滚动拼接）", _cfg.KeyLong), () => Live("long")));
+        panel.Children.Add(IconBtn("film", Shortcut.Tip("录制 GIF", _cfg.KeyGif), () => Live("gif")));
         panel.Children.Add(Separator());
-        panel.Children.Add(IconBtn("pin", "贴到屏幕  Ctrl+T", Pin));
-        panel.Children.Add(IconBtn("download", "保存  Ctrl+S", Save));
+        panel.Children.Add(IconBtn("pin", Shortcut.Tip("贴到屏幕", _cfg.KeyPin), Pin));
+        panel.Children.Add(IconBtn("download", Shortcut.Tip("保存", _cfg.KeySave), Save));
         panel.Children.Add(IconBtn("x", "取消  Esc", Close, new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44))));
 
         // Primary action: accent pill with a label.
@@ -502,7 +503,7 @@ internal sealed class CaptureOverlay : Window
         doneRow.Children.Add(Centered(_host.Ui.Icon("check", 16, Brushes.White)));
         doneRow.Children.Add(new TextBlock { Text = "完成", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 13.5, Margin = new Thickness(6, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
         done.Child = doneRow;
-        var doneBtn = new Button { Template = PlainButtonTemplate(), Content = done, Focusable = false, Cursor = Cursors.Hand, ToolTip = "复制到剪贴板  Enter / 双击" };
+        var doneBtn = new Button { Template = PlainButtonTemplate(), Content = done, Focusable = false, Cursor = Cursors.Hand, ToolTip = "复制到剪贴板  " + string.Join(" / ", new[] { "Enter", Shortcut.Display(_cfg.KeyCopy), "双击" }.Where(s => s.Length > 0)) };
         doneBtn.MouseEnter += (_, _) => done.Background = AccentStrong;
         doneBtn.MouseLeave += (_, _) => { done.Background = Accent; done.RenderTransform = null; };
         doneBtn.PreviewMouseLeftButtonDown += (_, _) => done.RenderTransform = new ScaleTransform(0.96, 0.96);
@@ -710,31 +711,40 @@ internal sealed class CaptureOverlay : Window
     private void OnKey(object sender, KeyEventArgs e)
     {
         if (_editor != null) return; // the text box handles its own keys
-        var ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
-        switch (e.Key)
+        bool sel = _state == State.Selected;
+        // Esc / Enter / arrows are fixed; everything else follows the user's shortcut settings.
+        if (e.Key == Key.Escape) Close();
+        else if (e.Key == Key.Enter) { if (sel) Copy(); }
+        else if (Shortcut.Matches(_cfg.KeyCopy, e)) { if (sel) Copy(); }
+        else if (_state == State.Idle && Shortcut.Matches(_cfg.KeyColor, e))
         {
-            case Key.Escape: Close(); break;
-            case Key.Enter: if (_state == State.Selected) Copy(); break;
-            case Key.C when ctrl: if (_state == State.Selected) Copy(); break;
-            case Key.C when _state == State.Idle:
-                Clipboard.SetText($"#{_pixelColor.R:X2}{_pixelColor.G:X2}{_pixelColor.B:X2}");
-                Close();
-                break;
-            case Key.S when ctrl: if (_state == State.Selected) Save(); break;
-            case Key.T when ctrl: if (_state == State.Selected) Pin(); break;
-            case Key.Z when ctrl: Undo(); break;
-            case Key.Left or Key.Right or Key.Up or Key.Down when _state == State.Selected:
-            {
-                double step = 1 / _s;
-                var d = e.Key switch { Key.Left => new Vector(-step, 0), Key.Right => new Vector(step, 0), Key.Up => new Vector(0, -step), _ => new Vector(0, step) };
-                var r = _sel; r.Offset(d);
-                if (Bounds.Contains(r)) { _sel = SnapRect(r); UpdateVisuals(); }
-                break;
-            }
-            default: return;
+            Clipboard.SetText($"#{_pixelColor.R:X2}{_pixelColor.G:X2}{_pixelColor.B:X2}");
+            Close();
         }
+        else if (Shortcut.Matches(_cfg.KeySave, e)) { if (sel) Save(); }
+        else if (Shortcut.Matches(_cfg.KeyPin, e)) { if (sel) Pin(); }
+        else if (Shortcut.Matches(_cfg.KeyUndo, e)) Undo();
+        else if (Shortcut.Matches(_cfg.KeyLong, e)) { if (sel) Live("long"); }
+        else if (Shortcut.Matches(_cfg.KeyGif, e)) { if (sel) Live("gif"); }
+        else if (sel && ToolFor(e) is ShotTool t) SetTool(_tool == t ? ShotTool.None : t);
+        else if (sel && e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
+        {
+            double step = 1 / _s;
+            var d = e.Key switch { Key.Left => new Vector(-step, 0), Key.Right => new Vector(step, 0), Key.Up => new Vector(0, -step), _ => new Vector(0, step) };
+            var r = _sel; r.Offset(d);
+            if (Bounds.Contains(r)) { _sel = SnapRect(r); UpdateVisuals(); }
+        }
+        else return;
         e.Handled = true;
     }
+
+    private ShotTool? ToolFor(KeyEventArgs e) =>
+        Shortcut.Matches(_cfg.KeyRect, e) ? ShotTool.Rect :
+        Shortcut.Matches(_cfg.KeyEllipse, e) ? ShotTool.Ellipse :
+        Shortcut.Matches(_cfg.KeyArrow, e) ? ShotTool.Arrow :
+        Shortcut.Matches(_cfg.KeyPen, e) ? ShotTool.Pen :
+        Shortcut.Matches(_cfg.KeyMosaic, e) ? ShotTool.Mosaic :
+        Shortcut.Matches(_cfg.KeyText, e) ? ShotTool.Text : null;
 
     /// <summary>Selection + annotations rendered at physical resolution.</summary>
     private BitmapSource Export()

@@ -21,6 +21,21 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
         public int GifFps { get; set; } = 12;
         public int GifMaxSeconds { get; set; } = 60;
         public bool GifCursor { get; set; } = true;
+
+        // In-window shortcuts (capture overlay; copy / save also apply to pinned images). Esc / Enter / arrows are fixed.
+        public string KeyCopy { get; set; } = "Ctrl+C";
+        public string KeySave { get; set; } = "Ctrl+S";
+        public string KeyPin { get; set; } = "Ctrl+T";
+        public string KeyUndo { get; set; } = "Ctrl+Z";
+        public string KeyLong { get; set; } = "Ctrl+L";
+        public string KeyGif { get; set; } = "Ctrl+G";
+        public string KeyColor { get; set; } = "C";
+        public string KeyRect { get; set; } = "R";
+        public string KeyEllipse { get; set; } = "E";
+        public string KeyArrow { get; set; } = "A";
+        public string KeyPen { get; set; } = "P";
+        public string KeyMosaic { get; set; } = "M";
+        public string KeyText { get; set; } = "T";
     }
 
     public static string DefaultSaveDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "PopBar");
@@ -109,7 +124,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
     private void ShowPin(BitmapSource img, Int32Rect rect)
     {
         var dir = string.IsNullOrWhiteSpace(_cfg.SaveDir) ? DefaultSaveDir : _cfg.SaveDir;
-        new PinWindow(_host, img, rect, dir).Show();
+        new PinWindow(_host, img, rect, dir, _cfg).Show();
     }
 
     /// <summary>Pin the clipboard image (or text, rendered as a card) next to the cursor.</summary>
@@ -186,10 +201,26 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, _cfg.GifFps.ToString(), v => { _cfg.GifFps = int.Parse(v); Save(); }, 140), "帧率越高越流畅，文件也越大"),
                 Form.Row("GIF 最长时长", Form.Combo(new[] { ("30", "30 秒"), ("60", "1 分钟"), ("180", "3 分钟"), ("600", "10 分钟") }, _cfg.GifMaxSeconds.ToString(), v => { _cfg.GifMaxSeconds = int.Parse(v); Save(); }, 140)),
                 Form.Row("录入鼠标指针", Form.Toggle(_cfg.GifCursor, v => { _cfg.GifCursor = v; Save(); }))),
+            Form.Card(
+                KeyRow("复制", () => _cfg.KeyCopy, v => _cfg.KeyCopy = v, "截图和贴图里都生效；Enter / 双击也能复制"),
+                KeyRow("保存", () => _cfg.KeySave, v => _cfg.KeySave = v, "截图和贴图里都生效"),
+                KeyRow("贴到屏幕", () => _cfg.KeyPin, v => _cfg.KeyPin = v),
+                KeyRow("撤销", () => _cfg.KeyUndo, v => _cfg.KeyUndo = v),
+                KeyRow("长截图", () => _cfg.KeyLong, v => _cfg.KeyLong = v),
+                KeyRow("录制 GIF", () => _cfg.KeyGif, v => _cfg.KeyGif = v),
+                KeyRow("复制色值", () => _cfg.KeyColor, v => _cfg.KeyColor = v, "未框选时复制放大镜下的颜色"),
+                KeyRow("矩形", () => _cfg.KeyRect, v => _cfg.KeyRect = v),
+                KeyRow("椭圆", () => _cfg.KeyEllipse, v => _cfg.KeyEllipse = v),
+                KeyRow("箭头", () => _cfg.KeyArrow, v => _cfg.KeyArrow = v),
+                KeyRow("画笔", () => _cfg.KeyPen, v => _cfg.KeyPen = v),
+                KeyRow("马赛克", () => _cfg.KeyMosaic, v => _cfg.KeyMosaic = v),
+                KeyRow("文字", () => _cfg.KeyText, v => _cfg.KeyText = v)),
             Form.Hint("框选后工具栏里的「长截图」会自动向下滚动并拼接（滚动期间别动鼠标），「GIF」开始录制，结果保存到上面的目录并复制到剪贴板。"),
-            Form.Hint("截图中：拖动框选，单击选中窗口；Enter / Ctrl+C / 双击 复制，Ctrl+S 保存，Ctrl+T 贴图，Ctrl+Z 撤销，方向键微调，Esc / 右键 取消，C 复制取色。"),
-            Form.Hint("贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，右键更多操作。"));
+            Form.Hint("截图中：拖动框选，单击选中窗口；方向键微调，Esc / 右键 取消。贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，右键更多操作。快捷键点击后按下新组合键，Backspace 清除。"));
     }
+
+    private FrameworkElement KeyRow(string label, Func<string> get, Action<string> set, string? hint = null) =>
+        Form.Row(label, _host.Ui.HotkeyBox(get(), v => { set(v); _host.Storage.Set(_cfg); }), hint);
 
     public void Dispose() { }
 }

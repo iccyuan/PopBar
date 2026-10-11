@@ -18,6 +18,7 @@ public sealed class QrPlugin : IPopBarPlugin
     public sealed class Settings
     {
         public string ScanHotkey { get; set; } = "Ctrl+Alt+Q";
+        public string ScreenHotkey { get; set; } = "";
     }
 
     private IPluginHost _host = null!;
@@ -41,8 +42,11 @@ public sealed class QrPlugin : IPopBarPlugin
     private void RegisterHotkey()
     {
         _host.UnregisterHotkey("scan");
+        _host.UnregisterHotkey("screen");
         if (!string.IsNullOrWhiteSpace(_cfg.ScanHotkey) && !_host.RegisterHotkey("scan", _cfg.ScanHotkey, () => _ = ScanRegionAsync()))
             _host.Log.Warn($"hotkey {_cfg.ScanHotkey} unavailable");
+        if (!string.IsNullOrWhiteSpace(_cfg.ScreenHotkey) && !_host.RegisterHotkey("screen", _cfg.ScreenHotkey, () => _ = ScanScreenAsync()))
+            _host.Log.Warn($"hotkey {_cfg.ScreenHotkey} unavailable");
     }
 
     public IReadOnlyList<PluginAction> GetActions() => new[]
@@ -205,7 +209,8 @@ public sealed class QrPlugin : IPopBarPlugin
 
     public FrameworkElement? CreateSettingsView() => Form.Stack(
         Form.Card(
-            Form.Row("识别快捷键", _host.Ui.HotkeyBox(_cfg.ScanHotkey, v => { _cfg.ScanHotkey = v; _host.Storage.Set(_cfg); RegisterHotkey(); }), "框选屏幕区域识别；托盘菜单里还有「扫描屏幕二维码」，无需框选")),
+            Form.Row("框选识别", _host.Ui.HotkeyBox(_cfg.ScanHotkey, v => { _cfg.ScanHotkey = v; _host.Storage.Set(_cfg); RegisterHotkey(); }), "框选屏幕区域识别"),
+            Form.Row("扫描整个屏幕", _host.Ui.HotkeyBox(_cfg.ScreenHotkey, v => { _cfg.ScreenHotkey = v; _host.Storage.Set(_cfg); RegisterHotkey(); }), "无需框选，直接识别屏幕上所有的码；托盘菜单里也有")),
         Form.Hint("生成：选中文字后点操作条上的「二维码」。识别支持二维码、条形码、Data Matrix 等常见格式。"));
 
     public void Dispose() { }

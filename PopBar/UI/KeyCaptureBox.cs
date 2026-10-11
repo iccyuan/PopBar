@@ -31,7 +31,7 @@ public sealed class KeyCaptureBox : Button
         // Implicit styles only match the exact type; opt into the app's Button look explicitly.
         SetResourceReference(StyleProperty, typeof(Button));
         MinWidth = 90;
-        ToolTip = "点击后按下想用的键，Esc 取消";
+        ToolTip = "点击后按下想用的键；Esc 取消，Backspace 清除";
         Click += (_, _) => Begin();
         LostKeyboardFocus += (_, _) => { if (_capturing) { _capturing = false; Refresh(); } };
         Refresh();
@@ -67,6 +67,15 @@ public sealed class KeyCaptureBox : Button
             _ => e.Key,
         };
         if (key == Key.Escape) { _capturing = false; Refresh(); return; }
+        if (key is Key.Back or Key.Delete && Keyboard.Modifiers == ModifierKeys.None)
+        {
+            // Clear: the shortcut becomes "未设置".
+            _capturing = false;
+            Gesture = "";
+            Refresh();
+            GestureChanged?.Invoke("");
+            return;
+        }
 
         bool isModifier = key is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin;
         string result;

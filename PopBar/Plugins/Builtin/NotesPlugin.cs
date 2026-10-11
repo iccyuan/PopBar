@@ -32,6 +32,8 @@ public sealed class NotesPlugin : IPopBarPlugin
     public sealed class Settings
     {
         public List<Note> Notes { get; set; } = new();
+        public string NewHotkey { get; set; } = "";
+        public string ShowAllHotkey { get; set; } = "";
     }
 
     /// <summary>Paper colours (background, header) - fixed pastels that read the same in light and dark themes.</summary>
@@ -58,12 +60,9 @@ public sealed class NotesPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
-        host.AddTrayMenuItem("new", "新建便签", () => host.Dispatcher.InvokeAsync(() =>
-        {
-            var p = System.Windows.Forms.Cursor.Position;
-            Open(Create("", p.X, p.Y), focus: true);
-        }));
+        host.AddTrayMenuItem("new", "新建便签", NewNote);
         host.AddTrayMenuItem("show", "显示全部便签", () => host.Dispatcher.InvokeAsync(ShowAll));
+        RegisterHotkeys();
         host.Dispatcher.InvokeAsync(() => { foreach (var n in _cfg.Notes.ToList()) Open(n, focus: false); });
     }
 
@@ -81,6 +80,22 @@ public sealed class NotesPlugin : IPopBarPlugin
             },
         },
     };
+
+    private void NewNote() => _host.Dispatcher.InvokeAsync(() =>
+    {
+        var p = System.Windows.Forms.Cursor.Position;
+        Open(Create("", p.X, p.Y), focus: true);
+    });
+
+    private void RegisterHotkeys()
+    {
+        _host.UnregisterHotkey("new");
+        _host.UnregisterHotkey("show");
+        if (!string.IsNullOrWhiteSpace(_cfg.NewHotkey) && !_host.RegisterHotkey("new", _cfg.NewHotkey, NewNote))
+            _host.Log.Warn($"hotkey {_cfg.NewHotkey} unavailable");
+        if (!string.IsNullOrWhiteSpace(_cfg.ShowAllHotkey) && !_host.RegisterHotkey("show", _cfg.ShowAllHotkey, () => _host.Dispatcher.InvokeAsync(ShowAll)))
+            _host.Log.Warn($"hotkey {_cfg.ShowAllHotkey} unavailable");
+    }
 
     private Note Create(string text, int x, int y)
     {
@@ -120,7 +135,10 @@ public sealed class NotesPlugin : IPopBarPlugin
     private void Save() => _host.Storage.Set(_cfg);
 
     public FrameworkElement? CreateSettingsView() => Form.Stack(
-        Form.Card(Form.Row("便签数量", new TextBlock { Text = _cfg.Notes.Count.ToString(), VerticalAlignment = VerticalAlignment.Center })),
+        Form.Card(
+            Form.Row("新建便签", _host.Ui.HotkeyBox(_cfg.NewHotkey, v => { _cfg.NewHotkey = v; Save(); RegisterHotkeys(); }), "全局快捷键，在鼠标位置新建空白便签"),
+            Form.Row("显示全部便签", _host.Ui.HotkeyBox(_cfg.ShowAllHotkey, v => { _cfg.ShowAllHotkey = v; Save(); RegisterHotkeys(); }), "全局快捷键，把所有便签带到最前"),
+            Form.Row("便签数量", new TextBlock { Text = _cfg.Notes.Count.ToString(), VerticalAlignment = VerticalAlignment.Center })),
         Form.Hint("选中文字后点操作条上的「便签」，或从托盘菜单「新建便签」。拖动顶部移动，右下角调整大小，Ctrl+滚轮调透明度；删除后不可恢复。"));
 
     public void Dispose()
