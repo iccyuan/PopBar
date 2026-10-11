@@ -87,6 +87,23 @@
                         <TextBlock x:Name="BadgeText" FontSize="11.5" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
                     </Border>
                 </DockPanel>
+                <!-- busy indicator: faint track with a gradient "comet" sweeping across (animated from code) -->
+                <Grid x:Name="BusyTrack" Grid.ColumnSpan="3" Height="2" VerticalAlignment="Bottom" Margin="16,0,16,0" ClipToBounds="True" Opacity="0" IsHitTestVisible="False" SizeChanged="BusyTrack_SizeChanged">
+                    <Border CornerRadius="1" Background="{DynamicResource PAccent}" Opacity="0.18"/>
+                    <Border x:Name="BusyComet" HorizontalAlignment="Left" Width="160" CornerRadius="1">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#003B82F6" Offset="0"/>
+                                <GradientStop Color="#FF3B82F6" Offset="0.45"/>
+                                <GradientStop Color="#FF3B82F6" Offset="0.7"/>
+                                <GradientStop Color="#003B82F6" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="BusyX" X="-160"/>
+                        </Border.RenderTransform>
+                    </Border>
+                </Grid>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0">
                     <Button x:Name="PinBtn" Style="{StaticResource PIconBtn}" ToolTip="固定（点击外部不关闭）" Click="Pin_Click">
                         <ui:IconImage x:Name="PinIcon" Icon="pin" Size="14" Brush="{DynamicResource PMuted}"/>
@@ -131,7 +148,6 @@
                             </Style>
                         </TextBox.Style>
                     </TextBox>
-                    <ProgressBar x:Name="Busy" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Margin="0,0,0,-6" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PAccent}" Visibility="Collapsed"/>
                 </Grid>
                 <!-- failures stand out instead of hiding in the grey status line -->
                 <Border x:Name="ErrorBox" CornerRadius="8" Background="{DynamicResource PErrBg}" Padding="10,8" Margin="0,4,0,2" Visibility="Collapsed">

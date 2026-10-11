@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using PopBar.Core;
 using PopBar.Sdk;
@@ -151,6 +152,18 @@ public partial class PanelWindow : Window, IPanel
         Set("PHover", dark ? "#1FFFFFFF" : "#14000000");
         Set("PSource", dark ? "#16FFFFFF" : "#10000000");
         Set("PAccent", dark ? "#FF5B9BFF" : "#FF3B82F6");
+        if (BusyComet.Background is LinearGradientBrush g)
+        {
+            var accent = (Color)ColorConverter.ConvertFromString(dark ? "#FF5B9BFF" : "#FF3B82F6");
+            var comet = new LinearGradientBrush(new GradientStopCollection
+            {
+                new(Color.FromArgb(0, accent.R, accent.G, accent.B), 0),
+                new(accent, 0.45), new(accent, 0.7),
+                new(Color.FromArgb(0, accent.R, accent.G, accent.B), 1),
+            }, new Point(0, 0), new Point(1, 0));
+            comet.Freeze();
+            BusyComet.Background = comet;
+        }
         Set("PErrBg", dark ? "#33F87171" : "#FFFEF2F2");
         Set("PErrFg", dark ? "#FFFCA5A5" : "#FFB91C1C");
     }
@@ -186,10 +199,41 @@ public partial class PanelWindow : Window, IPanel
     {
         ErrorText.Text = message ?? "";
         ErrorBox.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
-        if (!string.IsNullOrWhiteSpace(message)) { Busy.Visibility = Visibility.Collapsed; StatusText.Text = ""; }
+        if (!string.IsNullOrWhiteSpace(message)) { SetBusyCore(false); StatusText.Text = ""; }
     });
 
-    public void SetBusy(bool busy) => Ui(() => Busy.Visibility = busy ? Visibility.Visible : Visibility.Collapsed);
+    public void SetBusy(bool busy) => Ui(() => SetBusyCore(busy));
+
+    private bool _busy;
+
+    /// <summary>Fade the indicator in / out and run the comet across the full track width.</summary>
+    private void SetBusyCore(bool busy)
+    {
+        if (busy == _busy) return;
+        _busy = busy;
+        var fade = new DoubleAnimation(busy ? 1 : 0, TimeSpan.FromMilliseconds(busy ? 160 : 260)) { EasingFunction = new SineEase() };
+        if (!busy) fade.Completed += (_, _) => { if (!_busy) BusyX.BeginAnimation(TranslateTransform.XProperty, null); };
+        BusyTrack.BeginAnimation(OpacityProperty, fade);
+        if (busy) StartComet();
+    }
+
+    private void StartComet()
+    {
+        double w = BusyTrack.ActualWidth > 0 ? BusyTrack.ActualWidth : Math.Max(120, _opt.Width - 32);
+        BusyComet.Width = Math.Clamp(w * 0.38, 80, 260);
+        var run = new DoubleAnimation(-BusyComet.Width, w, TimeSpan.FromMilliseconds(1400))
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+        BusyX.BeginAnimation(TranslateTransform.XProperty, run);
+    }
+
+    /// <summary>The panel grew (e.g. first layout, custom content): re-fit the sweep to the new width.</summary>
+    private void BusyTrack_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_busy && e.WidthChanged) StartComet();
+    }
 
     public void AddButton(string label, Action<string> onClick, string? icon = null) => Ui(() =>
     {
