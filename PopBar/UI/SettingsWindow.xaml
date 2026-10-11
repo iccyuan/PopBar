@@ -227,7 +227,7 @@
                                         <Border Grid.Column="0" Width="24" Height="36" Background="Transparent" Cursor="SizeAll" ToolTip="拖动排序" VerticalAlignment="Center" Margin="0,0,6,0" PreviewMouseLeftButtonDown="DragHandle_MouseDown">
                                             <ui:IconImage Icon="grip-vertical" Size="16" Brush="{DynamicResource MutedBrush}"/>
                                         </Border>
-                                        <Border Grid.Column="1" Width="36" Height="36" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
+                                        <Border Grid.Column="1" Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                             <ui:IconImage Icon="{Binding Def.Icon}" Size="18" Brush="{DynamicResource AccentHoverBrush}"/>
                                         </Border>
                                         <StackPanel Grid.Column="2" Margin="14,0,0,0" VerticalAlignment="Center">

@@ -136,7 +136,7 @@ public static class Form
 
         if (ui != null && icon != null)
         {
-            var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+            var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
             box.SetResourceReference(Border.BackgroundProperty, "AccentSoftBrush");
             var ic = ui.Icon(icon, 16);
             ic.HorizontalAlignment = HorizontalAlignment.Center; ic.VerticalAlignment = VerticalAlignment.Center;

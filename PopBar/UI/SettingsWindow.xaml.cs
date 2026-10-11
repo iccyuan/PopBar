@@ -302,7 +302,7 @@ public partial class SettingsWindow : Window
             head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var iconName = plugin.Id switch { "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send", "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle" };
             var iconImg = new IconImage { Icon = iconName, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(9), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
+            var iconBox = new Border { Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Background = (Brush)FindResource("AccentSoftBrush"), Child = iconImg, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 14, 0) };
             head.Children.Add(iconBox);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(info, 1);
