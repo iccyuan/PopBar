@@ -8,6 +8,8 @@
     <SolidColorBrush x:Key="NavBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#E5E7EB"/>
+    <!-- cards and their row dividers: a hairline barely darker than the surface, not a frame -->
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#EEF0F3"/>
     <SolidColorBrush x:Key="TextBrush" Color="#1F2937"/>
     <SolidColorBrush x:Key="MutedBrush" Color="#6B7280"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6"/>
@@ -54,7 +56,7 @@
         <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
         <!-- opaque surface + hint = real ClearType text even inside a Mica/layered window -->
         <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="14"/>
         <Setter Property="Padding" Value="18,4"/>
@@ -64,7 +66,7 @@
     </Style>
     <Style x:Key="RowSep" TargetType="Rectangle">
         <Setter Property="Height" Value="1"/>
-        <Setter Property="Fill" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Fill" Value="{DynamicResource CardBorderBrush}"/>
     </Style>
 
     <!-- ===== buttons ===== -->
@@ -337,7 +339,7 @@
                             <Border x:Name="DropDown" CornerRadius="12" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
                                     MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="8" Padding="4">
                                 <Border.Effect>
-                                    <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Opacity="0.25"/>
+                                    <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
                                 </Border.Effect>
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
@@ -702,7 +704,7 @@
                 <ControlTemplate TargetType="ToolTip">
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}" Margin="6">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Direction="270" Opacity="0.2"/>
+                            <DropShadowEffect BlurRadius="12" ShadowDepth="1" Direction="270" Opacity="0.08"/>
                         </Border.Effect>
                         <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}">
                             <ContentPresenter.Resources>
@@ -732,7 +734,7 @@
                     <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="4" Margin="8" MinWidth="176"
                             RenderOptions.ClearTypeHint="Enabled">
                         <Border.Effect>
-                            <DropShadowEffect BlurRadius="16" ShadowDepth="3" Direction="270" Opacity="0.2"/>
+                            <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
                         </Border.Effect>
                         <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
                     </Border>

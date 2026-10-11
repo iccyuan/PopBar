@@ -95,6 +95,7 @@ internal static class ThemeManager
             Set("NavBrush", "#FF1B1F28");
             Set("CardBrush", "#FF1F2430");
             Set("BorderBrush", "#FF2D3442");
+            Set("CardBorderBrush", "#FF272D39");
             Set("TextBrush", "#FFF3F4F6");
             Set("MutedBrush", "#FFA6AFBD");
             Set("AccentBrush", "#FF5B9BFF");
@@ -116,6 +117,7 @@ internal static class ThemeManager
             Set("NavBrush", "#FFFFFFFF");
             Set("CardBrush", "#FFFFFFFF");
             Set("BorderBrush", "#FFE5E7EB");
+            Set("CardBorderBrush", "#FFEEF0F3");
             Set("TextBrush", "#FF111827");
             Set("MutedBrush", "#FF4B5563");
             Set("AccentBrush", "#FF3B82F6");

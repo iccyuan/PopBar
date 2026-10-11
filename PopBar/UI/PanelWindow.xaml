@@ -66,7 +66,7 @@
         <!-- shadow caster: hidden under the opaque glass snapshot, only its shadow shows -->
         <Border x:Name="Shadow" CornerRadius="12" Background="#FF1E232D">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.35" Color="#000000"/>
+                <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Opacity="0.2" Color="#000000"/>
             </Border.Effect>
         </Border>
         <Border x:Name="Glass" CornerRadius="12"/>
