@@ -14,7 +14,8 @@ namespace PopBar.Core;
 /// </summary>
 internal sealed class SelectionEngine : IDisposable
 {
-    private const int DragThresholdPx = 5;
+    // Physical pixels. 5 was ~3 DIP at 150 %: a hand tremor during a double-click counted as a drag-select.
+    private const int DragThresholdPx = 10;
     private const int DoubleClickSlopPx = 4;
 
     private readonly ConfigStore _store;
@@ -32,6 +33,10 @@ internal sealed class SelectionEngine : IDisposable
     private int _downX, _downY;
     private long _downTicks;
     private bool _downInPopup;
+    /// <summary>This press continues a click chain (double → triple click) while the bar is up: keep it, update in place.</summary>
+    private bool _chainDown;
+    /// <summary>The last left-button release started a capture (its bar may still be on its way to the screen).</summary>
+    private bool _lastUpTriggered;
     private int _lastUpX, _lastUpY;
     private long _lastUpTicks;
     private int _seq;                 // bumped on any event that invalidates a pending capture
@@ -86,7 +91,10 @@ internal sealed class SelectionEngine : IDisposable
                 if (_popupVisible && _popupRect.Contains(x, y)) { _downInPopup = true; return; }
                 _downInPopup = false;
                 _pending = null;
-                if (_popupVisible) RequestHide();
+                // Judged by the release that triggered, not by visibility: a fast third click often lands before the
+                // bar from the double click is on screen, and must still count as the same gesture.
+                _chainDown = _lastUpTriggered && now - _lastUpTicks <= GetDoubleClickTime() && Dist(_lastUpX, _lastUpY, x, y) <= DoubleClickSlopPx;
+                if (_popupVisible && !_chainDown) RequestHide();
                 NotifyOutsideClick(x, y);
                 _downX = x; _downY = y; _downTicks = now;
                 Interlocked.Increment(ref _seq);
@@ -108,14 +116,21 @@ internal sealed class SelectionEngine : IDisposable
                 bool dbl = now - _lastUpTicks <= GetDoubleClickTime() && Dist(_lastUpX, _lastUpY, x, y) <= DoubleClickSlopPx;
                 bool shift = !drag && IsKeyDown(VK_SHIFT);
                 _lastUpX = x; _lastUpY = y; _lastUpTicks = now;
+                bool chain = _chainDown;
+                _chainDown = false;
+                _lastUpTriggered = false;
+                bool trigger = cfg.Enabled && !_panels.SuppressCapture
+                    && ((drag && cfg.TriggerOnDrag) || (dbl && cfg.TriggerOnDoubleClick) || (shift && cfg.TriggerOnShiftClick))
+                    && !_panels.ContainsPoint(x, y); // selecting inside one of our own panels
+                if (!trigger)
+                {
+                    if (chain && _popupVisible) RequestHide(); // the kept bar has nothing to update to
+                    return;
+                }
 
-                if (!cfg.Enabled || _panels.SuppressCapture) return;
-                bool trigger = (drag && cfg.TriggerOnDrag) || (dbl && cfg.TriggerOnDoubleClick) || (shift && cfg.TriggerOnShiftClick);
-                if (!trigger) return;
-                if (_panels.ContainsPoint(x, y)) return; // selecting inside one of our own panels
-
+                _lastUpTriggered = true;
                 int seq = Volatile.Read(ref _seq);
-                Enqueue(() => CaptureJob(seq, x, y, dbl, now, cfg));
+                Enqueue(() => CaptureJob(seq, x, y, dbl, now, cfg, chain));
                 break;
             }
 
@@ -194,33 +209,41 @@ internal sealed class SelectionEngine : IDisposable
 
     // ------------------------------------------------------------------ worker
 
-    private void CaptureJob(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg)
+    private void CaptureJob(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg, bool update = false)
+    {
+        // A bar kept through a click chain must not linger with the old text when the new click selects nothing.
+        if (!CaptureAndShow(seq, x, y, dbl, upTicks, cfg, update) && update && seq == Volatile.Read(ref _seq) && _popupVisible)
+            RequestHide();
+    }
+
+    /// <summary>False when nothing was shown (no text, no actions, superseded...).</summary>
+    private bool CaptureAndShow(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg, bool update)
     {
         long wait = upTicks + cfg.ShowDelayMs - Environment.TickCount64;
         if (wait > 0) Thread.Sleep((int)wait);
-        if (seq != Volatile.Read(ref _seq)) return;
+        if (seq != Volatile.Read(ref _seq)) return false;
 
         IntPtr source = GetForegroundWindow();
-        if (source == IntPtr.Zero) return;
+        if (source == IntPtr.Zero) return false;
         // Never treat our own windows (settings, panels, plugin overlays) as a selection source.
         GetWindowThreadProcessId(source, out uint srcPid);
-        if (srcPid == (uint)Environment.ProcessId) return;
+        if (srcPid == (uint)Environment.ProcessId) return false;
         if (cfg.ExcludedApps.Count > 0)
         {
             var proc = GetWindowProcessName(source);
-            if (cfg.ExcludedApps.Any(p => string.Equals(p.Trim(), proc, StringComparison.OrdinalIgnoreCase))) return;
+            if (cfg.ExcludedApps.Any(p => string.Equals(p.Trim(), proc, StringComparison.OrdinalIgnoreCase))) return false;
         }
 
         bool allowClipboard = !cfg.ClipboardFallbackOff && (cfg.ClipboardFallbackAlways || dbl || IsIBeamCursor());
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var text = _capture.Capture(x, y, allowClipboard, cfg.NoClipboardApps, out var method);
-        if (seq != Volatile.Read(ref _seq)) return;
-        if (string.IsNullOrWhiteSpace(text)) return;
-        if (text.Length > cfg.MaxTextLength) return;
+        if (seq != Volatile.Read(ref _seq)) return false;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        if (text.Length > cfg.MaxTextLength) return false;
 
         var sel = new Selection(text, source, x, y);
         var actions = ResolveActions(sel, cfg);
-        if (actions.Count == 0) return;
+        if (actions.Count == 0) return false;
         Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms");
 
         if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))
@@ -229,15 +252,18 @@ internal sealed class SelectionEngine : IDisposable
             _pendingActions = actions;
             _pendingTicks = Environment.TickCount64;
             _pending = sel;
-            return;
+            if (update && _popupVisible) RequestHide(); // the revealed bar shows the old text; wait for the key again
+            return true;
         }
 
         _ui.InvokeAsync(() =>
         {
             if (seq != Volatile.Read(ref _seq)) return;
-            try { _popup.ShowFor(sel, actions, cfg); }
+            // A triple click right after a double click refreshes the visible bar instead of hiding and re-showing it.
+            try { if (update) _popup.UpdateFor(sel, actions, cfg); else _popup.ShowFor(sel, actions, cfg); }
             catch (Exception ex) { Log.Error("popup show failed", ex); } // InvokeAsync would swallow it otherwise
         }, DispatcherPriority.Send);
+        return true;
     }
 
     /// <summary>Config actions that apply to this selection (built-in matchers + plugin predicates).</summary>

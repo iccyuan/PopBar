@@ -140,6 +140,18 @@ public partial class PopupWindow : Window, IPopupPresenter
         }, DispatcherPriority.Loaded);
     }
 
+    public void UpdateFor(Selection sel, IReadOnlyList<ActionDefinition> actions, AppConfig cfg)
+    {
+        if (!_visible) { ShowFor(sel, actions, cfg); return; }
+        _selection = sel;
+        // Same buttons (the usual case): nothing on screen changes, the actions just act on the new text.
+        if (cfg.ShowLabels == _showLabels && actions.SequenceEqual(_actions)) return;
+        _actions = actions;
+        _showLabels = cfg.ShowLabels;
+        BuildButtons();
+        Relayout();
+    }
+
     private Size MeasureRoot()
     {
         Root.InvalidateMeasure();

@@ -12,6 +12,8 @@ internal interface IPopupPresenter
 {
     /// <summary>Show the bar for a selection. UI thread.</summary>
     void ShowFor(Selection selection, IReadOnlyList<ActionDefinition> actions, AppConfig cfg);
+    /// <summary>The selection changed while the bar is up (click chain): update it in place, or show it if hidden. UI thread.</summary>
+    void UpdateFor(Selection selection, IReadOnlyList<ActionDefinition> actions, AppConfig cfg);
     /// <summary>Hide immediately. UI thread.</summary>
     void HideNow();
 
