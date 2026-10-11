@@ -18,6 +18,9 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
         public string SaveDir { get; set; } = "";
         public bool ShowMagnifier { get; set; } = true;
         public bool DetectWindows { get; set; } = true;
+        public int GifFps { get; set; } = 12;
+        public int GifMaxSeconds { get; set; } = 60;
+        public bool GifCursor { get; set; } = true;
     }
 
     public static string DefaultSaveDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "PopBar");
@@ -68,6 +71,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 var suppress = _host.SuppressSelection();     // our drags must not look like text selections
                 var overlay = new CaptureOverlay(_host, _cfg, screen, vs, windows);
                 overlay.PinRequested += (img, rect) => ShowPin(img, rect);
+                overlay.LiveRequested += (kind, rect) => StartLive(kind, rect);
                 overlay.Closed += (_, _) =>
                 {
                     suppress.Dispose();
@@ -82,6 +86,23 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 _host.Log.Error("capture failed", ex);
                 _overlay = null;
             }
+        });
+    }
+
+    private string SaveDir => string.IsNullOrWhiteSpace(_cfg.SaveDir) ? DefaultSaveDir : _cfg.SaveDir;
+
+    /// <summary>Long screenshot / GIF recording of a region picked in the overlay (starts once the overlay is gone).</summary>
+    private void StartLive(string kind, Int32Rect rect)
+    {
+        _host.Dispatcher.InvokeAsync(async () =>
+        {
+            await Task.Delay(150);
+            try
+            {
+                if (kind == "gif") new GifRecorder(_host, rect, _cfg, SaveDir).Start();
+                else new ScrollCapture(_host, rect, SaveDir).Start();
+            }
+            catch (Exception ex) { _host.Log.Error("live capture " + kind, ex); }
         });
     }
 
@@ -161,6 +182,11 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 Form.Row("保存目录", dirRow),
                 Form.Row("显示放大镜", Form.Toggle(_cfg.ShowMagnifier, v => { _cfg.ShowMagnifier = v; Save(); })),
                 Form.Row("自动识别窗口", Form.Toggle(_cfg.DetectWindows, v => { _cfg.DetectWindows = v; Save(); }), "鼠标悬停时高亮窗口，单击直接选中")),
+            Form.Card(
+                Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, _cfg.GifFps.ToString(), v => { _cfg.GifFps = int.Parse(v); Save(); }, 140), "帧率越高越流畅，文件也越大"),
+                Form.Row("GIF 最长时长", Form.Combo(new[] { ("30", "30 秒"), ("60", "1 分钟"), ("180", "3 分钟"), ("600", "10 分钟") }, _cfg.GifMaxSeconds.ToString(), v => { _cfg.GifMaxSeconds = int.Parse(v); Save(); }, 140)),
+                Form.Row("录入鼠标指针", Form.Toggle(_cfg.GifCursor, v => { _cfg.GifCursor = v; Save(); }))),
+            Form.Hint("框选后工具栏里的「长截图」会自动向下滚动并拼接（滚动期间别动鼠标），「GIF」开始录制，结果保存到上面的目录并复制到剪贴板。"),
             Form.Hint("截图中：拖动框选，单击选中窗口；Enter / Ctrl+C / 双击 复制，Ctrl+S 保存，Ctrl+T 贴图，Ctrl+Z 撤销，方向键微调，Esc / 右键 取消，C 复制取色。"),
             Form.Hint("贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，右键更多操作。"));
     }

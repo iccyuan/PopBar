@@ -51,6 +51,62 @@ internal static class ShotNative
         SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
     }
 
+    [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
+    [StructLayout(LayoutKind.Sequential)] private struct CURSORINFO { public int cbSize, flags; public IntPtr hCursor; public POINT pt; }
+    [StructLayout(LayoutKind.Sequential)] private struct ICONINFO { public bool fIcon; public int xHotspot, yHotspot; public IntPtr hbmMask, hbmColor; }
+    [DllImport("user32.dll")] private static extern bool GetCursorInfo(ref CURSORINFO ci);
+    [DllImport("user32.dll")] private static extern bool GetIconInfo(IntPtr h, out ICONINFO ii);
+    [DllImport("user32.dll")] private static extern bool DrawIconEx(IntPtr hdc, int x, int y, IntPtr icon, int w, int h, int step, IntPtr brush, int flags);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr h);
+
+    private const int WS_EX_TRANSPARENT = 0x20, WS_EX_NOACTIVATE = 0x08000000;
+
+    /// <summary>Tool window that never takes focus; with <paramref name="clickThrough"/> the mouse passes to what is below.</summary>
+    public static void MakeOverlay(Window w, bool clickThrough)
+    {
+        var h = new WindowInteropHelper(w).Handle;
+        long ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64() | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
+        if (clickThrough) ex |= WS_EX_TRANSPARENT;
+        SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex));
+    }
+
+    /// <summary>Live BGRA pixels of a physical screen rect (top-down, stride = width*4), optionally with the mouse cursor drawn in.</summary>
+    public static byte[] CaptureBgra(Int32Rect r, bool cursor)
+    {
+        using var bmp = new Drawing.Bitmap(r.Width, r.Height, Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Drawing.Graphics.FromImage(bmp))
+        {
+            g.CopyFromScreen(r.X, r.Y, 0, 0, bmp.Size);
+            if (cursor) DrawCursor(g, r);
+        }
+        var data = bmp.LockBits(new Drawing.Rectangle(0, 0, r.Width, r.Height), Drawing.Imaging.ImageLockMode.ReadOnly, Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            var px = new byte[r.Width * r.Height * 4];
+            for (int y = 0; y < r.Height; y++) Marshal.Copy(data.Scan0 + y * data.Stride, px, y * r.Width * 4, r.Width * 4);
+            for (int i = 3; i < px.Length; i += 4) px[i] = 255;
+            return px;
+        }
+        finally { bmp.UnlockBits(data); }
+    }
+
+    private static void DrawCursor(Drawing.Graphics g, Int32Rect r)
+    {
+        var ci = new CURSORINFO { cbSize = Marshal.SizeOf<CURSORINFO>() };
+        if (!GetCursorInfo(ref ci) || (ci.flags & 1) == 0 || ci.hCursor == IntPtr.Zero) return;
+        int hx = 0, hy = 0;
+        if (GetIconInfo(ci.hCursor, out var ii))
+        {
+            hx = ii.xHotspot; hy = ii.yHotspot;
+            if (ii.hbmMask != IntPtr.Zero) DeleteObject(ii.hbmMask);
+            if (ii.hbmColor != IntPtr.Zero) DeleteObject(ii.hbmColor);
+        }
+        var hdc = g.GetHdc();
+        try { DrawIconEx(hdc, ci.pt.X - r.X - hx, ci.pt.Y - r.Y - hy, ci.hCursor, 0, 0, 0, IntPtr.Zero, 3 /* DI_NORMAL */); }
+        finally { g.ReleaseHdc(hdc); }
+    }
+
     /// <summary>Freeze the screen: physical-pixel snapshot of the whole virtual screen.</summary>
     public static BitmapSource CaptureScreen(Int32Rect vs)
     {

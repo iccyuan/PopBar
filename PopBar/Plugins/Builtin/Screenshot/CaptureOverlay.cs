@@ -68,6 +68,8 @@ internal sealed class CaptureOverlay : Window
 
     /// <summary>Raised when the user asks to pin the capture; args: image, physical screen rect.</summary>
     public event Action<BitmapSource, Int32Rect>? PinRequested;
+    /// <summary>Raised for "long" (scrolling screenshot) or "gif" (recording); arg: physical screen rect of the selection.</summary>
+    public event Action<string, Int32Rect>? LiveRequested;
 
     public CaptureOverlay(IPluginHost host, ScreenshotPlugin.Settings cfg, BitmapSource screen, Int32Rect vs, List<Int32Rect> windows)
     {
@@ -487,6 +489,9 @@ internal sealed class CaptureOverlay : Window
         panel.Children.Add(Separator());
         panel.Children.Add(IconBtn("undo", "撤销  Ctrl+Z", Undo));
         panel.Children.Add(Separator());
+        panel.Children.Add(IconBtn("scroll-capture", "长截图（自动滚动拼接）", () => Live("long")));
+        panel.Children.Add(IconBtn("film", "录制 GIF", () => Live("gif")));
+        panel.Children.Add(Separator());
         panel.Children.Add(IconBtn("pin", "贴到屏幕  Ctrl+T", Pin));
         panel.Children.Add(IconBtn("download", "保存  Ctrl+S", Save));
         panel.Children.Add(IconBtn("x", "取消  Esc", Close, new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44))));
@@ -790,6 +795,15 @@ internal sealed class CaptureOverlay : Window
         }
         catch (Exception ex) { _host.Log.Error("save screenshot", ex); }
         Close();
+    }
+
+    private void Live(string kind)
+    {
+        if (_sel.IsEmpty) return;
+        var px = ToPx(_sel);
+        var rect = new Int32Rect(px.X + _vs.X, px.Y + _vs.Y, px.Width, px.Height);
+        Close();
+        LiveRequested?.Invoke(kind, rect);
     }
 
     private void Pin()

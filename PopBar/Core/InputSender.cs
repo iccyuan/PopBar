@@ -15,6 +15,17 @@ internal static class InputSender
         u = new INPUTUNION { ki = new KEYBDINPUT { wVk = vk, dwFlags = up ? KEYEVENTF_KEYUP : 0, dwExtraInfo = Tag } },
     };
 
+    /// <summary>Mouse wheel at the cursor (negative = scroll down), tagged so our hooks ignore it.</summary>
+    public static void SendWheel(int delta)
+    {
+        var input = new INPUT
+        {
+            type = 0, // INPUT_MOUSE
+            u = new INPUTUNION { mi = new MOUSEINPUT { mouseData = unchecked((uint)delta), dwFlags = 0x0800 /* MOUSEEVENTF_WHEEL */, dwExtraInfo = Tag } },
+        };
+        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
+    }
+
     public static void SendCtrlCombo(ushort vk)
     {
         var inputs = new[]
