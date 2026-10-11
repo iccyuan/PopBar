@@ -39,17 +39,34 @@ internal sealed class HostServices
 internal sealed class ServiceRegistry : IServiceRegistry
 {
     private readonly Dictionary<Type, object> _map = new();
+    private readonly Dictionary<Type, string> _owners = new();
 
-    public void Provide<T>(T service) where T : class
+    public void Provide<T>(T service) where T : class => Provide(service, "");
+
+    /// <summary>Register on behalf of a plugin, so settings can show who provides each service.</summary>
+    public void Provide<T>(T service, string owner) where T : class
     {
         ArgumentNullException.ThrowIfNull(service);
-        lock (_map) _map[typeof(T)] = service;
+        lock (_map) { _map[typeof(T)] = service; _owners[typeof(T)] = owner; }
+    }
+
+    /// <summary>Registered contracts and the plugin that provides each (empty = the host).</summary>
+    public IReadOnlyList<(Type Contract, string Owner)> Entries
+    {
+        get { lock (_map) return _owners.Select(kv => (kv.Key, kv.Value)).ToList(); }
     }
 
     public T? Get<T>() where T : class
     {
         lock (_map) return _map.TryGetValue(typeof(T), out var s) ? (T)s : null;
     }
+}
+
+/// <summary>A plugin's view of the registry: what it provides is recorded under its id.</summary>
+internal sealed class ScopedServices(ServiceRegistry registry, string owner) : IServiceRegistry
+{
+    public void Provide<T>(T service) where T : class => registry.Provide(service, owner);
+    public T? Get<T>() where T : class => registry.Get<T>();
 }
 
 /// <summary>Tracks open panels so outside clicks can close the unpinned ones.</summary>
@@ -106,6 +123,7 @@ internal sealed class PluginHost : IPluginHost
         _log = new PluginLogger(pluginId);
         _storage = new PluginStorage(pluginId);
         DataDir = Path.Combine(PluginStorage.PluginsDir, pluginId);
+        Services = new ScopedServices(s.Services, pluginId);
     }
 
     public IPluginLogger Log => _log;
@@ -116,7 +134,7 @@ internal sealed class PluginHost : IPluginHost
     public IHostUi Ui { get; } = new HostUi();
     public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
-    public IServiceRegistry Services => _s.Services;
+    public IServiceRegistry Services { get; }
 
     public IPanel ShowPanel(PanelOptions options)
     {

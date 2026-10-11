@@ -33,6 +33,7 @@
                     <RadioButton x:Name="NavActions" Style="{StaticResource NavItem}" Content="动作" Tag="zap" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavApps" Style="{StaticResource NavItem}" Content="应用" Tag="app-window" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavPlugins" Style="{StaticResource NavItem}" Content="插件" Tag="puzzle" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavServices" Style="{StaticResource NavItem}" Content="服务" Tag="server" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="关于" Tag="info" Checked="Nav_Checked"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Style="{StaticResource Muted}" Margin="10,0,0,0" Text=""/>
@@ -43,7 +44,7 @@
         <TextBlock Grid.Column="0" Text="PopBar 设置" Style="{StaticResource Muted}" Margin="22,13,0,0" VerticalAlignment="Top" IsHitTestVisible="False"/>
 
         <!-- content -->
-        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Padding="32,26,32,32" Margin="0,44,0,0">
+        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Padding="32,26,32,96" Margin="0,44,0,0">
             <Grid>
                 <!-- ===== General ===== -->
                 <StackPanel x:Name="PanelGeneral">
@@ -318,7 +319,18 @@
                 <StackPanel x:Name="PanelPlugins" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource H1}" Text="插件"/>
 
-                    <TextBlock Style="{StaticResource H2}" Text="AI 模型服务（翻译的 AI 模式、AI 助手共用）" Margin="4,0,0,8"/>
+                    <TextBlock Style="{StaticResource H2}" Text="已安装的插件"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" x:Name="PluginDirText"/>
+                    <StackPanel x:Name="PluginList"/>
+                </StackPanel>
+
+                <!-- ===== Services: capabilities shared by plugins ===== -->
+                <StackPanel x:Name="PanelServices" Visibility="Collapsed">
+                    <TextBlock Style="{StaticResource H1}" Text="服务"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,-6,0,16" TextWrapping="Wrap" Text="插件之间共用的能力：在这里配置一次，所有用到它的插件都会使用。"/>
+
+                    <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,2"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,8" Text="翻译的 AI 模式、AI 解释等插件都通过它调用大模型"/>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
@@ -381,9 +393,10 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Style="{StaticResource H2}" Text="已安装的插件"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" x:Name="PluginDirText"/>
-                    <StackPanel x:Name="PluginList"/>
+
+                    <TextBlock Style="{StaticResource H2}" Text="插件提供的服务" Margin="4,0,0,2"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,8" Text="由某个插件提供、其他插件调用；具体设置在提供它的插件里"/>
+                    <StackPanel x:Name="ServiceList"/>
                 </StackPanel>
 
                 <!-- ===== About ===== -->
@@ -418,5 +431,24 @@
                 </StackPanel>
             </Grid>
         </ScrollViewer>
+
+        <!-- unsaved-changes bar: nothing is written until the user saves -->
+        <Border x:Name="SaveBar" Grid.Column="1" VerticalAlignment="Bottom" Margin="32,0,40,20" Padding="18,10,10,10" CornerRadius="14"
+                Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                RenderOptions.ClearTypeHint="Enabled" Visibility="Collapsed">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
+            </Border.Effect>
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <Button Content="取消" Click="CancelChanges_Click" ToolTip="放弃改动，恢复到上次保存"/>
+                    <Button Style="{StaticResource AccentButton}" Content="保存" Margin="8,0,0,0" Click="SaveChanges_Click" ToolTip="Ctrl+S"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Text="有未保存的更改" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
     </Grid>
 </Window>

@@ -101,7 +101,8 @@ public partial class SettingsWindow : Window
     /// <summary>What the list shows: stand-alone rows and plugin groups (rebuilt from <see cref="_rows"/>).</summary>
     private readonly ObservableCollection<object> _items = new();
     private bool _flattening;
-    private readonly DispatcherTimer _saveTimer;
+    /// <summary>Form state as last loaded / saved (serialized); the form is dirty when it differs.</summary>
+    private string _baseline = "";
     private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _excluded = new();
     private readonly List<string> _noClip = new();
@@ -154,10 +155,15 @@ public partial class SettingsWindow : Window
         ConfigPathRun.Text = ConfigStore.FilePath;
         LogPathRun.Text = System.IO.Path.Combine(ConfigStore.Dir, "popbar.log");
 
-        _saveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-        _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); SaveNow(); };
-
         LoadFromConfig(_store.Current);
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.S && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+            {
+                if (IsDirty) SaveNow();
+                e.Handled = true;
+            }
+        };
 
         // A plugin added / removed actions (e.g. a new send-to target): show them on the actions page right away.
         _plugins.ActionsSynced += OnPluginActionsSynced;
@@ -166,13 +172,34 @@ public partial class SettingsWindow : Window
 
     private void OnPluginActionsSynced() => Dispatcher.InvokeAsync(() =>
     {
+        bool dirty = IsDirty;
         _loading = true;
         try
         {
-            _rows.Clear();
-            foreach (var a in _store.Current.Actions) _rows.Add(new ActionRow(a.Clone()));
+            var stored = _store.Current.Actions;
+            if (!dirty)
+            {
+                _rows.Clear();
+                foreach (var a in stored) _rows.Add(new ActionRow(a.Clone()));
+            }
+            else
+            {
+                // Unsaved edits stay; only bring in what the plugin itself added, removed or renamed.
+                var byRef = stored.Where(a => a.IsPlugin && a.Ref != null).ToDictionary(a => a.Ref!, StringComparer.OrdinalIgnoreCase);
+                foreach (var r in _rows.Where(r => r.Def.IsPlugin && (r.Def.Ref == null || !byRef.ContainsKey(r.Def.Ref))).ToList()) _rows.Remove(r);
+                for (int i = 0; i < stored.Count; i++)
+                {
+                    var a = stored[i];
+                    if (!a.IsPlugin) continue;
+                    var row = _rows.FirstOrDefault(r => string.Equals(r.Def.Ref, a.Ref, StringComparison.OrdinalIgnoreCase));
+                    if (row == null) _rows.Insert(Math.Min(i, _rows.Count), new ActionRow(a.Clone()));
+                    else if (row.Def.Label != a.Label || row.Def.Icon != a.Icon) { row.Def.Label = a.Label; row.Def.Icon = a.Icon; row.Refresh(); }
+                }
+            }
         }
         finally { _loading = false; }
+        // The plugin already wrote these to config: they are part of the saved state, not unsaved edits.
+        if (!dirty) _baseline = Snapshot(); else UpdateSaveBar();
     });
 
     // ------------------------------------------------------------------ load / save
@@ -217,6 +244,8 @@ public partial class SettingsWindow : Window
             foreach (var a in c.Actions) _rows.Add(new ActionRow(a.Clone()));
         }
         finally { _loading = false; }
+        _baseline = Snapshot();
+        UpdateSaveBar();
     }
 
     private AppConfig BuildConfig()
@@ -259,32 +288,60 @@ public partial class SettingsWindow : Window
 
     private void Changed(object sender, RoutedEventArgs e)
     {
-        // Controls raise change events while InitializeComponent runs (e.g. Slider coercing its value), before the timer exists.
-        if (_loading || _saveTimer == null) return;
-        _saveTimer.Stop();
-        _saveTimer.Start();
-        StatusText.Text = "正在保存…";
+        // Controls raise change events while InitializeComponent runs (e.g. Slider coercing its value), before the form is loaded.
+        if (_loading || _baseline.Length == 0) return;
+        UpdateSaveBar();
+    }
+
+    private string Snapshot() => System.Text.Json.JsonSerializer.Serialize(BuildConfig());
+
+    /// <summary>Edits are held in the form until saved; changing something back clears the flag again.</summary>
+    private bool IsDirty => _baseline.Length > 0 && Snapshot() != _baseline;
+
+    private void UpdateSaveBar()
+    {
+        if (SaveBar == null) return;
+        SaveBar.Visibility = IsDirty ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SaveNow()
     {
         if (_loading) return;
         _store.Replace(BuildConfig());
+        _baseline = Snapshot();
+        UpdateSaveBar();
         StatusText.Text = "已保存 " + DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    private void SaveChanges_Click(object sender, RoutedEventArgs e) => SaveNow();
+
+    private void CancelChanges_Click(object sender, RoutedEventArgs e)
+    {
+        LoadFromConfig(_store.Current);
+        BuildPluginList(); // plugin on/off switches were edited in place
+        StatusText.Text = "已撤销未保存的更改";
     }
 
     /// <summary>Called by the tray when the enabled flag flips elsewhere.</summary>
     public void RefreshFromStore()
     {
         var c = _store.Current;
+        bool dirty = IsDirty;
         _loading = true;
         EnabledSw.IsChecked = c.Enabled;
         _loading = false;
+        // Toggled from the tray, i.e. already saved: not an unsaved edit of this form.
+        if (!dirty) _baseline = Snapshot(); else UpdateSaveBar();
     }
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (_saveTimer.IsEnabled) { _saveTimer.Stop(); SaveNow(); }
+        if (IsDirty)
+        {
+            var answer = MessageBox.Show(this, "有未保存的更改，关闭前保存吗？", "PopBar", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (answer == MessageBoxResult.Cancel) { e.Cancel = true; return; }
+            if (answer == MessageBoxResult.Yes) SaveNow();
+        }
         base.OnClosing(e);
     }
 
@@ -297,10 +354,64 @@ public partial class SettingsWindow : Window
         PanelActions.Visibility = NavActions.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelApps.Visibility = NavApps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PanelServices.Visibility = NavServices.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        if (NavServices.IsChecked == true) BuildServiceList();
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ------------------------------------------------------------------ plugins
+
+    /// <summary>Set by the app: registered services and their providers.</summary>
+    internal static Func<IReadOnlyList<(Type Contract, string Owner)>>? ServiceEntries;
+
+    /// <summary>Friendly names for the SDK's service contracts; unknown contracts show their type name.</summary>
+    private static (string Name, string Icon, string Desc) DescribeService(Type t) => t.Name switch
+    {
+        nameof(Sdk.ITextTranslator) => ("文本翻译", "languages", "把文字翻译成目标语言；屏幕翻译等插件调用它，目标语言与引擎跟随提供者的设置"),
+        nameof(Sdk.IOcrEngine) => ("文字识别", "scan-text", "识别图片里的文字和位置；屏幕翻译等插件调用它，识别语言跟随提供者的设置"),
+        _ => (t.Name, "puzzle", t.FullName ?? t.Name),
+    };
+
+    private void BuildServiceList()
+    {
+        ServiceList.Children.Clear();
+        var entries = ServiceEntries?.Invoke() ?? Array.Empty<(Type, string)>();
+        foreach (var (contract, owner) in entries.OrderBy(e => e.Owner))
+        {
+            var (name, icon, desc) = DescribeService(contract);
+            var provider = _plugins.Plugins.FirstOrDefault(l => string.Equals(l.Plugin.Id, owner, StringComparison.OrdinalIgnoreCase))?.Plugin;
+            var card = new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(16, 12, 16, 12), Margin = new Thickness(0, 0, 0, 10) };
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(new Border
+            {
+                Width = 36, Height = 36, CornerRadius = new CornerRadius(10), Background = (Brush)FindResource("AccentSoftBrush"), VerticalAlignment = VerticalAlignment.Center,
+                Child = new IconImage { Icon = icon, Size = 18, Brush = (Brush)FindResource("AccentHoverBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center },
+            });
+            var text = new StackPanel { Margin = new Thickness(14, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center };
+            var title = new TextBlock { FontWeight = FontWeights.SemiBold };
+            title.Inlines.Add(name);
+            title.Inlines.Add(new System.Windows.Documents.Run("  · 由「" + (provider?.Name ?? (owner.Length == 0 ? "PopBar" : owner)) + "」提供")
+                { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
+            text.Children.Add(title);
+            text.Children.Add(new TextBlock { Text = desc, Style = (Style)FindResource("Muted"), TextWrapping = TextWrapping.Wrap });
+            Grid.SetColumn(text, 1);
+            grid.Children.Add(text);
+            if (provider != null)
+            {
+                var go = new Button { Content = "设置", VerticalAlignment = VerticalAlignment.Center, ToolTip = "到插件页修改提供者的设置" };
+                go.Click += (_, _) => ShowPluginsPage(provider.Id);
+                Grid.SetColumn(go, 2);
+                grid.Children.Add(go);
+            }
+            card.Child = grid;
+            ServiceList.Children.Add(card);
+        }
+        if (ServiceList.Children.Count == 0)
+            ServiceList.Children.Add(new TextBlock { Text = "目前没有插件提供服务。", Style = (Style)FindResource("Muted"), Margin = new Thickness(4, 0, 0, 0) });
+    }
 
     public void ShowPluginsPage(string? pluginId = null)
     {
@@ -466,6 +577,20 @@ public partial class SettingsWindow : Window
 
     private void Llm_Changed(object sender, RoutedEventArgs e) => Changed(sender, e);
 
+    /// <summary>
+    /// "获取模型" / "测试连接" talk to the endpoint typed in the form, so the AI service fields are saved right then
+    /// (the buttons are an explicit action); every other pending edit stays pending.
+    /// </summary>
+    private void ApplyLlmOnly()
+    {
+        var llm = BuildConfig().Llm;
+        _store.Update(c => c.Llm = llm);
+        var baseline = System.Text.Json.JsonSerializer.Deserialize<AppConfig>(_baseline)!;
+        baseline.Llm = llm;
+        _baseline = System.Text.Json.JsonSerializer.Serialize(baseline);
+        UpdateSaveBar();
+    }
+
     private void BlurSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (BlurValueText != null) BlurValueText.Text = $"{(int)e.NewValue}%";
@@ -474,7 +599,7 @@ public partial class SettingsWindow : Window
 
     private async void FetchModels_Click(object sender, RoutedEventArgs e)
     {
-        if (_saveTimer.IsEnabled) { _saveTimer.Stop(); SaveNow(); }
+        ApplyLlmOnly();
         var current = (LlmModelBox.Text ?? "").Trim();
         LlmTestResult.Text = "获取模型列表…";
         try
@@ -496,7 +621,7 @@ public partial class SettingsWindow : Window
 
     private async void LlmTest_Click(object sender, RoutedEventArgs e)
     {
-        if (_saveTimer.IsEnabled) { _saveTimer.Stop(); SaveNow(); }
+        ApplyLlmOnly();
         LlmTestResult.Text = "连接中…";
         try
         {

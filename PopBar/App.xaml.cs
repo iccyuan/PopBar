@@ -97,6 +97,7 @@ public partial class App : Application
             ResyncActions = id => _plugins?.Resync(id),
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
+        SettingsWindow.ServiceEntries = () => services.Services.Entries;
         ActionRunner.Plugins = _plugins;
         _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
