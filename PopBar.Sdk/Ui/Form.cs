@@ -70,7 +70,7 @@ public static class Form
     public static TextBlock Section(string title)
     {
         var t = new TextBlock { Text = title };
-        if (Res("H2") is Style s) t.Style = s; else { t.FontWeight = FontWeights.SemiBold; t.Margin = new Thickness(4, 18, 0, 8); }
+        if (Res("H2") is Style s) t.Style = s; else { t.Margin = new Thickness(4, 18, 0, 8); }
         return t;
     }
 
@@ -145,7 +145,7 @@ public static class Form
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
+        text.Children.Add(new TextBlock { Text = title, FontSize = 14 });
         if (!string.IsNullOrEmpty(subtitle))
         {
             var sub = new TextBlock { Text = subtitle, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };

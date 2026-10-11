@@ -22,15 +22,15 @@ public sealed class ActionGroupRow : INotifyPropertyChanged
     /// <summary>Expanded: how many actions; collapsed: how many of them are on, since the switches are hidden.</summary>
     public string CountText => IsExpanded ? $"{Members.Count} 个动作" : $"已开启 {Members.Count(m => m.Enabled)}/{Members.Count}";
 
-    /// <summary>Groups the user folded; kept for the app's lifetime so reopening settings keeps the layout.</summary>
-    private static readonly HashSet<string> Collapsed = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Groups start folded; the ones the user opened are kept for the app's lifetime (reopening settings keeps them).</summary>
+    private static readonly HashSet<string> Expanded = new(StringComparer.OrdinalIgnoreCase);
 
     public bool IsExpanded
     {
-        get => !Collapsed.Contains(Owner);
+        get => Expanded.Contains(Owner);
         set
         {
-            if (value) Collapsed.Remove(Owner); else Collapsed.Add(Owner);
+            if (value) Expanded.Add(Owner); else Expanded.Remove(Owner);
             Notify(nameof(IsExpanded)); Notify(nameof(ChevronIcon)); Notify(nameof(CountText));
         }
     }
@@ -454,7 +454,7 @@ public partial class SettingsWindow : Window
             head.Children.Add(iconBox);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(info, 1);
-            var title = new TextBlock { FontWeight = FontWeights.SemiBold };
+            var title = new TextBlock { FontSize = 14 }; // YaHei UI has no semibold: SemiBold would render as heavy Bold
             title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
             title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
             info.Children.Add(title);
