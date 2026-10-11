@@ -33,12 +33,16 @@ internal sealed class SelectionEngine : IDisposable
     private int _downX, _downY;
     private long _downTicks;
     private bool _downInPopup;
-    /// <summary>This press continues a click chain (double → triple click) while the bar is up: keep it, update in place.</summary>
+    /// <summary>
+    /// This press is part of a multi-click (double, triple...). Judged like Windows does for the apps themselves:
+    /// press-to-press within the double-click time and slop. Judging on release-to-release drifted from the app's
+    /// view for slow clicks, so we would hide a bar the app had just extended to a line.
+    /// </summary>
+    private bool _multiDown;
+    /// <summary>This press continues a click chain whose previous release started a capture: keep the bar, update in place.</summary>
     private bool _chainDown;
     /// <summary>The last left-button release started a capture (its bar may still be on its way to the screen).</summary>
     private bool _lastUpTriggered;
-    private int _lastUpX, _lastUpY;
-    private long _lastUpTicks;
     private int _seq;                 // bumped on any event that invalidates a pending capture
 
     // --- popup state (written on UI thread, read on hook thread) ---
@@ -91,9 +95,10 @@ internal sealed class SelectionEngine : IDisposable
                 if (_popupVisible && _popupRect.Contains(x, y)) { _downInPopup = true; return; }
                 _downInPopup = false;
                 _pending = null;
-                // Judged by the release that triggered, not by visibility: a fast third click often lands before the
-                // bar from the double click is on screen, and must still count as the same gesture.
-                _chainDown = _lastUpTriggered && now - _lastUpTicks <= GetDoubleClickTime() && Dist(_lastUpX, _lastUpY, x, y) <= DoubleClickSlopPx;
+                _multiDown = now - _downTicks <= GetDoubleClickTime() && Dist(_downX, _downY, x, y) <= DoubleClickSlopPx;
+                // Chain is judged by the release that triggered, not by visibility: a fast third click often lands
+                // before the bar from the double click is on screen, and must still count as the same gesture.
+                _chainDown = _multiDown && _lastUpTriggered;
                 if (_popupVisible && !_chainDown) RequestHide();
                 NotifyOutsideClick(x, y);
                 _downX = x; _downY = y; _downTicks = now;
@@ -113,9 +118,8 @@ internal sealed class SelectionEngine : IDisposable
                 var cfg = _store.Current;
                 bool recentDown = now - _downTicks < 10_000;
                 bool drag = recentDown && Dist(_downX, _downY, x, y) >= DragThresholdPx;
-                bool dbl = now - _lastUpTicks <= GetDoubleClickTime() && Dist(_lastUpX, _lastUpY, x, y) <= DoubleClickSlopPx;
+                bool dbl = _multiDown && !drag;
                 bool shift = !drag && IsKeyDown(VK_SHIFT);
-                _lastUpX = x; _lastUpY = y; _lastUpTicks = now;
                 bool chain = _chainDown;
                 _chainDown = false;
                 _lastUpTriggered = false;
@@ -211,9 +215,16 @@ internal sealed class SelectionEngine : IDisposable
 
     private void CaptureJob(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg, bool update = false)
     {
-        // A bar kept through a click chain must not linger with the old text when the new click selects nothing.
-        if (!CaptureAndShow(seq, x, y, dbl, upTicks, cfg, update) && update && seq == Volatile.Read(ref _seq) && _popupVisible)
-            RequestHide();
+        if (CaptureAndShow(seq, x, y, dbl, upTicks, cfg, update) || !update) return;
+        // A chain click that selected nothing (many apps restart the count after a triple click, collapsing the
+        // selection) must not leave the bar up with stale text. But hiding at once makes the bar flicker when the
+        // next click of the chain selects again, so wait out the double-click window first; any further click
+        // bumps _seq and either updates the bar or hides it itself.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay((int)GetDoubleClickTime());
+            if (seq == Volatile.Read(ref _seq) && _popupVisible) RequestHide();
+        });
     }
 
     /// <summary>False when nothing was shown (no text, no actions, superseded...).</summary>
