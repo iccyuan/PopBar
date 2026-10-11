@@ -140,24 +140,22 @@
                         <ScrollViewer x:Name="SourceScroll" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled" Style="{StaticResource PBodyScroll}">
                             <TextBlock x:Name="SourceText" FontSize="12" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxHeight="52" TextWrapping="Wrap"/>
                         </ScrollViewer>
-                        <Button x:Name="SourceExpandBtn" Visibility="Collapsed" Click="SourceExpand_Click" HorizontalAlignment="Right" Margin="0,3,-4,-2"
-                                Cursor="Hand" Focusable="False" Padding="5,1">
+                        <!-- icon-only toggle: a round chip with a double chevron, accent on hover, tooltip spells it out -->
+                        <Button x:Name="SourceExpandBtn" Visibility="Collapsed" Click="SourceExpand_Click" HorizontalAlignment="Right" Margin="0,4,-4,-2"
+                                Cursor="Hand" Focusable="False" Width="24" Height="24" ToolTip="显示全部" Tag="chevrons-down">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Bd" CornerRadius="5" Background="Transparent" Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter/>
+                                    <Border x:Name="Bd" CornerRadius="12" Background="{DynamicResource PHover}">
+                                        <ui:IconImage x:Name="Ic" Icon="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Size="15" Brush="{DynamicResource PAccent}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
+                                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PAccent}"/>
+                                            <Setter TargetName="Ic" Property="Brush" Value="White"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock x:Name="SourceExpandText" Text="显示全部" FontSize="11.5" Foreground="{DynamicResource PAccent}" VerticalAlignment="Center"/>
-                                <ui:IconImage x:Name="SourceExpandIcon" Icon="chevron-down" Size="12" Brush="{DynamicResource PAccent}" Margin="2,1,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
                         </Button>
                     </StackPanel>
                 </Border>

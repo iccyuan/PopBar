@@ -117,8 +117,8 @@ public partial class PanelWindow : Window, IPanel
         SourceText.MaxHeight = _sourceExpanded ? double.PositiveInfinity : SourceCollapsedHeight;
         SourceScroll.MaxHeight = _sourceExpanded ? SourceExpandedHeight : double.PositiveInfinity;
         SourceScroll.VerticalScrollBarVisibility = _sourceExpanded ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-        SourceExpandText.Text = _sourceExpanded ? "收起" : "显示全部";
-        SourceExpandIcon.Icon = _sourceExpanded ? "chevron-up" : "chevron-down";
+        SourceExpandBtn.ToolTip = _sourceExpanded ? "收起" : "显示全部";
+        SourceExpandBtn.Tag = _sourceExpanded ? "chevrons-up" : "chevrons-down";
         ApplySource();
     }
 
