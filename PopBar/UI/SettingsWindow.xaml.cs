@@ -506,7 +506,29 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnThemeChanged(string effective) => Dispatcher.InvokeAsync(() => Acrylic.SetDark(this, ThemeManager.IsDark));
+    private void OnThemeChanged(string effective) => Dispatcher.InvokeAsync(() => CrossFadeTheme(ThemeManager.IsDark));
+
+    /// <summary>
+    /// The Mica backdrop flips the instant the dark flag changes, while the palette brushes fade over
+    /// <see cref="ThemeManager.FadeDuration"/>: the page would jump before its content. Hide the backdrop behind a
+    /// solid cover that fades from the old page colour to the new one, then lift the cover to reveal the new Mica.
+    /// </summary>
+    private void CrossFadeTheme(bool dark)
+    {
+        var from = ThemeManager.PageColor(!dark);
+        var to = ThemeManager.PageColor(dark);
+        var cover = new SolidColorBrush(from);
+        Background = cover;
+        Acrylic.SetDark(this, dark);
+        var fade = new System.Windows.Media.Animation.ColorAnimation(to, ThemeManager.FadeDuration) { EasingFunction = new System.Windows.Media.Animation.SineEase() };
+        fade.Completed += (_, _) =>
+        {
+            var lift = new System.Windows.Media.Animation.ColorAnimation(Color.FromArgb(0, to.R, to.G, to.B), TimeSpan.FromMilliseconds(240));
+            lift.Completed += (_, _) => SetResourceReference(BackgroundProperty, "WindowBgBrush");
+            cover.BeginAnimation(SolidColorBrush.ColorProperty, lift);
+        };
+        cover.BeginAnimation(SolidColorBrush.ColorProperty, fade);
+    }
 
     private void OpenRepo_Click(object sender, RoutedEventArgs e)
     {

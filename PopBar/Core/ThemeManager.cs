@@ -78,27 +78,49 @@ internal static class ThemeManager
         if (changed) Changed?.Invoke(Effective);
     }
 
+    /// <summary>Opaque page colour of a theme (what BgBrush is), for covers during a switch.</summary>
+    public static Color PageColor(bool dark) => (Color)ColorConverter.ConvertFromString(dark ? "#FF15181F" : "#FFF5F6FA");
+
     /// <summary>How long a theme switch takes to cross-fade.</summary>
     public static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(280);
 
     /// <summary>
-    /// The palette brushes are mutable and kept for the app's lifetime: a theme switch animates each brush's colour
-    /// in place, so everything bound to them (DynamicResource or a brush instance captured in code) cross-fades
-    /// together instead of snapping, and nothing holds a stale brush from the previous theme.
+    /// A palette colour that can be animated. Each palette brush binds its Color to one of these: the binding keeps
+    /// the brush unfreezable, so Application.Resources cannot seal it on insertion (ResourceDictionary freezes any
+    /// Freezable it can), and animating the holder cross-fades the brush in place.
+    /// </summary>
+    private sealed class ThemeColor : System.Windows.Media.Animation.Animatable
+    {
+        public static readonly DependencyProperty ColorProperty = DependencyProperty.Register(nameof(Color), typeof(Color), typeof(ThemeColor));
+        public Color Color { get => (Color)GetValue(ColorProperty); set => SetValue(ColorProperty, value); }
+        protected override Freezable CreateInstanceCore() => new ThemeColor();
+    }
+
+    private static readonly Dictionary<string, ThemeColor> Colors = new();
+
+    /// <summary>
+    /// The palette brushes are created once and kept for the app's lifetime; a theme switch animates each one's
+    /// colour, so everything bound to them (DynamicResource or a brush instance captured in code) cross-fades
+    /// together instead of snapping, and nothing is left holding a brush from the previous theme.
     /// </summary>
     private static void ApplyPalette(Application app, bool dark)
     {
         void Set(string key, string color)
         {
             var target = (Color)ColorConverter.ConvertFromString(color);
-            if (app.Resources[key] is SolidColorBrush b && !b.IsFrozen)
+            if (Colors.TryGetValue(key, out var tc))
             {
-                if (b.Color == target) return;
-                b.BeginAnimation(SolidColorBrush.ColorProperty,
+                if (tc.Color == target) return;
+                tc.BeginAnimation(ThemeColor.ColorProperty,
                     new System.Windows.Media.Animation.ColorAnimation(target, FadeDuration) { EasingFunction = new System.Windows.Media.Animation.SineEase() },
                     System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
+                return;
             }
-            else app.Resources[key] = new SolidColorBrush(target);
+            tc = new ThemeColor { Color = target };
+            Colors[key] = tc;
+            var brush = new SolidColorBrush();
+            System.Windows.Data.BindingOperations.SetBinding(brush, SolidColorBrush.ColorProperty, new System.Windows.Data.Binding(nameof(ThemeColor.Color)) { Source = tc });
+            app.Resources[key] = brush;
         }
         // With Mica behind the window the chrome becomes translucent; without it everything stays opaque.
         bool blur = Acrylic.SystemBackdropSupported;
