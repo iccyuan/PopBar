@@ -12,6 +12,7 @@
     <SolidColorBrush x:Key="CardBorderBrush" Color="#EEF0F3"/>
     <SolidColorBrush x:Key="TextBrush" Color="#1F2937"/>
     <SolidColorBrush x:Key="MutedBrush" Color="#6B7280"/>
+    <SolidColorBrush x:Key="SubtleTextBrush" Color="#6B7280"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6"/>
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#2563EB"/>
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#E8EFFF"/>
@@ -46,9 +47,10 @@
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="Margin" Value="4,20,0,8"/>
     </Style>
+    <!-- secondary text (descriptions, hints): clearly lighter than titles so a row reads title-first -->
     <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}"/>
+        <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}"/>
     </Style>
 
     <!-- ===== card ===== -->

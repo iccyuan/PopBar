@@ -98,6 +98,7 @@ internal static class ThemeManager
             Set("CardBorderBrush", "#FF272D39");
             Set("TextBrush", "#FFF3F4F6");
             Set("MutedBrush", "#FFA6AFBD");
+            Set("SubtleTextBrush", "#FF8F99A8");
             Set("AccentBrush", "#FF5B9BFF");
             Set("AccentHoverBrush", "#FF7CB0FF");
             Set("AccentSoftBrush", "#FF243552");
@@ -120,6 +121,7 @@ internal static class ThemeManager
             Set("CardBorderBrush", "#FFEEF0F3");
             Set("TextBrush", "#FF111827");
             Set("MutedBrush", "#FF4B5563");
+            Set("SubtleTextBrush", "#FF6B7280");
             Set("AccentBrush", "#FF3B82F6");
             Set("AccentHoverBrush", "#FF2563EB");
             Set("AccentSoftBrush", "#FFE8EFFF");
