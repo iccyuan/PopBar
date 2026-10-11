@@ -454,7 +454,7 @@ public partial class SettingsWindow : Window
             head.Children.Add(iconBox);
             var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(info, 1);
-            var title = new TextBlock { FontSize = 15 }; // YaHei UI has no semibold: SemiBold would render as heavy Bold
+            var title = new TextBlock { FontSize = 14 }; // YaHei UI has no semibold: SemiBold would render as heavy Bold
             title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
             title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
             info.Children.Add(title);
