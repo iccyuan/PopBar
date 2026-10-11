@@ -24,6 +24,8 @@ public sealed class AiPlugin : IPopBarPlugin
         public List<Prompt> Prompts { get; set; } = new();
         public string Effort { get; set; } = "low";
         public int MaxTokens { get; set; } = 2048;
+        /// <summary>Show the answer as it is generated (off = show it once complete).</summary>
+        public bool Stream { get; set; } = true;
     }
 
     private const string DefaultSystem = "你是一个嵌入在桌面工具里的助手。用户会选中一段文字，你的回答会显示在一个小面板里。请用中文、简洁直接地回答，不要寒暄，不要重复原文，必要时用短列表。";
@@ -74,6 +76,7 @@ public sealed class AiPlugin : IPopBarPlugin
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 480,
+            Badge = _host.Llm.ModelName,
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
@@ -87,7 +90,7 @@ public sealed class AiPlugin : IPopBarPlugin
         }
 
         panel.SetBusy(true);
-        panel.SetStatus(_host.Llm.ModelName + " · 生成中…");
+        panel.SetStatus("生成中…");
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, panel.Cancellation);
@@ -98,8 +101,11 @@ public sealed class AiPlugin : IPopBarPlugin
                 Effort = _cfg.Effort,
                 MaxTokens = _cfg.MaxTokens,
             };
-            await foreach (var chunk in _host.Llm.StreamAsync(req, linked.Token)) panel.AppendText(chunk);
-            panel.SetStatus(_host.Llm.ModelName);
+            if (_cfg.Stream)
+                await foreach (var chunk in _host.Llm.StreamAsync(req, linked.Token)) panel.AppendText(chunk);
+            else
+                panel.SetText((await _host.Llm.CompleteAsync(req, linked.Token)).Trim());
+            panel.SetStatus("");
         }
         catch (OperationCanceledException) { }
         catch (Exception ex)
@@ -164,6 +170,7 @@ public sealed class AiPlugin : IPopBarPlugin
         return Form.Stack(
             Form.Card(
                 Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
+                Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "回答边生成边显示；关闭后等完整回答再一次显示"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),

@@ -10,6 +10,8 @@ public interface IPanel
     string Text { get; }
 
     void SetTitle(string title);
+    /// <summary>Small tag next to the title naming what produced the result, e.g. "Google 翻译" or a model name. Null hides it.</summary>
+    void SetBadge(string? badge);
     void SetText(string text);
     void AppendText(string text);
     /// <summary>Small grey line under the result (e.g. "en → zh-CN · Google").</summary>

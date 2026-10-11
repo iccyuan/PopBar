@@ -85,6 +85,8 @@ public sealed class PanelOptions
 {
     public string Title { get; init; } = "";
     public string Icon { get; init; } = "circle";
+    /// <summary>Tag next to the title (provider / model). See <see cref="IPanel.SetBadge"/>.</summary>
+    public string? Badge { get; init; }
     /// <summary>Screen point to anchor near (usually the selection point).</summary>
     public int AnchorX { get; init; }
     public int AnchorY { get; init; }

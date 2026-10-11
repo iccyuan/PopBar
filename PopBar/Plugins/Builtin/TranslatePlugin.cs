@@ -16,6 +16,8 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         public string TargetLang { get; set; } = "zh-CN";
         /// <summary>Used when the source is already the target language.</summary>
         public string AltLang { get; set; } = "en";
+        /// <summary>AI mode: show the translation as it is generated (off = show it once complete).</summary>
+        public bool Stream { get; set; } = true;
     }
 
     private IPluginHost _host = null!;
@@ -36,7 +38,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
     /// <summary>Non-streaming translation for other plugins (screen translate...), same provider and language rules.</summary>
     public async Task<TranslationResult> TranslateAsync(string text, string? targetLang = null, CancellationToken ct = default)
     {
-        string target = targetLang ?? (LooksLike(text, _cfg.TargetLang) ? _cfg.AltLang : _cfg.TargetLang);
+        string target = targetLang ?? TargetFor(text);
         if (_cfg.Provider == "llm")
         {
             var sb = new StringBuilder();
@@ -71,6 +73,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text,
+            Badge = _cfg.Provider == "llm" ? _host.Llm.ModelName : "Google 翻译",
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
@@ -79,20 +82,30 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, panel.Cancellation);
-            string target = LooksLike(text, _cfg.TargetLang) ? _cfg.AltLang : _cfg.TargetLang;
+            string target = TargetFor(text);
+            string? source = DetectLang(text);
             switch (_cfg.Provider)
             {
                 case "llm":
                 {
-                    panel.SetStatus($"→ {target} · {_host.Llm.ModelName}");
-                    await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), linked.Token)) panel.AppendText(chunk);
+                    if (_cfg.Stream)
+                    {
+                        panel.SetStatus(Direction(source, target));
+                        await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), linked.Token)) panel.AppendText(chunk);
+                    }
+                    else
+                    {
+                        var full = await _host.Llm.CompleteAsync(LlmRequestFor(text, target), linked.Token);
+                        panel.SetText(full.Trim());
+                        panel.SetStatus(Direction(source, target));
+                    }
                     break;
                 }
                 default:
                 {
                     var (result, detected) = await GoogleAsync(text, target, linked.Token);
                     panel.SetText(result);
-                    panel.SetStatus($"{detected} → {target} · Google");
+                    panel.SetStatus(Direction(detected, target));
                     break;
                 }
             }
@@ -110,18 +123,65 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         finally { panel.SetBusy(false); }
     }
 
-    /// <summary>Cheap script heuristic: is the text already (mostly) in the target language?</summary>
-    private static bool LooksLike(string text, string lang)
+    // ------------------------------------------------------------------ languages
+
+    /// <summary>Always the target language, unless the text already is in it: then the alternative one.</summary>
+    private string TargetFor(string text) => SameLang(DetectLang(text), _cfg.TargetLang) ? _cfg.AltLang : _cfg.TargetLang;
+
+    /// <summary>
+    /// Script-based source detection, good enough to pick a direction and label it: kana → ja, Hangul → ko, Han → zh,
+    /// Cyrillic / Arabic / Thai, plain ASCII words → en. Accented Latin (fr, de, es...) is left to the translator (null).
+    /// Latin is counted per word and CJK per character, so "我爱Python编程" stays Chinese.
+    /// </summary>
+    internal static string? DetectLang(string text)
     {
-        int cjk = text.Count(c => c >= 0x4E00 && c <= 0x9FFF);
-        int letters = text.Count(char.IsLetter);
-        if (letters == 0) return false;
-        bool isCjkTarget = lang.StartsWith("zh", StringComparison.OrdinalIgnoreCase) || lang.StartsWith("ja", StringComparison.OrdinalIgnoreCase);
-        double ratio = (double)cjk / letters;
-        return isCjkTarget ? ratio > 0.5 : ratio < 0.1 && lang.StartsWith("en", StringComparison.OrdinalIgnoreCase) && IsAscii(text);
+        int han = 0, kana = 0, hangul = 0, cyr = 0, arab = 0, thai = 0, latinWords = 0;
+        bool inWord = false, accented = false;
+        foreach (char c in text)
+        {
+            bool latin = false;
+            if (c is >= '\u3040' and <= '\u30FF') kana++;
+            else if (c is >= '\u4E00' and <= '\u9FFF' or >= '\u3400' and <= '\u4DBF') han++;
+            else if (c is >= '\uAC00' and <= '\uD7AF' or >= '\u1100' and <= '\u11FF') hangul++;
+            else if (c is >= '\u0400' and <= '\u04FF') cyr++;
+            else if (c is >= '\u0600' and <= '\u06FF') arab++;
+            else if (c is >= '\u0E00' and <= '\u0E7F') thai++;
+            else if (char.IsLetter(c)) { latin = true; if (c > 127) accented = true; }
+            if (latin && !inWord) latinWords++;
+            inWord = latin;
+        }
+        int total = han + kana + hangul + cyr + arab + thai + latinWords;
+        if (total == 0) return null;
+        if (kana > 0 && kana * 5 >= kana + han) return "ja";
+        if (hangul * 2 >= total) return "ko";
+        if ((han + kana) * 2 >= total) return "zh";
+        if (cyr * 2 >= total) return "ru";
+        if (arab * 2 >= total) return "ar";
+        if (thai * 2 >= total) return "th";
+        if (latinWords * 2 >= total) return accented ? null : "en";
+        return null;
     }
 
-    private static bool IsAscii(string s) => s.All(c => c < 128);
+    private static bool SameLang(string? a, string b) =>
+        a != null && string.Equals(a.Split('-')[0], b.Split('-')[0], StringComparison.OrdinalIgnoreCase);
+
+    internal static readonly (string Code, string Name)[] Languages =
+    {
+        ("zh-CN", "中文（简体）"), ("zh-TW", "中文（繁体）"), ("en", "英语"), ("ja", "日语"), ("ko", "韩语"),
+        ("fr", "法语"), ("de", "德语"), ("es", "西班牙语"), ("ru", "俄语"), ("pt", "葡萄牙语"),
+        ("it", "意大利语"), ("ar", "阿拉伯语"), ("th", "泰语"), ("vi", "越南语"),
+    };
+
+    private static string LangName(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code) || code == "auto") return "自动检测";
+        var hit = Languages.FirstOrDefault(l => string.Equals(l.Code, code, StringComparison.OrdinalIgnoreCase));
+        if (hit.Name != null) return hit.Name;
+        hit = Languages.FirstOrDefault(l => SameLang(l.Code, code)); // "zh" → 中文（简体）
+        return hit.Name ?? code;
+    }
+
+    private static string Direction(string? source, string target) => $"{LangName(source)} → {LangName(target)}";
 
     // ------------------------------------------------------------------ providers
 
@@ -142,6 +202,10 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
 
     // ------------------------------------------------------------------ settings
 
+    /// <summary>The common languages, plus the current value if it was typed by hand in an older version.</summary>
+    private static (string, string)[] LangItems(string current) =>
+        Languages.Any(l => l.Code == current) || string.IsNullOrWhiteSpace(current) ? Languages : Languages.Append((current, current)).ToArray();
+
     public FrameworkElement? CreateSettingsView()
     {
         // Edit a draft; it only takes effect when the settings window is saved.
@@ -152,11 +216,16 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
             _cfg = SettingsDraft.Clone(d);
             _host.Storage.Set(_cfg);
         });
+        // Streaming only applies to the AI provider: grey it out otherwise.
+        var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "仅 AI 模型：译文边生成边显示；关闭后等完整译文再一次显示");
+        void SyncStream() { streamRow.IsEnabled = d.Provider == "llm"; streamRow.Opacity = streamRow.IsEnabled ? 1 : 0.45; }
+        SyncStream();
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, d.Provider, v => { d.Provider = v; Changed(); }, 260), "Google 走系统代理，国内需要代理"),
-                Form.Row("目标语言", Form.TextBox(d.TargetLang, 120, v => { d.TargetLang = v.Trim(); Changed(); }), "如 zh-CN、en、ja"),
-                Form.Row("备用语言", Form.TextBox(d.AltLang, 120, v => { d.AltLang = v.Trim(); Changed(); }), "选中内容已经是目标语言时，改译成这种语言")
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 走系统代理，国内需要代理"),
+                streamRow,
+                Form.Row("目标语言", Form.Combo(LangItems(d.TargetLang), d.TargetLang, v => { d.TargetLang = v; Changed(); }, 180), "自动检测原文语言，翻译成这种语言"),
+                Form.Row("备用语言", Form.Combo(LangItems(d.AltLang), d.AltLang, v => { d.AltLang = v; Changed(); }, 180), "原文已经是目标语言时，改译成这种语言")
             ));
     }
 

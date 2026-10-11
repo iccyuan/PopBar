@@ -80,7 +80,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <ui:IconImage x:Name="TitleIcon" Size="17" Brush="{DynamicResource PAccent}" Margin="16,0,8,0" VerticalAlignment="Center"/>
-                <TextBlock x:Name="TitleText" Grid.Column="1" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PFg}" TextTrimming="CharacterEllipsis"/>
+                <DockPanel Grid.Column="1" VerticalAlignment="Center" LastChildFill="False">
+                    <TextBlock x:Name="TitleText" DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource PFg}" TextTrimming="CharacterEllipsis"/>
+                    <!-- who produced the result (translation provider, model...) -->
+                    <Border x:Name="BadgeBox" DockPanel.Dock="Left" Margin="8,0,0,0" Padding="8,1,8,2" CornerRadius="9" Background="{DynamicResource PSource}" VerticalAlignment="Center" Visibility="Collapsed">
+                        <TextBlock x:Name="BadgeText" FontSize="11.5" Foreground="{DynamicResource PMuted}" TextTrimming="CharacterEllipsis" MaxWidth="180"/>
+                    </Border>
+                </DockPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,10,0">
                     <Button x:Name="PinBtn" Style="{StaticResource PIconBtn}" ToolTip="固定（点击外部不关闭）" Click="Pin_Click">
                         <ui:IconImage x:Name="PinIcon" Icon="pin" Size="14" Brush="{DynamicResource PMuted}"/>

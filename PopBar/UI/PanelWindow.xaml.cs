@@ -40,6 +40,7 @@ public partial class PanelWindow : Window, IPanel
         Width = opt.Width;
         ApplyTheme(theme);
         TitleText.Text = opt.Title;
+        ApplyBadge(opt.Badge);
         TitleIcon.Icon = opt.Icon;
         if (!string.IsNullOrWhiteSpace(opt.Source))
         {
@@ -168,6 +169,14 @@ public partial class PanelWindow : Window, IPanel
     }
 
     public void SetTitle(string title) => Ui(() => TitleText.Text = title);
+    public void SetBadge(string? badge) => Ui(() => ApplyBadge(badge));
+
+    private void ApplyBadge(string? badge)
+    {
+        BadgeText.Text = badge ?? "";
+        BadgeBox.Visibility = string.IsNullOrWhiteSpace(badge) ? Visibility.Collapsed : Visibility.Visible;
+        BadgeBox.ToolTip = badge;
+    }
     public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); });
     public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); });
     public void SetStatus(string status) => Ui(() => StatusText.Text = status);
