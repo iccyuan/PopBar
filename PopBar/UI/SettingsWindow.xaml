@@ -384,7 +384,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="LlmTestResult" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,8,12,8"/>
+                                <TextBlock x:Name="LlmTestResult" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,8,12,8" TextWrapping="Wrap"/>
                                 <Button Grid.Column="1" Content="测试连接" VerticalAlignment="Center" Click="LlmTest_Click"/>
                             </Grid>
                         </StackPanel>

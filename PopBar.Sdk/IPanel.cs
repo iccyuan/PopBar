@@ -16,6 +16,8 @@ public interface IPanel
     void AppendText(string text);
     /// <summary>Small grey line under the result (e.g. "en → zh-CN · Google").</summary>
     void SetStatus(string status);
+    /// <summary>Show a failure prominently (red box with an icon, selectable text). Null / empty hides it.</summary>
+    void SetError(string? message);
     /// <summary>Show / hide the progress indicator.</summary>
     void SetBusy(bool busy);
     /// <summary>Add a footer button; the callback receives the current text.</summary>

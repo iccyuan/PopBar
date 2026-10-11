@@ -113,11 +113,11 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         catch (OperationCanceledException) { }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
-            panel.SetStatus("Google 翻译暂时限流（429），稍等几秒再试，或在插件设置里改用 AI 模型");
+            panel.SetError("Google 翻译暂时限流（429），稍等几秒再试，或在插件设置里改用 AI 模型");
         }
         catch (Exception ex)
         {
-            panel.SetStatus("失败：" + ex.Message);
+            panel.SetError("翻译失败：" + ex.Message);
             _host.Log.Error("translate failed", ex);
         }
         finally { panel.SetBusy(false); }

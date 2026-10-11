@@ -282,8 +282,8 @@ public sealed partial class CodecPlugin : IPopBarPlugin
                 {
                     var b = Form.Button(op.Label, () =>
                     {
-                        try { output.Text = op.Op(input); panel.SetStatus(op.Label); }
-                        catch (Exception ex) { panel.SetStatus($"{op.Label} 失败：{ex.Message}"); }
+                        try { output.Text = op.Op(input); panel.SetError(null); panel.SetStatus(op.Label); }
+                        catch (Exception ex) { panel.SetError($"{op.Label} 失败：{ex.Message}"); }
                     });
                     b.Margin = new Thickness(0, 0, 6, 6);
                     wrap.Children.Add(b);

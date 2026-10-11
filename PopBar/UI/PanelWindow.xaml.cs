@@ -151,6 +151,8 @@ public partial class PanelWindow : Window, IPanel
         Set("PHover", dark ? "#1FFFFFFF" : "#14000000");
         Set("PSource", dark ? "#16FFFFFF" : "#10000000");
         Set("PAccent", dark ? "#FF5B9BFF" : "#FF3B82F6");
+        Set("PErrBg", dark ? "#33F87171" : "#FFFEF2F2");
+        Set("PErrFg", dark ? "#FFFCA5A5" : "#FFB91C1C");
     }
 
     private void Set(string key, string color)
@@ -180,6 +182,13 @@ public partial class PanelWindow : Window, IPanel
     public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); });
     public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); });
     public void SetStatus(string status) => Ui(() => StatusText.Text = status);
+    public void SetError(string? message) => Ui(() =>
+    {
+        ErrorText.Text = message ?? "";
+        ErrorBox.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+        if (!string.IsNullOrWhiteSpace(message)) { Busy.Visibility = Visibility.Collapsed; StatusText.Text = ""; }
+    });
+
     public void SetBusy(bool busy) => Ui(() => Busy.Visibility = busy ? Visibility.Visible : Visibility.Collapsed);
 
     public void AddButton(string label, Action<string> onClick, string? icon = null) => Ui(() =>

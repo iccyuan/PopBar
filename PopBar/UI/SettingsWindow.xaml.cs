@@ -433,7 +433,9 @@ public partial class SettingsWindow : Window
             title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
             title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
             info.Children.Add(title);
-            info.Children.Add(new TextBlock { Text = l.Error != null ? "加载失败：" + l.Error : plugin.Description, Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 0) });
+            var desc = new TextBlock { Text = l.Error != null ? "加载失败：" + l.Error : plugin.Description, Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap };
+            if (l.Error != null) desc.Foreground = (Brush)FindResource("DangerBrush");
+            info.Children.Add(desc);
             head.Children.Add(info);
             var toggle = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = !_disabledPlugins.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
             toggle.Checked += (s, e) => { _disabledPlugins.Remove(plugin.Id); Changed(s, e); };
@@ -591,11 +593,28 @@ public partial class SettingsWindow : Window
         Changed(sender, e);
     }
 
+    /// <summary>Progress in grey, success in green, failure in red with an icon.</summary>
+    private void ShowLlmResult(string text, bool? ok = null)
+    {
+        LlmTestResult.Inlines.Clear();
+        if (ok == false)
+        {
+            LlmTestResult.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new IconImage
+            {
+                Icon = "circle-alert", Size = 14, Brush = (Brush)FindResource("DangerBrush"), Margin = new Thickness(0, 0, 6, -2),
+            }) { BaselineAlignment = BaselineAlignment.Center });
+        }
+        LlmTestResult.Inlines.Add(text);
+        if (ok == null) LlmTestResult.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        else if (ok == false) LlmTestResult.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
+        else LlmTestResult.Foreground = new SolidColorBrush(ThemeManager.IsDark ? Color.FromRgb(0x4A, 0xDE, 0x80) : Color.FromRgb(0x16, 0xA3, 0x4A));
+    }
+
     private async void FetchModels_Click(object sender, RoutedEventArgs e)
     {
         ApplyLlmOnly();
         var current = (LlmModelBox.Text ?? "").Trim();
-        LlmTestResult.Text = "获取模型列表…";
+        ShowLlmResult("获取模型列表…");
         try
         {
             var models = await _llm.ListModelsAsync();
@@ -603,28 +622,28 @@ public partial class SettingsWindow : Window
             LlmModelBox.ItemsSource = models;
             LlmModelBox.Text = current;
             _loading = false;
-            LlmTestResult.Text = models.Count == 0 ? "接口没有返回任何模型" : $"获取到 {models.Count} 个模型，从下拉框选择";
+            ShowLlmResult(models.Count == 0 ? "接口没有返回任何模型" : $"获取到 {models.Count} 个模型，从下拉框选择", ok: models.Count > 0);
             if (models.Count > 0) LlmModelBox.IsDropDownOpen = true;
         }
         catch (Exception ex)
         {
             _loading = false;
-            LlmTestResult.Text = "获取失败：" + ex.Message;
+            ShowLlmResult("获取失败：" + ex.Message, ok: false);
         }
     }
 
     private async void LlmTest_Click(object sender, RoutedEventArgs e)
     {
         ApplyLlmOnly();
-        LlmTestResult.Text = "连接中…";
+        ShowLlmResult("连接中…");
         try
         {
             var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 32, Effort = "low" });
-            LlmTestResult.Text = "成功：" + reply.Trim().Replace("\n", " ");
+            ShowLlmResult("连接成功：" + reply.Trim().Replace("\n", " "), ok: true);
         }
         catch (Exception ex)
         {
-            LlmTestResult.Text = "失败：" + ex.Message;
+            ShowLlmResult("连接失败：" + ex.Message, ok: false);
         }
     }
 

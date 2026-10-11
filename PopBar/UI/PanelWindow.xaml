@@ -133,6 +133,20 @@
                     </TextBox>
                     <ProgressBar x:Name="Busy" IsIndeterminate="True" Height="3" VerticalAlignment="Bottom" Margin="0,0,0,-6" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PAccent}" Visibility="Collapsed"/>
                 </Grid>
+                <!-- failures stand out instead of hiding in the grey status line -->
+                <Border x:Name="ErrorBox" CornerRadius="8" Background="{DynamicResource PErrBg}" Padding="10,8" Margin="0,4,0,2" Visibility="Collapsed">
+                    <DockPanel>
+                        <ui:IconImage Icon="circle-alert" Size="15" Brush="{DynamicResource PErrFg}" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                        <TextBox x:Name="ErrorText" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Padding="0"
+                                 FontSize="12.5" Foreground="{DynamicResource PErrFg}" SelectionBrush="{DynamicResource PAccent}">
+                            <TextBox.Template>
+                                <ControlTemplate TargetType="TextBox">
+                                    <ScrollViewer x:Name="PART_ContentHost" Background="Transparent"/>
+                                </ControlTemplate>
+                            </TextBox.Template>
+                        </TextBox>
+                    </DockPanel>
+                </Border>
             </StackPanel>
         </DockPanel>
     </Border>

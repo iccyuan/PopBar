@@ -110,7 +110,7 @@ public sealed class AiPlugin : IPopBarPlugin
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            panel.SetStatus("失败：" + ex.Message);
+            panel.SetError("请求失败：" + ex.Message);
             _host.Log.Error("ai request failed", ex);
         }
         finally { panel.SetBusy(false); }
