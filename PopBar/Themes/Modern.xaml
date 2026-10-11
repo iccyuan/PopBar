@@ -271,6 +271,12 @@
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="Template" Value="{StaticResource InputTemplate}"/>
+        <Style.Triggers>
+            <!-- Multi-line boxes read from the top; only single-line inputs centre their text. -->
+            <Trigger Property="AcceptsReturn" Value="True">
+                <Setter Property="VerticalContentAlignment" Value="Top"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
     <Style TargetType="PasswordBox">
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}"/>
