@@ -14,6 +14,11 @@ public static class U {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT p);
+    [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr h, uint flags);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
+    [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
 "@
@@ -26,13 +31,21 @@ Start-Sleep 2
 $h = (Get-Process -Id $np.Id).MainWindowHandle
 if ($h -eq 0) { $h = (Get-Process notepad | Where-Object MainWindowHandle -ne 0 | Select-Object -First 1).MainWindowHandle }
 [U]::MoveWindow($h, 100, 100, 900, 500, $true) | Out-Null
+# A synthetic Shift tap (Alt would open Notepad's key tips) lifts the foreground lock so SetForegroundWindow actually works.
+[U]::keybd_event(0x10, 0, 0, [UIntPtr]::Zero); [U]::keybd_event(0x10, 0, 2, [UIntPtr]::Zero)
 [U]::SetForegroundWindow($h) | Out-Null
+# If the foreground lock still wins, at least raise it above everything (topmost on, then off again).
+[U]::SetWindowPos($h, [IntPtr]::new(-1), 0, 0, 0, 0, 0x43) | Out-Null
+[U]::SetWindowPos($h, [IntPtr]::new(-2), 0, 0, 0, 0, 0x43) | Out-Null
 Start-Sleep 1
 $r = New-Object U+RECT
 [U]::GetWindowRect($h, [ref]$r) | Out-Null
 
-# text area: Win11 Notepad has a tab strip + menu (~95px); first line sits around +110
-$x = $r.L + $StartX; $y = $r.T + 112
+# text area: Win11 Notepad has a tab strip + menu + format toolbar; first line sits around +150
+$x = $r.L + $StartX; $y = $r.T + 150
+# Never click into someone else's window: the target point must belong to our Notepad.
+$pt = New-Object U+POINT; $pt.X = $x; $pt.Y = $y
+if ([U]::GetAncestor([U]::WindowFromPoint($pt), 2) -ne $h) { Write-Host "abort: Notepad is not under ($x,$y)"; exit 1 }
 [U]::SetCursorPos($x, $y) | Out-Null
 Start-Sleep -Milliseconds 200
 $DOWN = 0x2; $UP = 0x4
