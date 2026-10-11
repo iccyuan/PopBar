@@ -16,7 +16,7 @@ public sealed class IconImage : FrameworkElement
     public static readonly DependencyProperty SizeProperty = DependencyProperty.Register(nameof(Size), typeof(double), typeof(IconImage),
         new FrameworkPropertyMetadata(16.0, FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty BrushProperty = DependencyProperty.Register(nameof(Brush), typeof(Brush), typeof(IconImage),
-        new FrameworkPropertyMetadata(Brushes.Black, FrameworkPropertyMetadataOptions.AffectsRender));
+        new FrameworkPropertyMetadata(Brushes.Black, FrameworkPropertyMetadataOptions.AffectsRender, (d, e) => ((IconImage)d).Rehook(e.OldValue as Brush, e.NewValue as Brush)));
     /// <summary>Stroke width in icon units (Lucide default 2).</summary>
     public static readonly DependencyProperty ThicknessProperty = DependencyProperty.Register(nameof(Thickness), typeof(double), typeof(IconImage),
         new FrameworkPropertyMetadata(2.0, FrameworkPropertyMetadataOptions.AffectsRender));
@@ -28,9 +28,23 @@ public sealed class IconImage : FrameworkElement
 
     public IconImage()
     {
+        _brushChanged = (_, _) => InvalidateVisual();
         IsHitTestVisible = false;
         SnapsToDevicePixels = true;
         UseLayoutRounding = true;
+        // The palette brushes animate their colour on a theme switch (see ThemeManager); the bitmap must follow.
+        // Hooked only while loaded, so app-lifetime brushes never keep dead icons alive.
+        Loaded += (_, _) => Rehook(null, Brush);
+        Unloaded += (_, _) => Rehook(Brush, null);
+    }
+
+    private readonly EventHandler _brushChanged;
+    private Brush? _hooked;
+
+    private void Rehook(Brush? old, Brush? now)
+    {
+        if (ReferenceEquals(_hooked, old) && old is { IsFrozen: false }) { old.Changed -= _brushChanged; _hooked = null; }
+        if (now is { IsFrozen: false } && IsLoaded && !ReferenceEquals(_hooked, now)) { now.Changed += _brushChanged; _hooked = now; }
     }
 
     protected override Size MeasureOverride(Size availableSize) => new(Size, Size);

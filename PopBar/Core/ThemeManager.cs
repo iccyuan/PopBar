@@ -78,13 +78,27 @@ internal static class ThemeManager
         if (changed) Changed?.Invoke(Effective);
     }
 
+    /// <summary>How long a theme switch takes to cross-fade.</summary>
+    public static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(280);
+
+    /// <summary>
+    /// The palette brushes are mutable and kept for the app's lifetime: a theme switch animates each brush's colour
+    /// in place, so everything bound to them (DynamicResource or a brush instance captured in code) cross-fades
+    /// together instead of snapping, and nothing holds a stale brush from the previous theme.
+    /// </summary>
     private static void ApplyPalette(Application app, bool dark)
     {
         void Set(string key, string color)
         {
-            var b = new SolidColorBrush((Color)ColorConverter.ConvertFromString(color));
-            b.Freeze();
-            app.Resources[key] = b;
+            var target = (Color)ColorConverter.ConvertFromString(color);
+            if (app.Resources[key] is SolidColorBrush b && !b.IsFrozen)
+            {
+                if (b.Color == target) return;
+                b.BeginAnimation(SolidColorBrush.ColorProperty,
+                    new System.Windows.Media.Animation.ColorAnimation(target, FadeDuration) { EasingFunction = new System.Windows.Media.Animation.SineEase() },
+                    System.Windows.Media.Animation.HandoffBehavior.SnapshotAndReplace);
+            }
+            else app.Resources[key] = new SolidColorBrush(target);
         }
         // With Mica behind the window the chrome becomes translucent; without it everything stays opaque.
         bool blur = Acrylic.SystemBackdropSupported;
@@ -107,6 +121,7 @@ internal static class ThemeManager
             Set("InputBrush", "#FF161A22");
             Set("InputBorderBrush", "#FF3A4254");
             Set("DangerBrush", "#FFF87171");
+            Set("SuccessBrush", "#FF4ADE80");
             Set("SwitchOffBrush", "#FF3A4254");
             Set("PopupBrush", "#FF232936");
             Set("ScrollThumbBrush", "#FF3F485A");
@@ -130,6 +145,7 @@ internal static class ThemeManager
             Set("InputBrush", "#FFFFFFFF");
             Set("InputBorderBrush", "#FFD1D5DB");
             Set("DangerBrush", "#FFDC2626");
+            Set("SuccessBrush", "#FF16A34A");
             Set("SwitchOffBrush", "#FFD1D5DB");
             Set("PopupBrush", "#FFFFFFFF");
             Set("ScrollThumbBrush", "#FFC7CCD6");

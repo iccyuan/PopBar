@@ -682,7 +682,7 @@ public partial class SettingsWindow : Window
         LlmTestResult.Inlines.Add(text);
         if (ok == null) LlmTestResult.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         else if (ok == false) LlmTestResult.SetResourceReference(TextBlock.ForegroundProperty, "DangerBrush");
-        else LlmTestResult.Foreground = new SolidColorBrush(ThemeManager.IsDark ? Color.FromRgb(0x4A, 0xDE, 0x80) : Color.FromRgb(0x16, 0xA3, 0x4A));
+        else LlmTestResult.SetResourceReference(TextBlock.ForegroundProperty, "SuccessBrush");
     }
 
     private async void FetchModels_Click(object sender, RoutedEventArgs e)
