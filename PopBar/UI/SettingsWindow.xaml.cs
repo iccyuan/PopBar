@@ -172,7 +172,7 @@ public partial class SettingsWindow : Window
             new("light", "浅色"),
         };
         MaxItemsCombo.ItemsSource = new[] { 4, 5, 6, 7, 8, 10, 12 }.Select(n => new KeyValuePair<string, string>(n.ToString(), $"{n} 个")).Append(new("0", "不限制")).ToList();
-        SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Mica, ThemeManager.IsDark, roundCorners: true);
+        SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Acrylic, ThemeManager.IsDark, roundCorners: true);
         ThemeManager.Changed += OnThemeChanged;
         Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
         ActionsList.ItemsSource = _items;

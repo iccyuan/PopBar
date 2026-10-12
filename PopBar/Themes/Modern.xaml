@@ -654,10 +654,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupSelectedBrush}"/>
                             <Setter TargetName="Icon" Property="Brush" Value="{DynamicResource AccentHoverBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>

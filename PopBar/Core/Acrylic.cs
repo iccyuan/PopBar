@@ -6,8 +6,10 @@ namespace PopBar.Core;
 
 internal enum BackdropKind
 {
-    /// <summary>DWMSBT_TRANSIENTWINDOW: blurred acrylic, for popups / flyouts.</summary>
+    /// <summary>Blurred acrylic: DWMSBT_TRANSIENTWINDOW on Windows 11 (activated windows), accent-policy blur elsewhere.</summary>
     Acrylic,
+    /// <summary>Accent-policy acrylic only (Windows 10 path), for windows that are never activated such as the bar.</summary>
+    AccentAcrylic,
     /// <summary>DWMSBT_MAINWINDOW: Mica, for top-level windows (fades to solid when inactive).</summary>
     Mica,
 }
@@ -65,20 +67,20 @@ internal static class Acrylic
             int dm = dark ? 1 : 0;
             DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dm, sizeof(int));
 
-            if (SystemBackdropSupported)
+            if (SystemBackdropSupported && kind != BackdropKind.AccentAcrylic)
             {
                 int corner = roundCorners ? DWMWCP_ROUND : DWMWCP_DONOTROUND;
                 DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
-                if (kind == BackdropKind.Mica)
+                if (kind == BackdropKind.Mica || kind == BackdropKind.Acrylic)
                 {
-                    // Mica needs the frame extended over the client area (WindowChrome does it too; harmless twice).
+                    // System backdrops need the frame extended over the client area (WindowChrome does it too; harmless twice).
                     var m = new MARGINS { Left = -1, Right = -1, Top = -1, Bottom = -1 };
                     DwmExtendFrameIntoClientArea(hwnd, ref m);
-                    int type = DWMSBT_MAINWINDOW;
+                    int type = kind == BackdropKind.Mica ? DWMSBT_MAINWINDOW : DWMSBT_TRANSIENTWINDOW;
                     return DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref type, sizeof(int)) == 0;
                 }
-                // Acrylic: do NOT extend the frame - on Windows 11 an extended frame without a system backdrop is
-                // painted with an opaque frame colour, which would hide the accent blur underneath.
+                // Accent-policy acrylic (below): do NOT extend the frame - on Windows 11 an extended frame without a
+                // system backdrop is painted with an opaque frame colour, which would hide the accent blur underneath.
             }
 
             if (Build >= 17134)
