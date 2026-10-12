@@ -45,7 +45,9 @@
 
         <!-- content -->
         <!-- Spacing lives on the content, not the ScrollViewer: its padding would clip scrolled cards at a hard line. -->
-        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0" Background="{DynamicResource ContentBgBrush}">
+        <!-- one tint over the whole right column, title strip included, so it reads as a single surface -->
+        <Border Grid.Column="1" Background="{DynamicResource ContentBgBrush}"/>
+        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0">
             <Grid x:Name="ContentRoot" Margin="32,12,32,32">
                 <!-- ===== General ===== -->
                 <StackPanel x:Name="PanelGeneral">
