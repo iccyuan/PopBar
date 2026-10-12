@@ -60,7 +60,7 @@ internal static class ShotNative
     [DllImport("user32.dll")] private static extern bool DrawIconEx(IntPtr hdc, int x, int y, IntPtr icon, int w, int h, int step, IntPtr brush, int flags);
     [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr h);
 
-    private const int WS_EX_TRANSPARENT = 0x20, WS_EX_NOACTIVATE = 0x08000000;
+    private const int WS_EX_TRANSPARENT = 0x20, WS_EX_NOACTIVATE = 0x08000000, WS_EX_LAYERED = 0x80000;
 
     /// <summary>Tool window that never takes focus; with <paramref name="clickThrough"/> the mouse passes to what is below.</summary>
     public static void MakeOverlay(Window w, bool clickThrough)
@@ -123,8 +123,10 @@ internal static class ShotNative
     }
 
     /// <summary>
-    /// Visible top-level window rects in z-order (topmost first), physical pixels, excluding our own process
-    /// and cloaked (virtual-desktop / UWP-suspended) windows. Used for hover auto-detection.
+    /// Visible top-level window rects in z-order (topmost first), physical pixels, for hover auto-detection.
+    /// Skips cloaked windows (other virtual desktops, suspended UWP) and click-through overlays. Our own windows
+    /// (pinned images, result panels, notes, settings) are included like any other, except the action bar; for our
+    /// layered windows the rect is the visible card, not the transparent margin reserved for the shadow.
     /// </summary>
     public static List<Int32Rect> WindowRects(Int32Rect vs)
     {
@@ -133,16 +135,36 @@ internal static class ShotNative
         EnumWindows((h, _) =>
         {
             if (!IsWindowVisible(h) || IsIconic(h)) return true;
-            GetWindowThreadProcessId(h, out var pid);
-            if (pid == self) return true;
             if (DwmGetWindowAttribute(h, 14 /* DWMWA_CLOAKED */, out int cloaked, 4) == 0 && cloaked != 0) return true;
+            long ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64();
+            if ((ex & WS_EX_LAYERED) != 0 && (ex & WS_EX_TRANSPARENT) != 0) return true; // mouse passes through it: not a target
             if (DwmGetWindowAttribute(h, 9 /* DWMWA_EXTENDED_FRAME_BOUNDS */, out RECT r, Marshal.SizeOf<RECT>()) != 0)
                 GetWindowRect(h, out r);
+            GetWindowThreadProcessId(h, out var pid);
+            if (pid == self && !OwnWindowRect(h, ref r)) return true;
             int l = Math.Max(r.L, vs.X), t = Math.Max(r.T, vs.Y), rr = Math.Min(r.R, vs.X + vs.Width), b = Math.Min(r.B, vs.Y + vs.Height);
             if (rr - l < 8 || b - t < 8) return true;
             list.Add(new Int32Rect(l, t, rr - l, b - t));
             return true;
         }, IntPtr.Zero);
         return list;
+    }
+
+    /// <summary>
+    /// One of our WPF windows: false for the action bar (it is what the user just clicked, never a capture target).
+    /// A transparent window draws its card inside the content's Margin (room for the drop shadow), so the rect shrinks
+    /// to that card. Must run on the window's UI thread.
+    /// </summary>
+    private static bool OwnWindowRect(IntPtr h, ref RECT r)
+    {
+        if (HwndSource.FromHwnd(h)?.RootVisual is not Window w) return true;
+        if (w is PopBar.UI.PopupWindow || w.Opacity <= 0.01) return false;
+        if (!w.AllowsTransparency || w.Content is not FrameworkElement c) return true;
+        var m = c.Margin;
+        if (m.Left <= 0 && m.Top <= 0 && m.Right <= 0 && m.Bottom <= 0) return true;
+        double s = VisualTreeHelper.GetDpi(w).DpiScaleX;
+        r.L += (int)Math.Round(m.Left * s); r.T += (int)Math.Round(m.Top * s);
+        r.R -= (int)Math.Round(m.Right * s); r.B -= (int)Math.Round(m.Bottom * s);
+        return true;
     }
 }
