@@ -32,6 +32,8 @@ internal static class ThemeManager
         return dark ? Color.FromArgb(a, 0x1C, 0x21, 0x2B) : Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
     }
 
+    private static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+
     /// <summary>Accent-policy tint (0xAABBGGRR): white-ish in light mode, blue-black in dark mode, alpha from <see cref="BlurOpacity"/>.</summary>
     public static uint BlurTintAbgr(bool dark)
     {
@@ -146,6 +148,7 @@ internal static class ThemeManager
             Set("SuccessBrush", "#FF4ADE80");
             Set("SwitchOffBrush", "#FF3A4254");
             Set("PopupBrush", "#FF232936");
+            Set("PopupTintBrush", Hex(BlurTint(true, BlurOpacity < 100)));
             Set("ScrollThumbBrush", "#FF3F485A");
         }
         else
@@ -170,6 +173,7 @@ internal static class ThemeManager
             Set("SuccessBrush", "#FF16A34A");
             Set("SwitchOffBrush", "#FFD1D5DB");
             Set("PopupBrush", "#FFFFFFFF");
+            Set("PopupTintBrush", Hex(BlurTint(false, BlurOpacity < 100)));
             Set("ScrollThumbBrush", "#FFC7CCD6");
         }
     }

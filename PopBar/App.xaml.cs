@@ -77,6 +77,7 @@ public partial class App : Application
         ApplyAutoStart(_store.Current.AutoStart);
         ThemeManager.BlurOpacity = _store.Current.BlurOpacity;
         ThemeManager.Apply(_store.Current.Theme);
+        UI.Frost.Install();
 
         _popup = new PopupWindow();
         _popup.GroupOf = a => _plugins?.GroupOf(a);
@@ -184,8 +185,7 @@ public partial class App : Application
             ShowInTaskbar = false, AllowsTransparency = true, Background = System.Windows.Media.Brushes.Transparent, Opacity = 0,
         };
         var menu = BuildTrayMenu();
-        menu.Style = (Style)FindResource("TrayMenu");
-        FrostTrayMenu(menu);
+        UI.Frost.PrepareAtCursor(); // blur the monitor before the menu covers it
         _trayAnchor.Show();
         _trayAnchor.Activate();
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
@@ -197,37 +197,6 @@ public partial class App : Application
         menu.Closed += (_, _) => { isOpen.RemoveValueChanged(menu, onIsOpen); _trayAnchor.Hide(); if (ReferenceEquals(_trayMenu, menu)) _trayMenu = null; };
         _trayMenu = menu;
         menu.IsOpen = true;
-    }
-
-    /// <summary>
-    /// Frosted glass for the tray menu: blur the monitor under the cursor now (nothing of ours is on screen yet),
-    /// then, once the menu is placed, show the part of that snapshot that lies under it. Same recipe as the panels.
-    /// </summary>
-    private void FrostTrayMenu(System.Windows.Controls.ContextMenu menu)
-    {
-        bool dark = ThemeManager.IsDark;
-        var cur = WinForms.Cursor.Position;
-        var (work, _) = Native.NativeMethods.GetMonitorAt(cur.X, cur.Y);
-        const double scale = 0.5;
-        var glass = ThemeManager.BlurOpacity < 100 ? UI.FrostedGlass.CaptureScaled(work.Left, work.Top, work.Width, work.Height, scale, 18) : null;
-        var tint = new System.Windows.Media.SolidColorBrush(ThemeManager.BlurTint(dark, glass != null));
-        tint.Freeze();
-        menu.Background = tint;
-        if (glass == null) return;
-        menu.Opened += (_, _) =>
-        {
-            if (menu.Template.FindName("Glass", menu) is not System.Windows.Controls.Border g) return;
-            var origin = g.PointToScreen(new Point(0, 0)); // device pixels
-            double dpi = PresentationSource.FromVisual(g)?.CompositionTarget.TransformToDevice.M11 ?? 1;
-            var brush = new System.Windows.Media.ImageBrush(glass)
-            {
-                Stretch = System.Windows.Media.Stretch.Fill,
-                ViewboxUnits = System.Windows.Media.BrushMappingMode.Absolute,
-                Viewbox = new Rect((origin.X - work.Left) * scale, (origin.Y - work.Top) * scale, g.ActualWidth * dpi * scale, g.ActualHeight * dpi * scale),
-            };
-            brush.Freeze();
-            menu.Tag = brush;
-        };
     }
 
     private System.Windows.Controls.ContextMenu BuildTrayMenu()

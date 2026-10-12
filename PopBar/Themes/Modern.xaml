@@ -23,6 +23,8 @@
     <SolidColorBrush x:Key="DangerBrush" Color="#DC2626"/>
     <SolidColorBrush x:Key="SwitchOffBrush" Color="#D1D5DB"/>
     <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF"/>
+    <!-- translucent layer over the frosted snapshot in menus / drop-downs; alpha follows the blur opacity setting -->
+    <SolidColorBrush x:Key="PopupTintBrush" Color="#E0FFFFFF"/>
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#C7CCD6"/>
 
     <FontFamily x:Key="UiFont">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
@@ -337,16 +339,21 @@
                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
                                  Foreground="{TemplateBinding Foreground}" CaretBrush="{DynamicResource TextBrush}" IsReadOnly="{TemplateBinding IsReadOnly}"/>
                         <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True"
-                               PopupAnimation="Fade" VerticalOffset="4" StaysOpen="False">
-                            <Border x:Name="DropDown" CornerRadius="12" Background="{DynamicResource PopupBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                                    MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="8" Padding="4">
-                                <Border.Effect>
-                                    <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
-                                </Border.Effect>
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                                    <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                </ScrollViewer>
-                            </Border>
+                               PopupAnimation="Fade" HorizontalOffset="-10" VerticalOffset="-6" StaysOpen="False">
+                            <Grid Margin="10" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <!-- shadow caster under the frosted snapshot, then the tint and the items (see ui:Frost) -->
+                                <Border CornerRadius="12" Background="{DynamicResource PopupBrush}">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.18"/>
+                                    </Border.Effect>
+                                </Border>
+                                <Border CornerRadius="12" ui:Frost.IsGlass="True"/>
+                                <Border x:Name="DropDown" CornerRadius="12" Background="{DynamicResource PopupTintBrush}" Padding="4" RenderOptions.ClearTypeHint="Enabled">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -722,31 +729,14 @@
             </Setter.Value>
         </Setter>
     </Style>
-    <!-- ===== context menu (simple items, no submenus) ===== -->
+    <!-- ===== context menu (simple items, no submenus): frosted glass, see ui:Frost ===== -->
     <Style TargetType="ContextMenu">
-        <Setter Property="Background" Value="{DynamicResource PopupBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource PopupTintBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="HasDropShadow" Value="False"/>
         <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ContextMenu">
-                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="4" Margin="8" MinWidth="176"
-                            RenderOptions.ClearTypeHint="Enabled">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
-                        </Border.Effect>
-                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-    <Style x:Key="TrayMenu" TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
-        <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContextMenu">
@@ -757,8 +747,8 @@
                                 <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.18"/>
                             </Border.Effect>
                         </Border>
-                        <!-- blurred screenshot of what is underneath, set from code once the menu knows where it landed -->
-                        <Border x:Name="Glass" CornerRadius="12" Background="{TemplateBinding Tag}"/>
+                        <!-- blurred screenshot of what is underneath, placed once the menu knows where it landed -->
+                        <Border CornerRadius="12" ui:Frost.IsGlass="True"/>
                         <Border CornerRadius="12" Background="{TemplateBinding Background}" Padding="4" MinWidth="176" RenderOptions.ClearTypeHint="Enabled">
                             <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
                         </Border>
