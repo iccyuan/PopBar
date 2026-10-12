@@ -22,7 +22,10 @@ public interface IPanel
     void SetBusy(bool busy);
     /// <summary>Add a footer button; the callback receives the current text.</summary>
     void AddButton(string label, Action<string> onClick, string? icon = null);
-    /// <summary>Replace the body with any WPF content (lists, images, forms...). Built on the UI thread via the factory.</summary>
+    /// <summary>
+    /// Replace the body with any WPF content (lists, images, forms...). Built on the UI thread via the factory.
+    /// With <see cref="PanelOptions.Bare"/> the element is the whole panel; otherwise it sits in the padded, scrolling body.
+    /// </summary>
     void SetContent(Func<System.Windows.FrameworkElement> factory);
     /// <summary>
     /// Resize the panel after it is shown: <paramref name="width"/> in DIP, <paramref name="maxBodyHeight"/> the body

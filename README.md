@@ -94,7 +94,7 @@ public sealed class HelloPlugin : IPopBarPlugin
 }
 ```
 
-`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签）、操作栏（`ShowPopup`）、AI 模型（`Llm`）、框选截图、剪贴板 / 粘贴、全局热键、托盘菜单项、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`）、框选截图、剪贴板 / 粘贴、全局热键、托盘菜单项、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
 
 ## 分层
 

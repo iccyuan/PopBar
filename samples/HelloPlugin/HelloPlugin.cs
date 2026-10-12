@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using PopBar.Sdk;
 using PopBar.Sdk.Ui;
 
@@ -43,6 +45,35 @@ public sealed class HelloPlugin : IPopBarPlugin
                 var panel = _host.ShowPanel(new PanelOptions { Title = "字数统计", Icon = "hash", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 320 });
                 panel.SetText($"字符：{chars}\n单词：{words}\n行数：{text.Split('\n').Length}");
                 panel.SetStatus("Hello plugin");
+                return Task.CompletedTask;
+            },
+        },
+        new PluginAction
+        {
+            Id = "card",
+            Label = "卡片",
+            Icon = "square",
+            IsApplicable = ctx => ctx.Text.Length > 0,
+            // Bare = true: the panel is only a rounded container; this element is the whole thing.
+            Execute = (ctx, ct) =>
+            {
+                var panel = _host.ShowPanel(new PanelOptions { Bare = true, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Width = 260 });
+                panel.SetContent(() =>
+                {
+                    var grid = new Grid { Height = 120 };
+                    grid.Background = new LinearGradientBrush(Color.FromRgb(0x3B, 0x82, 0xF6), Color.FromRgb(0x8B, 0x5C, 0xF6), 45);
+                    grid.Children.Add(new TextBlock
+                    {
+                        Text = $"{ctx.Text.Length}", FontSize = 40, FontWeight = FontWeights.Bold, Foreground = Brushes.White,
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                    });
+                    grid.Children.Add(new TextBlock
+                    {
+                        Text = "字符 · Esc 关闭", FontSize = 12, Foreground = new SolidColorBrush(Color.FromArgb(0xCC, 0xFF, 0xFF, 0xFF)),
+                        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 10),
+                    });
+                    return grid;
+                });
                 return Task.CompletedTask;
             },
         },

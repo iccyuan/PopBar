@@ -54,6 +54,7 @@ public partial class PanelWindow : Window, IPanel
         TextArea.Visibility = opt.ShowTextArea ? Visibility.Visible : Visibility.Collapsed;
         if (opt.Pinned) { _pinned = true; PinIcon.Brush = (Brush)Resources["PAccent"]; }
         if (!opt.CloseOnOutsideClick) PinBtn.Visibility = Visibility.Collapsed;
+        if (opt.Bare) MakeBare();
         SourceInitialized += (_, _) =>
         {
             _hwnd = new WindowInteropHelper(this).Handle;
@@ -61,6 +62,24 @@ public partial class PanelWindow : Window, IPanel
             SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
         };
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape) { Close(); e.Handled = true; } };
+    }
+
+    /// <summary>
+    /// Container-only mode: strip the chrome so the plugin's content is the whole panel. The content is clipped to the
+    /// frame's corners (a Border's CornerRadius does not clip children), and empty spots of it drag the window since
+    /// there is no title bar to grab.
+    /// </summary>
+    private void MakeBare()
+    {
+        TitleBar.Visibility = Visibility.Collapsed;
+        Footer.Visibility = Visibility.Collapsed;
+        SourceBox.Visibility = Visibility.Collapsed;
+        TextArea.Visibility = Visibility.Collapsed;
+        Body.Margin = new Thickness(0);
+        var clip = new RectangleGeometry { RadiusX = 12, RadiusY = 12 };
+        ShellBody.Clip = clip;
+        ShellBody.SizeChanged += (_, e) => clip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
+        Shell.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); };
     }
 
     /// <summary>Place the panel below the anchor point (physical pixels), clamped to the monitor work area.</summary>
@@ -161,6 +180,7 @@ public partial class PanelWindow : Window, IPanel
         {
             ResultBox.MaxHeight = h;
             if (CustomHost.Content is ScrollViewer sv) sv.MaxHeight = h;
+            else if (_opt.Bare) CustomHost.MaxHeight = h;
         }
         KeepOnScreen();
     });
@@ -383,7 +403,9 @@ public partial class PanelWindow : Window, IPanel
         try
         {
             var el = factory();
-            CustomHost.Content = new ScrollViewer { Content = el, MaxHeight = _opt.MaxBodyHeight, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Style = (Style)FindResource("PBodyScroll") };
+            CustomHost.Content = _opt.Bare
+                ? el
+                : new ScrollViewer { Content = el, MaxHeight = _opt.MaxBodyHeight, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Style = (Style)FindResource("PBodyScroll") };
             CustomHost.Visibility = Visibility.Visible;
             TextArea.Visibility = Visibility.Collapsed;
         }

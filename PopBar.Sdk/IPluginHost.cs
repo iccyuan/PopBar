@@ -104,4 +104,11 @@ public sealed class PanelOptions
     public bool ShowTextArea { get; init; } = true;
     /// <summary>Maximum height of the body before it scrolls (DIP).</summary>
     public double MaxBodyHeight { get; init; } = 420;
+    /// <summary>
+    /// Just the container: no title bar, footer or padding. The panel keeps its rounded frame, shadow, placement,
+    /// Esc / outside-click dismissal and the busy line; everything inside is the element you pass to
+    /// <see cref="IPanel.SetContent"/>, unwrapped (no scroll viewer, no height cap) and clipped to the corners.
+    /// Empty areas of your content drag the panel. Text / status / buttons / error have nowhere to show here.
+    /// </summary>
+    public bool Bare { get; init; }
 }

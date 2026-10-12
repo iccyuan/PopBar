@@ -79,7 +79,7 @@
         </Border>
         <Border x:Name="Glass" CornerRadius="12"/>
     <Border x:Name="Shell" Background="{DynamicResource PBg}" CornerRadius="12">
-      <Grid>
+      <Grid x:Name="ShellBody">
         <!-- busy indicator: a thin line hugging the top edge, clipped to the frame's rounded corners so it bends with them;
              faint track with a gradient "comet" sweeping across (animated from code) -->
         <Grid x:Name="BusyTrack" Height="3" VerticalAlignment="Top" Opacity="0" IsHitTestVisible="False" SizeChanged="BusyTrack_SizeChanged">
@@ -128,7 +128,7 @@
             </Grid>
 
             <!-- footer -->
-            <Grid DockPanel.Dock="Bottom" Margin="16,8,16,14">
+            <Grid x:Name="Footer" DockPanel.Dock="Bottom" Margin="16,8,16,14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -138,7 +138,7 @@
             </Grid>
 
             <!-- body -->
-            <StackPanel Margin="16,0,16,0">
+            <StackPanel x:Name="Body" Margin="16,0,16,0">
                 <!-- source text: three lines with an ellipsis by default; 「显示全部」 appears only when it was cut -->
                 <Border x:Name="SourceBox" CornerRadius="8" Background="{DynamicResource PSource}" Padding="10,6" Margin="0,0,0,10" Visibility="Collapsed">
                     <Grid>
