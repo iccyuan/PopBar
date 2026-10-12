@@ -166,7 +166,9 @@ internal sealed class HostUi : IHostUi
             catch (Exception ex) { Log.Warn("model list: " + ex.Message); loaded = false; }
         };
         string Value() { var t = combo.Text?.Trim() ?? ""; return t == defaultLabel ? "" : t; }
-        void Emit() => onChanged(Value());
+        // Selecting the default entry at creation, or re-setting the same text, must not count as an edit.
+        var last = (current ?? "").Trim();
+        void Emit() { var v = Value(); if (v == last) return; last = v; onChanged(v); }
         combo.SelectionChanged += (_, _) => combo.Dispatcher.InvokeAsync(Emit);
         combo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => { if (!combo.IsDropDownOpen) Emit(); }));
         // Cleared by hand = default; show it as such once the box loses focus.
