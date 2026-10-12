@@ -36,6 +36,8 @@ public partial class App : Application
     private readonly List<(string Id, string Label, string? Icon, Action Callback)> _pluginTrayItems = new();
     /// <summary>Delays a tray left click past the double-click window so a double click (settings) does not also fire the click action.</summary>
     private System.Windows.Threading.DispatcherTimer? _trayClickTimer;
+    private System.Windows.Controls.ContextMenu? _trayMenu;
+    private DateTime _trayMenuClosedAt;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -172,6 +174,10 @@ public partial class App : Application
     /// <summary>The tray menu is PopBar's own styled ContextMenu (icons, rounded, theme-aware), rebuilt on every open.</summary>
     private void ShowTrayMenu()
     {
+        // Clicking the icon while the menu is open closes it (outside click) a moment before this runs: that click
+        // meant "close", so do not reopen. Same when the menu is somehow still open: toggle it off.
+        if (_trayMenu is { IsOpen: true }) { _trayMenu.IsOpen = false; return; }
+        if ((DateTime.UtcNow - _trayMenuClosedAt).TotalMilliseconds < 400) return;
         _trayAnchor ??= new Window
         {
             Width = 1, Height = 1, Left = -10000, Top = -10000, WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize,
@@ -183,7 +189,8 @@ public partial class App : Application
         _trayAnchor.Show();
         _trayAnchor.Activate();
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-        menu.Closed += (_, _) => _trayAnchor.Hide();
+        menu.Closed += (_, _) => { _trayAnchor.Hide(); _trayMenuClosedAt = DateTime.UtcNow; if (ReferenceEquals(_trayMenu, menu)) _trayMenu = null; };
+        _trayMenu = menu;
         menu.IsOpen = true;
     }
 
