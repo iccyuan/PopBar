@@ -700,31 +700,38 @@
         <Setter Property="Foreground" Value="{DynamicResource AccentBrush}"/>
         <Setter Property="TextDecorations" Value="{x:Null}"/>
     </Style>
+    <!-- frosted like menus (see ui:Frost); the 8px margin is shadow room, the offsets pull the bubble back next to the cursor -->
     <Style TargetType="ToolTip">
-        <Setter Property="Background" Value="{DynamicResource PopupBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource PopupTintBrush}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
         <Setter Property="Padding" Value="10,7"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="12.5"/>
-        <Setter Property="MaxWidth" Value="360"/>
+        <Setter Property="MaxWidth" Value="376"/>
         <Setter Property="HasDropShadow" Value="False"/>
+        <Setter Property="HorizontalOffset" Value="-8"/>
+        <Setter Property="VerticalOffset" Value="-4"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="{TemplateBinding Padding}" Margin="6">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="12" ShadowDepth="1" Direction="270" Opacity="0.08"/>
-                        </Border.Effect>
-                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}">
-                            <ContentPresenter.Resources>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="TextWrapping" Value="Wrap"/>
-                                    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-                                </Style>
-                            </ContentPresenter.Resources>
-                        </ContentPresenter>
-                    </Border>
+                    <Grid Margin="8">
+                        <Border CornerRadius="8" Background="{DynamicResource PopupBrush}">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Opacity="0.14"/>
+                            </Border.Effect>
+                        </Border>
+                        <Border CornerRadius="8" ui:Frost.IsGlass="True"/>
+                        <Border CornerRadius="8" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" RenderOptions.ClearTypeHint="Enabled">
+                            <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}">
+                                <ContentPresenter.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextWrapping" Value="Wrap"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+                                    </Style>
+                                </ContentPresenter.Resources>
+                            </ContentPresenter>
+                        </Border>
+                    </Grid>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

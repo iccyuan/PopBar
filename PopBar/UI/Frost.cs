@@ -13,8 +13,8 @@ namespace PopBar.UI;
 /// screen - the screenshot would contain the popup itself - so the monitor is captured and blurred just before the
 /// popup opens (<see cref="Prepare"/>), and a <c>Glass</c> border inside the popup, marked with the attached
 /// <see cref="IsGlassProperty"/>, shows the part of that snapshot lying under it once placed. Capture triggers are
-/// installed once (<see cref="Install"/>): the mouse press that opens a combo, the ContextMenuOpening of any element,
-/// and the tray explicitly.
+/// installed once (<see cref="Install"/>): the mouse press that opens a combo, the ContextMenuOpening / ToolTipOpening
+/// of any element, and the tray explicitly.
 /// </summary>
 internal static class Frost
 {
@@ -40,9 +40,11 @@ internal static class Frost
             if (s is ComboBox { IsDropDownOpen: false } cb && (e.Key == Key.F4 || (e.SystemKey == Key.Down && Keyboard.Modifiers == ModifierKeys.Alt)))
                 PrepareAt(cb);
         }));
-        // Every element's ContextMenu property goes through ContextMenuOpening before the menu shows.
+        // Every element's ContextMenu property goes through ContextMenuOpening before the menu shows; tooltips likewise.
         EventManager.RegisterClassHandler(typeof(FrameworkElement), FrameworkElement.ContextMenuOpeningEvent,
             new ContextMenuEventHandler((s, _) => { if (s is FrameworkElement { ContextMenu: not null }) PrepareAtCursor(); }));
+        EventManager.RegisterClassHandler(typeof(FrameworkElement), FrameworkElement.ToolTipOpeningEvent,
+            new ToolTipEventHandler((s, _) => { if (s is FrameworkElement { ToolTip: not null }) PrepareAtCursor(); }));
     }
 
     /// <summary>Blur the monitor under the cursor; call right before opening a popup there.</summary>
