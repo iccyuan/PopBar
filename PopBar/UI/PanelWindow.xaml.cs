@@ -324,33 +324,27 @@ public partial class PanelWindow : Window, IPanel
     {
         if (busy == _busy) return;
         _busy = busy;
-        var fade = new DoubleAnimation(busy ? 1 : 0, TimeSpan.FromMilliseconds(busy ? 160 : 260)) { EasingFunction = new SineEase() };
+        var fade = new DoubleAnimation(busy ? 1 : 0, TimeSpan.FromMilliseconds(busy ? 320 : 420)) { EasingFunction = new SineEase() };
         if (!busy) fade.Completed += (_, _) => { if (!_busy) BusyX.BeginAnimation(TranslateTransform.XProperty, null); };
         BusyTrack.BeginAnimation(OpacityProperty, fade);
-        if (busy) StartComet();
+        if (busy) StartFlow();
     }
 
-    private void StartComet()
+    /// <summary>
+    /// Slide the repeating gradient by one full period at constant speed, forever: the colours drift along the edge
+    /// seamlessly, like iOS's glow, instead of a highlight racing across and snapping back.
+    /// </summary>
+    private void StartFlow()
     {
-        double w = BusyTrack.ActualWidth > 0 ? BusyTrack.ActualWidth : Math.Max(120, _opt.Width);
-        BusyComet.Width = Math.Clamp(w * 0.45, 100, 300);
-        var run = new DoubleAnimation(-BusyComet.Width, w, TimeSpan.FromMilliseconds(1400))
-        {
-            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
-            RepeatBehavior = RepeatBehavior.Forever,
-        };
+        var run = new DoubleAnimation(-1, 0, TimeSpan.FromSeconds(3)) { RepeatBehavior = RepeatBehavior.Forever };
         BusyX.BeginAnimation(TranslateTransform.XProperty, run);
     }
 
     /// <summary>
-    /// The panel grew (e.g. first layout, custom content): keep the clip on the frame's rounded corners and re-fit the sweep.
+    /// The panel grew (e.g. first layout, custom content): keep the clip on the frame's rounded corners.
     /// The clip is a tall rounded rect so only its top corners fall inside the 3px line.
     /// </summary>
-    private void BusyTrack_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        BusyClip.Rect = new Rect(0, 0, e.NewSize.Width, 24);
-        if (_busy && e.WidthChanged) StartComet();
-    }
+    private void BusyTrack_SizeChanged(object sender, SizeChangedEventArgs e) => BusyClip.Rect = new Rect(0, 0, e.NewSize.Width, 24);
 
     public void AddButton(string label, Action<string> onClick, string? icon = null) => Ui(() =>
     {
