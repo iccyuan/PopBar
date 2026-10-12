@@ -12,7 +12,7 @@
     <SolidColorBrush x:Key="CardBorderBrush" Color="#EEF0F3"/>
     <SolidColorBrush x:Key="TextBrush" Color="#1F2937"/>
     <SolidColorBrush x:Key="MutedBrush" Color="#6B7280"/>
-    <SolidColorBrush x:Key="SubtleTextBrush" Color="#5F6673"/>
+    <SolidColorBrush x:Key="SubtleTextBrush" Color="#808791"/>
     <SolidColorBrush x:Key="AccentBrush" Color="#3B82F6"/>
     <SolidColorBrush x:Key="AccentHoverBrush" Color="#2563EB"/>
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#E8EFFF"/>

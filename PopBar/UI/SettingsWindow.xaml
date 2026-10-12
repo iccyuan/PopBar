@@ -193,8 +193,6 @@
 
                 <!-- ===== Apps ===== -->
                 <StackPanel x:Name="PanelApps" Visibility="Collapsed">
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,12" Text="从运行中的程序里选，或浏览 exe 文件。"/>
-
                     <TextBlock Style="{StaticResource H2}" Text="排除的应用" Margin="4,0,0,8"/>
                     <Border Style="{StaticResource Card}" Padding="18,14">
                         <StackPanel>
@@ -225,12 +223,12 @@
 
                 <!-- ===== Actions ===== -->
                 <StackPanel x:Name="PanelActions" Visibility="Collapsed">
-                    <DockPanel Margin="0,0,0,14">
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <DockPanel Margin="0,0,0,12">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button Content="恢复默认" Click="ResetActions_Click" Margin="0,0,8,0"/>
                             <Button Style="{StaticResource AccentButton}" Content="＋ 添加动作" Click="AddAction_Click"/>
                         </StackPanel>
-                        <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" Text="按此顺序显示在操作条上，按住左侧手柄拖动排序。同一插件的多个动作归在一组，整组拖动，组内也可调整顺序。"/>
+                        <TextBlock Style="{StaticResource H2}" Text="操作条上的动作" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </DockPanel>
 
                     <ListBox x:Name="ActionsList" Style="{StaticResource PlainList}" AllowDrop="True" DragOver="ActionsList_DragOver" Drop="ActionsList_Drop">
@@ -344,18 +342,14 @@
 
                 <!-- ===== Plugins ===== -->
                 <StackPanel x:Name="PanelPlugins" Visibility="Collapsed">
-
-                    <TextBlock Style="{StaticResource H2}" Text="已安装的插件"/>
+                    <TextBlock Style="{StaticResource H2}" Text="已安装的插件" Margin="4,0,0,8"/>
                     <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" x:Name="PluginDirText"/>
                     <StackPanel x:Name="PluginList"/>
                 </StackPanel>
 
                 <!-- ===== Services: capabilities shared by plugins ===== -->
                 <StackPanel x:Name="PanelServices" Visibility="Collapsed">
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,16" TextWrapping="Wrap" Text="多个功能共用的服务：在这里配置一次，用到它的功能都会使用。"/>
-
-                    <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,2"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,6" Text="插件通过它调用大模型；当前协议支持："/>
+                    <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,8"/>
                     <WrapPanel x:Name="LlmFeatureChips" Margin="4,0,0,10"/>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>

@@ -158,7 +158,7 @@ internal static class ThemeManager
             Set("CardBorderBrush", "#FFEEF0F3");
             Set("TextBrush", "#FF111827");
             Set("MutedBrush", "#FF4B5563");
-            Set("SubtleTextBrush", "#FF5F6673");
+            Set("SubtleTextBrush", "#FF808791");
             Set("AccentBrush", "#FF3B82F6");
             Set("AccentHoverBrush", "#FF2563EB");
             Set("AccentSoftBrush", "#FFE8EFFF");
