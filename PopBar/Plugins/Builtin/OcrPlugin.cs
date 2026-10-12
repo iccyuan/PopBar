@@ -31,7 +31,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
 
     public string Id => "ocr";
     public string Name => "屏幕 OCR";
-    public string Description => "框选屏幕任意区域识别文字（Windows 内置 OCR，离线），识别结果直接弹出操作条。";
+    public string Description => "框选屏幕区域识别文字，用 Windows 内置 OCR，离线。";
     public Version Version => new(0, 2, 0);
 
     public void Initialize(IPluginHost host)
@@ -180,7 +180,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
                 {
                     d.Hotkey = v; Changed();
                 }), "点击后按下组合键；托盘菜单里也有入口"),
-                Form.Row("识别语言", Form.TextBox(d.Language, 160, v => { d.Language = v.Trim(); Changed(); }), "留空按系统语言；可填 zh-Hans-CN、en-US、ja 等（需已安装对应语言包）"),
+                Form.Row("识别语言", Form.TextBox(d.Language, 160, v => { d.Language = v.Trim(); Changed(); }), "留空按系统语言，如 zh-Hans-CN、en-US"),
                 Form.Row("显示结果面板", Form.Toggle(d.ShowPanel, v => { d.ShowPanel = v; Changed(); }), "关闭后只弹出操作条"),
                 Form.Row("英文按行合并为段落", Form.Toggle(d.JoinLines, v => { d.JoinLines = v; Changed(); }))
             ),

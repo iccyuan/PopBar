@@ -34,7 +34,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
 
     public string Id => "screentranslate";
     public string Name => "屏幕翻译";
-    public string Description => "框选屏幕区域，识别文字并把译文覆盖在原位置；按住空格对照原文。依赖「屏幕 OCR」和「翻译」插件。";
+    public string Description => "框选屏幕区域，译文覆盖在原位置，按住看原文。";
     public Version Version => new(0, 1, 0);
 
     public void Initialize(IPluginHost host)
@@ -185,10 +185,10 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
         });
         return Form.Stack(
             Form.Card(
-                Form.Row("快捷键", _host.Ui.HotkeyBox(d.Hotkey, v => { d.Hotkey = v; Changed(); }), "框选区域后自动识别并翻译；托盘菜单里也有入口"),
-                Form.Row("按住看原文", _host.Ui.HotkeyBox(d.KeyCompare, v => { d.KeyCompare = v; Changed(); }), "结果窗口里按住时显示原文"),
+                Form.Row("快捷键", _host.Ui.HotkeyBox(d.Hotkey, v => { d.Hotkey = v; Changed(); }), "框选区域后识别并翻译"),
+                Form.Row("按住看原文", _host.Ui.HotkeyBox(d.KeyCompare, v => { d.KeyCompare = v; Changed(); }), "按住时显示原文"),
                 Form.Row("复制译文", _host.Ui.HotkeyBox(d.KeyCopy, v => { d.KeyCopy = v; Changed(); }))),
-            Form.Hint("译文语言、翻译引擎跟随「翻译」插件的设置；识别语言跟随「屏幕 OCR」插件。结果窗口：拖动移动，双击 / Esc 关闭，右键更多；快捷键 Backspace 清除。"));
+            Form.Hint("语言和引擎跟随「翻译」插件，识别语言跟随「屏幕 OCR」。"));
     }
 
     public void Dispose() { }

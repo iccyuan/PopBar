@@ -37,7 +37,7 @@ public sealed class SendToPlugin : IPopBarPlugin
 
     public string Id => "sendto";
     public string Name => "发送到应用";
-    public string Description => "把选中内容粘贴进指定程序的窗口、作为参数启动程序，或打开自定义 URL 协议。";
+    public string Description => "把选中内容粘贴到别的程序、带参数启动程序或打开 URL 协议。";
     public Version Version => new(0, 2, 0);
 
     public static List<Target> DefaultTargets() => new()
@@ -165,7 +165,7 @@ public sealed class SendToPlugin : IPopBarPlugin
                 Form.Row("名称", Form.TextBox(draft.Label, 240, v => draft.Label = v)),
                 Form.Row("图标", ui.IconPicker(draft.Icon, v => draft.Icon = v)),
                 Form.Row("方式", Form.Combo(new[] { ("paste", "粘贴到程序窗口"), ("launch", "带参数启动程序"), ("url", "打开 URL 协议") }, draft.Mode, v => draft.Mode = v, 200)),
-                Form.Row("程序", programRow, "粘贴方式填进程名（notepad.exe）；启动方式填可执行文件路径"),
+                Form.Row("程序", programRow, "粘贴填进程名，启动填 exe 路径"),
                 Form.Row("参数 / URL", Form.TextBox(draft.Args, 320, v => draft.Args = v), "{text} = 选中内容"),
                 Form.Row("找不到窗口时启动", Form.Toggle(draft.LaunchIfMissing, v => draft.LaunchIfMissing = v)));
             if (!ui.EditDialog(isNew ? "添加发送目标" : "编辑发送目标", content, 600)) return false;
@@ -195,7 +195,7 @@ public sealed class SendToPlugin : IPopBarPlugin
                 "开启多个目标时，操作条上只占一个「发送到」按钮，点击后展开选择目标")),
             list,
             Form.Buttons(Form.Button("＋ 添加目标", () => { var t = new Target { Label = "" }; if (Edit(t, true)) { d.Targets.Add(t); Changed(); Rebuild(); } }, accent: true)),
-            Form.Hint("可以同时开启多个目标；合并时按钮出现在第一个目标的位置，展开后的顺序与「动作」页一致。"));
+            Form.Hint("合并时按钮在第一个目标的位置。"));
     }
 
     public void Dispose() { }

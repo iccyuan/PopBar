@@ -37,7 +37,7 @@ public sealed class AiPlugin : IPopBarPlugin
 
     public string Id => "ai";
     public string Name => "AI 助手";
-    public string Description => "解释、总结、润色选中内容，结果流式显示在面板里。可自定义任意提示词按钮。";
+    public string Description => "解释、总结、润色选中内容，按钮可自定义。";
     public Version Version => new(0, 2, 0);
 
     public static List<Prompt> DefaultPrompts() => new()
@@ -172,15 +172,15 @@ public sealed class AiPlugin : IPopBarPlugin
 
         return Form.Stack(
             Form.Card(
-                Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页里配置的默认模型；接口、密钥仍用那里的"),
+                Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型"),
                 Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
-                Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "回答边生成边显示；关闭后等完整回答再一次显示"),
+                Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),
             list,
             Form.Buttons(add),
-            Form.Hint("保存后，提示词按钮的增删改会同步到操作条和「动作」页。"));
+            Form.Hint("每个提示词是操作条上的一个按钮。"));
     }
 
     private static string Summary(Prompt p)

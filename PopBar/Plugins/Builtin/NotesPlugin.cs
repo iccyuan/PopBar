@@ -53,7 +53,7 @@ public sealed class NotesPlugin : IPopBarPlugin
 
     public string Id => "notes";
     public string Name => "便签";
-    public string Description => "把选中的文字贴成桌面便签，可编辑、换颜色、调透明度，重启后自动恢复。";
+    public string Description => "把选中的文字贴成桌面便签，重启后自动恢复。";
     public Version Version => new(0, 1, 0);
 
     public void Initialize(IPluginHost host)
@@ -148,10 +148,10 @@ public sealed class NotesPlugin : IPopBarPlugin
         });
         return Form.Stack(
             Form.Card(
-                Form.Row("新建便签", _host.Ui.HotkeyBox(d.NewHotkey, v => { d.NewHotkey = v; Changed(); }), "全局快捷键，在鼠标位置新建空白便签"),
-                Form.Row("显示全部便签", _host.Ui.HotkeyBox(d.ShowAllHotkey, v => { d.ShowAllHotkey = v; Changed(); }), "全局快捷键，把所有便签带到最前"),
+                Form.Row("新建便签", _host.Ui.HotkeyBox(d.NewHotkey, v => { d.NewHotkey = v; Changed(); }), "在鼠标位置新建便签"),
+                Form.Row("显示全部便签", _host.Ui.HotkeyBox(d.ShowAllHotkey, v => { d.ShowAllHotkey = v; Changed(); }), "把所有便签带到最前"),
                 Form.Row("便签数量", new TextBlock { Text = _cfg.Notes.Count.ToString(), VerticalAlignment = VerticalAlignment.Center })),
-            Form.Hint("选中文字后点操作条上的「便签」，或从托盘菜单「新建便签」。拖动顶部移动，右下角调整大小，Ctrl+滚轮调透明度；删除后不可恢复。"));
+            Form.Hint("拖动顶部移动，右下角调大小，Ctrl+滚轮调透明度。"));
     }
 
     public void Dispose()

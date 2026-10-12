@@ -27,7 +27,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
 
     public string Id => "translate";
     public string Name => "翻译";
-    public string Description => "在悬浮面板里直接显示译文；可用 Google 免费接口或你配置的 AI 模型。";
+    public string Description => "面板里直接出译文，用 Google 或 AI 模型。";
     public Version Version => new(0, 2, 0);
 
     public void Initialize(IPluginHost host)
@@ -220,8 +220,8 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
             _host.Storage.Set(_cfg);
         });
         // Streaming only applies to the AI provider: grey it out otherwise.
-        var modelRow = Form.Row("模型", _host.Ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "仅 AI 模型：留空用「服务」页里配置的默认模型");
-        var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "仅 AI 模型：译文边生成边显示；关闭后等完整译文再一次显示");
+        var modelRow = Form.Row("模型", _host.Ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型");
+        var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示");
         void SyncStream()
         {
             bool llm = d.Provider == "llm";
@@ -230,11 +230,11 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         SyncStream();
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 走系统代理，国内需要代理"),
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 需要代理"),
                 modelRow,
                 streamRow,
-                Form.Row("目标语言", Form.Combo(LangItems(d.TargetLang), d.TargetLang, v => { d.TargetLang = v; Changed(); }, 180), "自动检测原文语言，翻译成这种语言"),
-                Form.Row("备用语言", Form.Combo(LangItems(d.AltLang), d.AltLang, v => { d.AltLang = v; Changed(); }, 180), "原文已经是目标语言时，改译成这种语言")
+                Form.Row("目标语言", Form.Combo(LangItems(d.TargetLang), d.TargetLang, v => { d.TargetLang = v; Changed(); }, 180), "译成这种语言"),
+                Form.Row("备用语言", Form.Combo(LangItems(d.AltLang), d.AltLang, v => { d.AltLang = v; Changed(); }, 180), "原文已是目标语言时改译这种")
             ));
     }
 

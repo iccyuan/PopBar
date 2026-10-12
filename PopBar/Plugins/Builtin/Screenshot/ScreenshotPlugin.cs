@@ -46,7 +46,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 
     public string Id => "screenshot";
     public string Name => "截图";
-    public string Description => "冻结屏幕框选、自动识别窗口、标注、复制 / 保存 / 贴到屏幕。";
+    public string Description => "框选、识别窗口、标注，复制、保存或贴到屏幕。";
     public Version Version => new(0, 3, 0);
 
     public void Initialize(IPluginHost host)
@@ -200,13 +200,13 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 
         return Form.Stack(
             Form.Card(
-                Form.Row("截图快捷键", ui.HotkeyBox(d.CaptureHotkey, v => { d.CaptureHotkey = v; Changed(); }), "托盘菜单里也有「截图」"),
-                Form.Row("贴图快捷键", ui.HotkeyBox(d.PinHotkey, v => { d.PinHotkey = v; Changed(); }), "把剪贴板里的图片或文字贴到屏幕上"),
+                Form.Row("截图快捷键", ui.HotkeyBox(d.CaptureHotkey, v => { d.CaptureHotkey = v; Changed(); }), null),
+                Form.Row("贴图快捷键", ui.HotkeyBox(d.PinHotkey, v => { d.PinHotkey = v; Changed(); }), "把剪贴板内容贴到屏幕上"),
                 Form.Row("保存目录", dirRow),
                 Form.Row("显示放大镜", Form.Toggle(d.ShowMagnifier, v => { d.ShowMagnifier = v; Changed(); })),
                 Form.Row("自动识别窗口", Form.Toggle(d.DetectWindows, v => { d.DetectWindows = v; Changed(); }), "鼠标悬停时高亮窗口，单击直接选中")),
             Form.Card(
-                Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, d.GifFps.ToString(), v => { d.GifFps = int.Parse(v); Changed(); }, 140), "帧率越高越流畅，文件也越大"),
+                Form.Row("GIF 帧率", Form.Combo(new[] { ("8", "8 帧/秒"), ("12", "12 帧/秒"), ("15", "15 帧/秒"), ("20", "20 帧/秒") }, d.GifFps.ToString(), v => { d.GifFps = int.Parse(v); Changed(); }, 140), "越高越流畅，文件越大"),
                 Form.Row("GIF 最长时长", Form.Combo(new[] { ("30", "30 秒"), ("60", "1 分钟"), ("180", "3 分钟"), ("600", "10 分钟") }, d.GifMaxSeconds.ToString(), v => { d.GifMaxSeconds = int.Parse(v); Changed(); }, 140)),
                 Form.Row("录入鼠标指针", Form.Toggle(d.GifCursor, v => { d.GifCursor = v; Changed(); }))),
             Form.Card(
@@ -223,8 +223,8 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 KeyRow("画笔", () => d.KeyPen, v => d.KeyPen = v),
                 KeyRow("马赛克", () => d.KeyMosaic, v => d.KeyMosaic = v),
                 KeyRow("文字", () => d.KeyText, v => d.KeyText = v)),
-            Form.Hint("框选后工具栏里的「长截图」会自动向下滚动并拼接（滚动期间别动鼠标），「GIF」开始录制，结果保存到上面的目录并复制到剪贴板。"),
-            Form.Hint("截图中：拖动框选，单击选中窗口；方向键微调，Esc / 右键 取消。贴图：拖动移动，滚轮缩放，Ctrl+滚轮 透明度，双击 / Esc 销毁，右键更多操作。快捷键点击后按下新组合键，Backspace 清除。"));
+            Form.Hint("「长截图」自动向下滚动拼接，「GIF」开始录制；结果存到上面的目录并复制到剪贴板。"),
+            Form.Hint("截图：拖动框选，单击选窗口，方向键微调，Esc 取消。贴图：拖动移动，滚轮缩放，Ctrl+滚轮调透明度，双击关闭。"));
     }
 
     private FrameworkElement KeyRow(string label, Func<string> get, Action<string> set, string? hint = null) =>

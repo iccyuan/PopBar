@@ -22,7 +22,7 @@ public sealed partial class CodecPlugin : IPopBarPlugin
 
     public string Id => "codec";
     public string Name => "编码工具";
-    public string Description => "选中 Base64、URL 编码、JSON、JWT、时间戳时自动出现对应按钮；另有包含各种编码转换和哈希的工具面板。";
+    public string Description => "选中 Base64、URL 编码、JSON、JWT、时间戳时出现对应按钮。";
     public Version Version => new(0, 1, 0);
 
     public void Initialize(IPluginHost host) => _host = host;

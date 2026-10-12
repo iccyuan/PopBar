@@ -27,7 +27,7 @@ public sealed class QrPlugin : IPopBarPlugin
 
     public string Id => "qr";
     public string Name => "二维码";
-    public string Description => "把选中内容生成二维码；框选或整屏扫描识别二维码 / 条形码，识别结果直接弹出操作条。";
+    public string Description => "选中内容生成二维码；框选或整屏识别二维码、条形码。";
     public Version Version => new(0, 1, 0);
 
     public void Initialize(IPluginHost host)
@@ -222,7 +222,7 @@ public sealed class QrPlugin : IPopBarPlugin
             Form.Card(
                 Form.Row("框选识别", _host.Ui.HotkeyBox(d.ScanHotkey, v => { d.ScanHotkey = v; Changed(); }), "框选屏幕区域识别"),
                 Form.Row("扫描整个屏幕", _host.Ui.HotkeyBox(d.ScreenHotkey, v => { d.ScreenHotkey = v; Changed(); }), "无需框选，直接识别屏幕上所有的码；托盘菜单里也有")),
-            Form.Hint("生成：选中文字后点操作条上的「二维码」。识别支持二维码、条形码、Data Matrix 等常见格式。"));
+            Form.Hint("识别支持二维码、条形码、Data Matrix。"));
     }
 
     public void Dispose() { }
