@@ -263,18 +263,6 @@ public partial class PanelWindow : Window, IPanel
         Set("PHover", dark ? "#1FFFFFFF" : "#14000000");
         Set("PSource", dark ? "#16FFFFFF" : "#10000000");
         Set("PAccent", dark ? "#FF5B9BFF" : "#FF3B82F6");
-        if (BusyComet.Background is LinearGradientBrush g)
-        {
-            var accent = (Color)ColorConverter.ConvertFromString(dark ? "#FF5B9BFF" : "#FF3B82F6");
-            var comet = new LinearGradientBrush(new GradientStopCollection
-            {
-                new(Color.FromArgb(0, accent.R, accent.G, accent.B), 0),
-                new(accent, 0.45), new(accent, 0.7),
-                new(Color.FromArgb(0, accent.R, accent.G, accent.B), 1),
-            }, new Point(0, 0), new Point(1, 0));
-            comet.Freeze();
-            BusyComet.Background = comet;
-        }
         Set("PErrBg", dark ? "#33F87171" : "#FFFEF2F2");
         Set("PErrFg", dark ? "#FFFCA5A5" : "#FFB91C1C");
     }
@@ -345,7 +333,7 @@ public partial class PanelWindow : Window, IPanel
     private void StartComet()
     {
         double w = BusyTrack.ActualWidth > 0 ? BusyTrack.ActualWidth : Math.Max(120, _opt.Width);
-        BusyComet.Width = Math.Clamp(w * 0.38, 80, 260);
+        BusyComet.Width = Math.Clamp(w * 0.45, 100, 300);
         var run = new DoubleAnimation(-BusyComet.Width, w, TimeSpan.FromMilliseconds(1400))
         {
             EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },

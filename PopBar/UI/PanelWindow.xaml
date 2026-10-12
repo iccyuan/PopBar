@@ -87,13 +87,16 @@
                 <RectangleGeometry x:Name="BusyClip" RadiusX="12" RadiusY="12" Rect="0,0,0,24"/>
             </Grid.Clip>
             <Border Background="{DynamicResource PAccent}" Opacity="0.16"/>
+            <!-- multicolour comet: fades in from cyan, runs through blue and violet, trails off pink; same in both themes -->
             <Border x:Name="BusyComet" HorizontalAlignment="Left" Width="160">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                        <GradientStop Color="#003B82F6" Offset="0"/>
-                        <GradientStop Color="#FF3B82F6" Offset="0.45"/>
-                        <GradientStop Color="#FF3B82F6" Offset="0.7"/>
-                        <GradientStop Color="#003B82F6" Offset="1"/>
+                        <GradientStop Color="#0022D3EE" Offset="0"/>
+                        <GradientStop Color="#FF22D3EE" Offset="0.25"/>
+                        <GradientStop Color="#FF3B82F6" Offset="0.5"/>
+                        <GradientStop Color="#FF8B5CF6" Offset="0.72"/>
+                        <GradientStop Color="#FFEC4899" Offset="0.9"/>
+                        <GradientStop Color="#00EC4899" Offset="1"/>
                     </LinearGradientBrush>
                 </Border.Background>
                 <Border.RenderTransform>
