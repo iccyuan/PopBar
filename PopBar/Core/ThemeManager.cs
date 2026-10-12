@@ -129,7 +129,7 @@ internal static class ThemeManager
         if (dark)
         {
             Set("BgBrush", "#FF15181F");
-            Set("WindowBgBrush", blur ? "#E615181F" : "#FF15181F");   // over acrylic: content stays calm, the nav lets the blur through
+            Set("WindowBgBrush", blur ? "#00000000" : "#FF15181F");
             Set("NavBrush", blur ? "#8C1B1F28" : "#FF1B1F28");
             Set("CardBrush", "#FF1F2430");
             Set("BorderBrush", "#FF2D3442");
@@ -156,7 +156,7 @@ internal static class ThemeManager
         else
         {
             Set("BgBrush", "#FFF5F6FA");
-            Set("WindowBgBrush", blur ? "#E6F5F6FA" : "#FFF5F6FA");
+            Set("WindowBgBrush", blur ? "#00000000" : "#FFF5F6FA");
             Set("NavBrush", blur ? "#8CFFFFFF" : "#FFFFFFFF");
             Set("CardBrush", "#FFFFFFFF");
             Set("BorderBrush", "#FFE5E7EB");
