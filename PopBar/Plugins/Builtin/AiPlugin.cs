@@ -26,6 +26,8 @@ public sealed class AiPlugin : IPopBarPlugin
         public int MaxTokens { get; set; } = 2048;
         /// <summary>Show the answer as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
+        /// <summary>Model override for this plugin; empty = the default from the service settings.</summary>
+        public string Model { get; set; } = "";
     }
 
     private const string DefaultSystem = "你是一个嵌入在桌面工具里的助手。用户会选中一段文字，你的回答会显示在一个小面板里。请用中文、简洁直接地回答，不要寒暄，不要重复原文，必要时用短列表。";
@@ -76,7 +78,7 @@ public sealed class AiPlugin : IPopBarPlugin
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
-            Badge = _host.Llm.ModelName,
+            Badge = _host.Llm.ModelNameFor(_cfg.Model),
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
@@ -100,6 +102,7 @@ public sealed class AiPlugin : IPopBarPlugin
                 User = prompt.Template.Contains("{text}") ? prompt.Template.Replace("{text}", text) : prompt.Template + "\n\n" + text,
                 Effort = _cfg.Effort,
                 MaxTokens = _cfg.MaxTokens,
+                Model = _cfg.Model,
             };
             if (_cfg.Stream)
                 await foreach (var chunk in _host.Llm.StreamAsync(req, linked.Token)) panel.AppendText(chunk);
@@ -169,6 +172,7 @@ public sealed class AiPlugin : IPopBarPlugin
 
         return Form.Stack(
             Form.Card(
+                Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页里配置的默认模型；接口、密钥仍用那里的"),
                 Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
                 Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "回答边生成边显示；关闭后等完整回答再一次显示"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))

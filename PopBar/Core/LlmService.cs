@@ -63,21 +63,21 @@ internal sealed class LlmService : ILlmService
         }
     }
 
-    /// <summary>Config + provider defaults → concrete connection.</summary>
-    private LlmConnection Resolve(ILlmProvider? p = null)
+    /// <summary>Config + provider defaults → concrete connection. <paramref name="model"/> (a per-request override) wins over the configured default.</summary>
+    private LlmConnection Resolve(ILlmProvider? p = null, string? model = null)
     {
         p ??= Current;
         var cfg = _store.Current.Llm;
         var baseUrl = string.IsNullOrWhiteSpace(cfg.BaseUrl) ? (p?.DefaultBaseUrl ?? "") : cfg.BaseUrl.Trim();
-        var model = string.IsNullOrWhiteSpace(cfg.Model) ? (p?.DefaultModel ?? "") : cfg.Model.Trim();
-        return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model, _http);
+        if (string.IsNullOrWhiteSpace(model)) model = string.IsNullOrWhiteSpace(cfg.Model) ? (p?.DefaultModel ?? "") : cfg.Model.Trim();
+        return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model.Trim(), _http);
     }
 
     public IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default)
     {
         var p = Current ?? throw new InvalidOperationException($"未知的模型提供商“{ProviderId}”，请在 设置 → 插件 → AI 模型服务 重新选择。");
         if (!IsConfigured) throw new InvalidOperationException("尚未配置 AI 模型，请在 设置 → 插件 → AI 模型服务 中填写。");
-        return p.StreamAsync(Resolve(p), request, ct);
+        return p.StreamAsync(Resolve(p, request.Model), request, ct);
     }
 
     public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)

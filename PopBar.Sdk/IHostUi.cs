@@ -54,6 +54,12 @@ public interface IHostUi
     /// <summary>Names accepted by <see cref="Icon"/> and by <c>PluginAction.Icon</c>.</summary>
     IReadOnlyList<string> IconNames { get; }
 
+    /// <summary>
+    /// Editable drop-down for an <see cref="LlmRequest.Model"/> override: type an id, or open it to pick from the models the
+    /// configured service lists. The first entry (empty value) means "default from settings".
+    /// </summary>
+    FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240);
+
     /// <summary>Processes that currently own a visible top-level window.</summary>
     IReadOnlyList<RunningApp> RunningApps();
 

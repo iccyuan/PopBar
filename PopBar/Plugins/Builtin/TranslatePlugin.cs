@@ -18,6 +18,8 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         public string AltLang { get; set; } = "en";
         /// <summary>AI mode: show the translation as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
+        /// <summary>AI mode: model override; empty = the default from the service settings.</summary>
+        public string Model { get; set; } = "";
     }
 
     private IPluginHost _host = null!;
@@ -43,17 +45,18 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         {
             var sb = new StringBuilder();
             await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), ct)) sb.Append(chunk);
-            return new TranslationResult(sb.ToString().Trim(), "auto", target, _host.Llm.ModelName);
+            return new TranslationResult(sb.ToString().Trim(), "auto", target, _host.Llm.ModelNameFor(_cfg.Model));
         }
         var (result, detected) = await GoogleAsync(text, target, ct);
         return new TranslationResult(result, detected, target, "Google");
     }
 
-    private static LlmRequest LlmRequestFor(string text, string target) => new()
+    private LlmRequest LlmRequestFor(string text, string target) => new()
     {
         System = "You are a professional translator. Translate the user's text into the requested language. Output only the translation, no explanations, keep formatting and line breaks.",
         User = $"Target language: {target}\n\n{text}",
         Effort = "low",
+        Model = _cfg.Model,
     };
 
     public IReadOnlyList<PluginAction> GetActions() => new[]
@@ -73,7 +76,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
-            Badge = _cfg.Provider == "llm" ? _host.Llm.ModelName : "Google 翻译",
+            Badge = _cfg.Provider == "llm" ? _host.Llm.ModelNameFor(_cfg.Model) : "Google 翻译",
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
@@ -217,12 +220,18 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
             _host.Storage.Set(_cfg);
         });
         // Streaming only applies to the AI provider: grey it out otherwise.
+        var modelRow = Form.Row("模型", _host.Ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "仅 AI 模型：留空用「服务」页里配置的默认模型");
         var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "仅 AI 模型：译文边生成边显示；关闭后等完整译文再一次显示");
-        void SyncStream() { streamRow.IsEnabled = d.Provider == "llm"; streamRow.Opacity = streamRow.IsEnabled ? 1 : 0.45; }
+        void SyncStream()
+        {
+            bool llm = d.Provider == "llm";
+            foreach (var row in new[] { modelRow, streamRow }) { row.IsEnabled = llm; row.Opacity = llm ? 1 : 0.45; }
+        }
         SyncStream();
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（设置里配置的模型）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 走系统代理，国内需要代理"),
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 走系统代理，国内需要代理"),
+                modelRow,
                 streamRow,
                 Form.Row("目标语言", Form.Combo(LangItems(d.TargetLang), d.TargetLang, v => { d.TargetLang = v; Changed(); }, 180), "自动检测原文语言，翻译成这种语言"),
                 Form.Row("备用语言", Form.Combo(LangItems(d.AltLang), d.AltLang, v => { d.AltLang = v; Changed(); }, 180), "原文已经是目标语言时，改译成这种语言")

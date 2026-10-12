@@ -12,6 +12,9 @@ internal sealed class HostUi : IHostUi
 {
     private sealed record AppPick(string Exe, string Label);
     private sealed record IconItem(string Name);
+    private readonly ILlmService _llm;
+
+    public HostUi(ILlmService llm) => _llm = llm;
 
     public FrameworkElement KeyBox(string? current, Action<string> onChanged)
     {
@@ -138,6 +141,38 @@ internal sealed class HostUi : IHostUi
     }
 
     public IReadOnlyList<string> IconNames => Icons.Names.ToList();
+
+    public FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240)
+    {
+        // The "default" entry names the model it stands for, so an untouched picker never looks blank.
+        string DefaultLabel() => string.IsNullOrWhiteSpace(_llm.ModelName) ? "默认（服务页里的模型）" : $"默认（{_llm.ModelName}）";
+        var defaultLabel = DefaultLabel();
+        var combo = new ComboBox { Width = width, IsEditable = true, ToolTip = "选「默认」或留空 = 跟随服务页里配置的模型" };
+        combo.ItemsSource = new List<string> { defaultLabel };
+        if (string.IsNullOrWhiteSpace(current)) combo.SelectedIndex = 0; else combo.Text = current;
+        bool loaded = false;
+        // Models come from the configured service the first time the list is opened; failures just leave the typed value.
+        combo.DropDownOpened += async (_, _) =>
+        {
+            if (loaded) return;
+            loaded = true;
+            try
+            {
+                var models = await _llm.ListModelsAsync();
+                var typed = combo.Text;
+                combo.ItemsSource = new[] { defaultLabel }.Concat(models.Where(m => m != defaultLabel)).ToList();
+                combo.Text = typed;
+            }
+            catch (Exception ex) { Log.Warn("model list: " + ex.Message); loaded = false; }
+        };
+        string Value() { var t = combo.Text?.Trim() ?? ""; return t == defaultLabel ? "" : t; }
+        void Emit() => onChanged(Value());
+        combo.SelectionChanged += (_, _) => combo.Dispatcher.InvokeAsync(Emit);
+        combo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => { if (!combo.IsDropDownOpen) Emit(); }));
+        // Cleared by hand = default; show it as such once the box loses focus.
+        combo.LostKeyboardFocus += (_, _) => { if (Value().Length == 0 && combo.Text != defaultLabel) combo.SelectedIndex = 0; };
+        return combo;
+    }
 
     public bool EditDialog(string title, FrameworkElement content, double width = 540)
     {

@@ -178,6 +178,7 @@ internal sealed class PluginHost : IPluginHost
         _storage = new PluginStorage(pluginId);
         DataDir = Path.Combine(PluginStorage.PluginsDir, pluginId);
         Settings = new SettingsSession(s.SettingsHub, pluginId);
+        Ui = new HostUi(s.Llm);
     }
 
     public IPluginLogger Log => _log;
@@ -185,7 +186,7 @@ internal sealed class PluginHost : IPluginHost
     public HttpClient Http => _s.Http;
     public ILlmService Llm => _s.Llm;
     public Dispatcher Dispatcher => _s.Dispatcher;
-    public IHostUi Ui { get; } = new HostUi();
+    public IHostUi Ui { get; }
     public string Theme => ThemeManager.Effective;
     public string DataDir { get; }
     public IServiceRegistry Services => _s.Services;

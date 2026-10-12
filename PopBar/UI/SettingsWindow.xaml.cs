@@ -598,7 +598,7 @@ public partial class SettingsWindow : Window
 
     private void BrowseApp(List<string> list)
     {
-        var picked = new Plugins.HostUi().PickFile("程序 (*.exe)|*.exe", "选择程序");
+        var picked = new Plugins.HostUi(_llm).PickFile("程序 (*.exe)|*.exe", "选择程序");
         if (picked == null) return;
         var exe = System.IO.Path.GetFileName(picked);
         if (!list.Contains(exe, StringComparer.OrdinalIgnoreCase)) list.Add(exe);

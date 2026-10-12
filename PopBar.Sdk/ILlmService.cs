@@ -2,12 +2,18 @@ using System.Net.Http;
 
 namespace PopBar.Sdk;
 
-/// <summary>Streaming access to the model configured in PopBar settings, backed by a pluggable <see cref="ILlmProvider"/>.</summary>
+/// <summary>
+/// Streaming access to the model service configured in PopBar settings, backed by a pluggable <see cref="ILlmProvider"/>.
+/// The model there is only the default: a plugin may name another one per request via <see cref="LlmRequest.Model"/>
+/// (same provider, endpoint and key).
+/// </summary>
 public interface ILlmService
 {
     bool IsConfigured { get; }
-    /// <summary>Short description for status lines, e.g. "claude-opus-5-5".</summary>
+    /// <summary>The default model from settings, for status lines, e.g. "claude-opus-5-5".</summary>
     string ModelName { get; }
+    /// <summary>What a request with this <see cref="LlmRequest.Model"/> override will run on: the override, or the default when empty.</summary>
+    string ModelNameFor(string? model) => string.IsNullOrWhiteSpace(model) ? ModelName : model.Trim();
     /// <summary>Id of the provider currently selected in settings.</summary>
     string ProviderId { get; }
 
@@ -77,6 +83,8 @@ public sealed class LlmRequest
 {
     public string? System { get; init; }
     public required string User { get; init; }
+    /// <summary>Model id to use instead of the default from settings; null / empty keeps the default.</summary>
+    public string? Model { get; init; }
     public int MaxTokens { get; init; } = 4096;
     /// <summary>"low" | "medium" | "high" - reasoning effort where the backend supports it.</summary>
     public string Effort { get; init; } = "low";

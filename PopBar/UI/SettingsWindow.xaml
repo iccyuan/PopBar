@@ -408,8 +408,8 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="模型" VerticalAlignment="Center"/>
-                                    <ui:InfoTip Text="可直接输入，或点「获取模型」从接口拉取列表后选择"/>
+                                    <TextBlock Text="默认模型" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="可直接输入，或点「获取模型」从接口拉取列表后选择。这是默认值，各插件（AI 助手、翻译…）的设置里可以单独指定自己的模型。"/>
                                     </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <ComboBox x:Name="LlmModelBox" Width="236" IsEditable="True" SelectionChanged="Llm_Changed"/>

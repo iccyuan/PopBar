@@ -52,7 +52,7 @@ dotnet publish PopBar\PopBar.csproj -c Release -r win-x64 --self-contained false
 | 便签 | 选中内容贴成桌面便签，可编辑、换色、置顶，重启恢复 |
 | 屏幕翻译 | Ctrl+Alt+T 框选 → OCR → 翻译 → 译文覆盖在原位置，按住空格看原文 |
 
-AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `openai`（任何兼容 `/chat/completions` 的服务）。热键、保存目录等都在各插件设置里。
+AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `openai`（任何兼容 `/chat/completions` 的服务）。那里的模型只是默认值，AI 助手、翻译等插件可以在各自设置里单独选模型（同一接口与密钥）。热键、保存目录等都在各插件设置里。
 
 ## 设置
 
@@ -94,7 +94,7 @@ public sealed class HelloPlugin : IPopBarPlugin
 }
 ```
 
-`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`）、框选截图、剪贴板 / 粘贴、全局热键、托盘菜单项、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘菜单项、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
 
 ## 分层
 
