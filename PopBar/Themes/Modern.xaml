@@ -49,7 +49,7 @@
     </Style>
     <!-- secondary text (descriptions, hints): clearly lighter than titles so a row reads title-first -->
     <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="FontSize" Value="11.5"/>
         <Setter Property="Foreground" Value="{DynamicResource SubtleTextBrush}"/>
     </Style>
 
