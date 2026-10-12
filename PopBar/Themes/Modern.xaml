@@ -25,6 +25,9 @@
     <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF"/>
     <!-- translucent layer over the frosted snapshot in menus / drop-downs; alpha follows the blur opacity setting -->
     <SolidColorBrush x:Key="PopupTintBrush" Color="#E0FFFFFF"/>
+    <!-- item hover / selection inside those frosted popups: translucent so the glass shows through -->
+    <SolidColorBrush x:Key="PopupHoverBrush" Color="#14000000"/>
+    <SolidColorBrush x:Key="PopupSelectedBrush" Color="#1F3B82F6"/>
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#C7CCD6"/>
 
     <FontFamily x:Key="UiFont">Microsoft YaHei UI, Segoe UI, sans-serif</FontFamily>
@@ -383,10 +386,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentSoftBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupSelectedBrush}"/>
                             <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -790,7 +793,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>

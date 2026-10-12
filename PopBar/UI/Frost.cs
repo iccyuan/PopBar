@@ -30,6 +30,10 @@ internal static class Frost
     public static void SetIsGlass(DependencyObject d, bool value) => d.SetValue(IsGlassProperty, value);
     public static bool GetIsGlass(DependencyObject d) => (bool)d.GetValue(IsGlassProperty);
 
+    /// <summary>Screen rect (device pixels) the border's current brush was cut for; re-cut only when it moves or resizes.</summary>
+    private static readonly DependencyProperty LastRectProperty = DependencyProperty.RegisterAttached(
+        "LastRect", typeof(Rect), typeof(Frost), new PropertyMetadata(Rect.Empty));
+
     /// <summary>Hook the moments right before a popup appears, app-wide.</summary>
     public static void Install()
     {
@@ -77,9 +81,16 @@ internal static class Frost
     private static void OnIsGlassChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not Border b || e.NewValue is not true) return;
-        // The popup content is shown again on every open; place the snapshot once it is on screen and laid out.
-        b.IsVisibleChanged += (_, _) => { if (b.IsVisible) b.Dispatcher.InvokeAsync(() => Apply(b), System.Windows.Threading.DispatcherPriority.Loaded); };
-        b.SizeChanged += (_, _) => { if (b.IsVisible) Apply(b); };
+        // A popup's window is placed on screen only after its content is laid out (until then PointToScreen is
+        // relative to a window parked at 0,0), and a tooltip or menu may be nudged again to stay on the monitor.
+        // So while the content is visible, every layout pass re-checks where the border really is.
+        EventHandler onLayout = (_, _) => Apply(b);
+        b.IsVisibleChanged += (_, _) =>
+        {
+            b.LayoutUpdated -= onLayout;
+            b.SetValue(LastRectProperty, Rect.Empty);
+            if (b.IsVisible) { b.LayoutUpdated += onLayout; b.Dispatcher.InvokeAsync(() => Apply(b), System.Windows.Threading.DispatcherPriority.Loaded); }
+        };
     }
 
     /// <summary>Show the slice of the snapshot under the border; without a usable snapshot fall back to the solid popup colour.</summary>
@@ -87,24 +98,28 @@ internal static class Frost
     {
         var shot = _shot;
         var source = PresentationSource.FromVisual(b);
-        if (shot == null || (DateTime.UtcNow - _at).TotalSeconds > 5 || source == null || b.ActualWidth <= 0 || b.ActualHeight <= 0)
+        if (!b.IsVisible || source == null || b.ActualWidth <= 0 || b.ActualHeight <= 0) return;
+        if (shot == null || (DateTime.UtcNow - _at).TotalSeconds > 5)
         {
-            b.Background = Application.Current.TryFindResource("PopupBrush") as Brush ?? Brushes.White;
+            if (b.Background is not SolidColorBrush) b.Background = Application.Current.TryFindResource("PopupBrush") as Brush ?? Brushes.White;
             return;
         }
         try
         {
             var origin = b.PointToScreen(new Point(0, 0)); // device pixels
             double dpi = source.CompositionTarget?.TransformToDevice.M11 ?? 1;
+            var rect = new Rect(origin.X, origin.Y, b.ActualWidth * dpi, b.ActualHeight * dpi);
+            if (rect == (Rect)b.GetValue(LastRectProperty)) return;
             var brush = new ImageBrush(shot)
             {
                 Stretch = Stretch.Fill,
                 ViewboxUnits = BrushMappingMode.Absolute,
-                Viewbox = new Rect((origin.X - _work.Left) * Scale, (origin.Y - _work.Top) * Scale, b.ActualWidth * dpi * Scale, b.ActualHeight * dpi * Scale),
+                Viewbox = new Rect((rect.X - _work.Left) * Scale, (rect.Y - _work.Top) * Scale, rect.Width * Scale, rect.Height * Scale),
             };
             brush.Freeze();
             b.Background = brush;
+            b.SetValue(LastRectProperty, rect);
         }
-        catch (InvalidOperationException) { /* not connected to a window yet; SizeChanged will come back */ }
+        catch (InvalidOperationException) { /* not connected to a window yet; the next layout pass will come back */ }
     }
 }
