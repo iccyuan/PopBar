@@ -11,7 +11,7 @@ C# / WPF / .NET 10。弹窗不抢焦点，常驻约 35-75 MB。操作栏与面�
 - `PopBar-x.y.z-win-x64.exe`：小，需先装 [.NET 10 桌面运行时](https://dotnet.microsoft.com/download/dotnet/10.0)。
 - `PopBar-x.y.z-win-x64-standalone.zip`：解压即用。
 
-需要 Windows 10 2004 及以上。首次运行打开设置，之后常驻托盘：右键菜单，双击设置。
+需要 Windows 10 2004 及以上。首次运行打开设置，之后常驻托盘：右键菜单，双击设置，左键动作可在设置里选（打开设置、菜单，或截图、OCR、屏幕翻译等插件托盘功能）。
 
 ## 构建与发版
 

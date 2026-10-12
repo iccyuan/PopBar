@@ -11,6 +11,11 @@ public sealed class AppConfig
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
+    /// <summary>
+    /// What a left click on the tray icon does: "settings" (default), "menu" (the right-click menu), or the id of a
+    /// plugin tray item such as "screenshot:capture" / "ocr:capture". Double click always opens settings.
+    /// </summary>
+    public string TrayClick { get; set; } = "settings";
 
     /// <summary>"auto" = bar appears right after a selection; "key" = only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds).</summary>
     public string ShowMode { get; set; } = "auto";

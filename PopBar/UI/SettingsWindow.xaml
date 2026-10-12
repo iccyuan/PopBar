@@ -64,6 +64,19 @@
                                 <TextBlock Text="开机自动启动" VerticalAlignment="Center"/>
                                 <CheckBox x:Name="AutoStartSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                             </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="托盘图标左键" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="单击托盘图标时执行的动作，可选插件提供的托盘功能（截图、OCR、屏幕翻译…）。双击始终打开设置，右键是菜单。"/>
+                                </StackPanel>
+                                <ComboBox x:Name="TrayClickCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
+                                          DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

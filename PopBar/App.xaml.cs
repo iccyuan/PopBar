@@ -34,6 +34,8 @@ public partial class App : Application
     private LlmService? _llm;
     private readonly PanelRegistry _panels = new();
     private readonly List<(string Id, string Label, string? Icon, Action Callback)> _pluginTrayItems = new();
+    /// <summary>Delays a tray left click past the double-click window so a double click (settings) does not also fire the click action.</summary>
+    private System.Windows.Threading.DispatcherTimer? _trayClickTimer;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -98,6 +100,7 @@ public partial class App : Application
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         SettingsWindow.PluginDrafts = services.SettingsHub;
+        SettingsWindow.TrayItems = () => _pluginTrayItems.Select(i => (i.Id, i.Label, i.Icon)).ToList();
         ActionRunner.Plugins = _plugins;
         _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
@@ -129,7 +132,41 @@ public partial class App : Application
             Visible = true,
         };
         _tray.MouseUp += (_, e) => { if (e.Button == WinForms.MouseButtons.Right) Dispatcher.InvokeAsync(ShowTrayMenu); };
-        _tray.DoubleClick += (_, _) => ShowSettings();
+        // MouseClick (unlike MouseUp) is suppressed for the second click of a double click.
+        _tray.MouseClick += (_, e) => { if (e.Button == WinForms.MouseButtons.Left) Dispatcher.InvokeAsync(OnTrayLeftClick); };
+        _tray.DoubleClick += (_, _) => Dispatcher.InvokeAsync(() => { _trayClickTimer?.Stop(); ShowSettings(); });
+    }
+
+    /// <summary>
+    /// Left click runs whatever the user picked (<see cref="AppConfig.TrayClick"/>). Opening settings happens at once since
+    /// a double click lands on the same window anyway; any other action waits out the double-click time first.
+    /// </summary>
+    private void OnTrayLeftClick()
+    {
+        var cmd = _store.Current.TrayClick;
+        if (string.IsNullOrWhiteSpace(cmd) || cmd == "settings") { ShowSettings(); return; }
+        if (_trayClickTimer == null)
+        {
+            _trayClickTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(WinForms.SystemInformation.DoubleClickTime) };
+            _trayClickTimer.Tick += (_, _) =>
+            {
+                _trayClickTimer.Stop();
+                if (!RunTrayCommand(_store.Current.TrayClick)) ShowSettings();
+            };
+        }
+        _trayClickTimer.Stop();
+        _trayClickTimer.Start();
+    }
+
+    /// <summary>"settings", "menu" or a plugin tray item id. False when nothing matches (e.g. the plugin was disabled).</summary>
+    private bool RunTrayCommand(string cmd)
+    {
+        if (cmd == "settings") { ShowSettings(); return true; }
+        if (cmd == "menu") { ShowTrayMenu(); return true; }
+        var item = _pluginTrayItems.FirstOrDefault(i => string.Equals(i.Id, cmd, StringComparison.OrdinalIgnoreCase));
+        if (item.Callback == null) { Log.Warn("tray command unknown: " + cmd); return false; }
+        try { item.Callback(); } catch (Exception ex) { Log.Error("tray command " + cmd, ex); }
+        return true;
     }
 
     /// <summary>The tray menu is PopBar's own styled ContextMenu (icons, rounded, theme-aware), rebuilt on every open.</summary>
@@ -280,9 +317,8 @@ public partial class App : Application
                 Dispatcher.InvokeAsync(() =>
                 {
                     if (string.IsNullOrEmpty(cmd)) { ShowSettings(); return; }
-                    var item = _pluginTrayItems.FirstOrDefault(i => string.Equals(i.Id, cmd, StringComparison.OrdinalIgnoreCase));
-                    if (item.Callback != null) { Log.Info("--run " + cmd); item.Callback(); }
-                    else Log.Warn("--run: unknown command " + cmd);
+                    Log.Info("--run " + cmd);
+                    RunTrayCommand(cmd);
                 });
             }
         }) { IsBackground = true, Name = "PopBar.ShowSignal" };

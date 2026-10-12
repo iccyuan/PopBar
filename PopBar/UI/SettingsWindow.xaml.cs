@@ -160,6 +160,10 @@ public partial class SettingsWindow : Window
             new("auto", "选中后自动显示"),
             new("key", "按键后显示"),
         };
+        // Built-in choices first, then whatever the loaded plugins put in the tray menu (same ids as `PopBar.exe --run <id>`).
+        var trayChoices = new List<KeyValuePair<string, string>> { new("settings", "打开设置"), new("menu", "打开托盘菜单") };
+        if (TrayItems != null) trayChoices.AddRange(TrayItems().Select(i => new KeyValuePair<string, string>(i.Id, i.Label)));
+        TrayClickCombo.ItemsSource = trayChoices;
         ShowKeyBox.GestureChanged += g => { _showKey = g; Changed(ShowKeyBox, new RoutedEventArgs()); };
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
@@ -241,6 +245,8 @@ public partial class SettingsWindow : Window
         {
             EnabledSw.IsChecked = c.Enabled;
             AutoStartSw.IsChecked = c.AutoStart;
+            TrayClickCombo.SelectedValue = c.TrayClick;
+            if (TrayClickCombo.SelectedIndex < 0) TrayClickCombo.SelectedIndex = 0;
             ShowModeCombo.SelectedValue = c.ShowMode;
             if (ShowModeCombo.SelectedIndex < 0) ShowModeCombo.SelectedIndex = 0;
             _showKey = string.IsNullOrWhiteSpace(c.ShowKey) ? "ctrl" : c.ShowKey;
@@ -287,6 +293,7 @@ public partial class SettingsWindow : Window
         {
             Enabled = EnabledSw.IsChecked == true,
             AutoStart = AutoStartSw.IsChecked == true,
+            TrayClick = TrayClickCombo.SelectedValue as string ?? "settings",
             ShowMode = ShowModeCombo.SelectedValue as string ?? "auto",
             ShowKey = _showKey,
             TriggerOnDrag = DragSw.IsChecked == true,
@@ -401,6 +408,8 @@ public partial class SettingsWindow : Window
 
     /// <summary>Set by the app: plugin settings drafts waiting for Save.</summary>
     internal static Plugins.SettingsHub? PluginDrafts;
+    /// <summary>Tray menu entries registered by plugins, offered as choices for the tray left-click action.</summary>
+    internal static Func<List<(string Id, string Label, string? Icon)>>? TrayItems;
 
     /// <summary>Chips under the AI service: what the selected protocol supports (declared by its provider).</summary>
     private void BuildLlmFeatures()
