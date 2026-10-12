@@ -242,18 +242,21 @@ internal sealed class PluginHost : IPluginHost
 
     public void CopyToClipboard(string text) => InputSender.CopyToClipboard(text);
     public void PasteText(string text, IntPtr targetWindow) => InputSender.PasteText(text, targetWindow);
-    public void ActivateWindow(IntPtr window) => ForceForeground(window);
+    public void ActivateWindow(IntPtr window) => ShowAndForeground(window);
 
+    /// <summary>A visible window of the process if it has one, else its main window hidden in the tray (see <see cref="Core.RunningApps"/>).</summary>
     public IntPtr FindWindowByProcess(string processName)
     {
-        IntPtr found = IntPtr.Zero;
+        IntPtr visible = IntPtr.Zero, hidden = IntPtr.Zero;
         EnumWindows((h, _) =>
         {
-            if (!IsWindowVisible(h)) return true;
-            if (string.Equals(GetWindowProcessName(h), processName, StringComparison.OrdinalIgnoreCase)) { found = h; return false; }
-            return true;
+            bool isVisible = IsWindowVisible(h);
+            if (isVisible ? visible != IntPtr.Zero : (hidden != IntPtr.Zero || !Core.RunningApps.IsTrayMainWindow(h))) return true;
+            if (!string.Equals(GetWindowProcessName(h), processName, StringComparison.OrdinalIgnoreCase)) return true;
+            if (isVisible) visible = h; else hidden = h;
+            return visible == IntPtr.Zero;
         }, IntPtr.Zero);
-        return found;
+        return visible != IntPtr.Zero ? visible : hidden;
     }
 
     public bool RegisterHotkey(string id, string gesture, Action callback) =>

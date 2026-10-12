@@ -338,6 +338,41 @@ internal static class NativeMethods
     [DllImport("kernel32.dll")]
     public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
 
+    public const uint GW_OWNER = 4;
+    public const int GWL_STYLE = -16;
+    public const long WS_CAPTION = 0x00C00000, WS_THICKFRAME = 0x00040000, WS_MINIMIZEBOX = 0x00020000;
+    public const int SW_SHOW = 5, SW_RESTORE = 9;
+    public const int DWMWA_CLOAKED = 14;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out int value, int size);
+
+    /// <summary>True for a top-level window that is or was on the user's taskbar: unowned, not a tool window, titled.</summary>
+    public static bool IsAppWindow(IntPtr hwnd)
+    {
+        if (GetWindow(hwnd, GW_OWNER) != IntPtr.Zero) return false;
+        if ((GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64() & WS_EX_TOOLWINDOW) != 0) return false;
+        return GetWindowTitle(hwnd).Length > 0;
+    }
+
+    /// <summary>Hidden by DWM (another virtual desktop, suspended UWP): shown nowhere even though IsWindowVisible says yes.</summary>
+    public static bool IsCloaked(IntPtr hwnd) => DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out int c, 4) == 0 && c != 0;
+
+    /// <summary>Make a window the user can type into: unhide a tray-hidden one, restore a minimised one, then bring it to front.</summary>
+    public static void ShowAndForeground(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !IsWindow(hwnd)) return;
+        if (!IsWindowVisible(hwnd)) ShowWindow(hwnd, SW_SHOW);
+        if (IsIconic(hwnd)) ShowWindow(hwnd, SW_RESTORE);
+        ForceForeground(hwnd);
+    }
+
     // ---------- helpers ----------
     public static string GetWindowClass(IntPtr hwnd)
     {
@@ -346,7 +381,10 @@ internal static class NativeMethods
         return n > 0 ? new string(buf, 0, n) : string.Empty;
     }
 
-    public static string GetWindowProcessName(IntPtr hwnd)
+    public static string GetWindowProcessName(IntPtr hwnd) => System.IO.Path.GetFileName(GetWindowProcessPath(hwnd));
+
+    /// <summary>Full path of the exe owning a window; empty when the process cannot be opened (e.g. elevated).</summary>
+    public static string GetWindowProcessPath(IntPtr hwnd)
     {
         GetWindowThreadProcessId(hwnd, out uint pid);
         if (pid == 0) return string.Empty;
@@ -356,8 +394,7 @@ internal static class NativeMethods
         {
             var buf = new char[1024];
             int size = buf.Length;
-            if (!QueryFullProcessImageName(h, 0, buf, ref size)) return string.Empty;
-            return System.IO.Path.GetFileName(new string(buf, 0, size));
+            return QueryFullProcessImageName(h, 0, buf, ref size) ? new string(buf, 0, size) : string.Empty;
         }
         finally { CloseHandle(h); }
     }

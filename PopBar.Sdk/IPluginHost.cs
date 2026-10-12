@@ -45,9 +45,9 @@ public interface IPluginHost
     void CopyToClipboard(string text);
     /// <summary>Replace the current selection of <paramref name="targetWindow"/> with text (clipboard is restored afterwards).</summary>
     void PasteText(string text, IntPtr targetWindow);
-    /// <summary>Bring a window to the foreground reliably.</summary>
+    /// <summary>Bring a window to the foreground reliably, unhiding (tray) or restoring (minimised) it first if needed.</summary>
     void ActivateWindow(IntPtr window);
-    /// <summary>First visible top-level window of a process (by exe name, e.g. "notepad.exe"), or IntPtr.Zero.</summary>
+    /// <summary>A visible top-level window of a process (by exe name, e.g. "notepad.exe"); failing that, its main window hidden in the tray; else IntPtr.Zero.</summary>
     IntPtr FindWindowByProcess(string processName);
 
     // ---- integration ----

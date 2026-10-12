@@ -60,7 +60,7 @@ public interface IHostUi
     /// </summary>
     FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240);
 
-    /// <summary>Processes that currently own a visible top-level window.</summary>
+    /// <summary>Programs the user would call running: one per exe with an application window on screen or hidden in the tray. Shell hosts and helper windows are filtered out; the label is the program's own description.</summary>
     IReadOnlyList<RunningApp> RunningApps();
 
     /// <summary>
