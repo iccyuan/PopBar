@@ -6,6 +6,7 @@
     <SolidColorBrush x:Key="BgBrush" Color="#F5F6FA"/>
     <SolidColorBrush x:Key="WindowBgBrush" Color="#F5F6FA"/>
     <SolidColorBrush x:Key="NavBrush" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="ContentBgBrush" Color="#F5F6FA"/>
     <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="BorderBrush" Color="#E5E7EB"/>
     <!-- cards and their row dividers: a hairline barely darker than the surface, not a frame -->

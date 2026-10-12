@@ -131,7 +131,8 @@ internal static class ThemeManager
             Set("BgBrush", "#FF15181F");
             Set("WindowBgBrush", blur ? "#00000000" : "#FF15181F");
             Set("NavBrush", blur ? "#8C1B1F28" : "#FF1B1F28");
-            Set("CardBrush", "#FF1F2430");
+            Set("ContentBgBrush", blur ? "#9915181F" : "#FF15181F");   // settings content: calmer than bare acrylic
+            Set("CardBrush", blur ? "#B81F2430" : "#FF1F2430");        // cards stay translucent so the blur reads through them
             Set("BorderBrush", "#FF2D3442");
             Set("CardBorderBrush", "#FF272D39");
             Set("TextBrush", "#FFF3F4F6");
@@ -158,7 +159,8 @@ internal static class ThemeManager
             Set("BgBrush", "#FFF5F6FA");
             Set("WindowBgBrush", blur ? "#00000000" : "#FFF5F6FA");
             Set("NavBrush", blur ? "#8CFFFFFF" : "#FFFFFFFF");
-            Set("CardBrush", "#FFFFFFFF");
+            Set("ContentBgBrush", blur ? "#99F5F6FA" : "#FFF5F6FA");
+            Set("CardBrush", blur ? "#B8FFFFFF" : "#FFFFFFFF");
             Set("BorderBrush", "#FFE5E7EB");
             Set("CardBorderBrush", "#FFEEF0F3");
             Set("TextBrush", "#FF111827");
