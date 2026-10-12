@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using PopBar.Core;
@@ -83,14 +84,35 @@ internal static class Frost
         if (d is not Border b || e.NewValue is not true) return;
         // A popup's window is placed on screen only after its content is laid out (until then PointToScreen is
         // relative to a window parked at 0,0), and a tooltip or menu may be nudged again to stay on the monitor.
-        // So while the content is visible, every layout pass re-checks where the border really is.
+        // Moving the window does not re-run layout, so the popup's own HWND is watched: every WM_WINDOWPOSCHANGED
+        // re-checks where the border really is (plus layout passes, for size changes).
+        const int WM_WINDOWPOSCHANGED = 0x0047;
+        HwndSource? hooked = null;
+        HwndSourceHook hook = (IntPtr _, int msg, IntPtr _, IntPtr _, ref bool _) =>
+        {
+            if (msg == WM_WINDOWPOSCHANGED) b.Dispatcher.InvokeAsync(() => Apply(b));
+            return IntPtr.Zero;
+        };
         EventHandler onLayout = (_, _) => Apply(b);
-        b.IsVisibleChanged += (_, _) =>
+        void VisibilityChanged()
         {
             b.LayoutUpdated -= onLayout;
+            hooked?.RemoveHook(hook);
+            hooked = null;
             b.SetValue(LastRectProperty, Rect.Empty);
-            if (b.IsVisible) { b.LayoutUpdated += onLayout; b.Dispatcher.InvokeAsync(() => Apply(b), System.Windows.Threading.DispatcherPriority.Loaded); }
-        };
+            if (!b.IsVisible) return;
+            b.LayoutUpdated += onLayout;
+            b.Dispatcher.InvokeAsync(() =>
+            {
+                if (!b.IsVisible) return;
+                if (PresentationSource.FromVisual(b) is HwndSource hs) { hooked = hs; hs.AddHook(hook); }
+                Apply(b);
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        b.IsVisibleChanged += (_, _) => VisibilityChanged();
+        // A template instantiated inside an already open popup (a menu built on first open) starts out visible:
+        // there will be no IsVisibleChanged for this first showing.
+        if (b.IsVisible) VisibilityChanged();
     }
 
     /// <summary>Show the slice of the snapshot under the border; without a usable snapshot fall back to the solid popup colour.</summary>
