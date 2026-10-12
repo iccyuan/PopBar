@@ -174,8 +174,8 @@ public partial class App : Application
     /// <summary>The tray menu is PopBar's own styled ContextMenu (icons, rounded, theme-aware), rebuilt on every open.</summary>
     private void ShowTrayMenu()
     {
-        // Clicking the icon while the menu is open closes it (outside click) a moment before this runs: that click
-        // meant "close", so do not reopen. Same when the menu is somehow still open: toggle it off.
+        // Clicking the icon while the menu is open closes it (outside click, on the mouse-down) a moment before this runs:
+        // that click meant "close", so do not reopen. Same when the menu is somehow still open: toggle it off.
         if (_trayMenu is { IsOpen: true }) { _trayMenu.IsOpen = false; return; }
         if ((DateTime.UtcNow - _trayMenuClosedAt).TotalMilliseconds < 400) return;
         _trayAnchor ??= new Window
@@ -189,7 +189,12 @@ public partial class App : Application
         _trayAnchor.Show();
         _trayAnchor.Activate();
         menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
-        menu.Closed += (_, _) => { _trayAnchor.Hide(); _trayMenuClosedAt = DateTime.UtcNow; if (ReferenceEquals(_trayMenu, menu)) _trayMenu = null; };
+        // IsOpen flips to false the instant the menu is dismissed; the Closed event only fires after the fade-out,
+        // which is later than the tray's mouse-up, so the close time is taken from the property change.
+        var isOpen = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.ContextMenu.IsOpenProperty, typeof(System.Windows.Controls.ContextMenu));
+        EventHandler onIsOpen = (_, _) => { if (!menu.IsOpen) _trayMenuClosedAt = DateTime.UtcNow; };
+        isOpen.AddValueChanged(menu, onIsOpen);
+        menu.Closed += (_, _) => { isOpen.RemoveValueChanged(menu, onIsOpen); _trayAnchor.Hide(); if (ReferenceEquals(_trayMenu, menu)) _trayMenu = null; };
         _trayMenu = menu;
         menu.IsOpen = true;
     }
