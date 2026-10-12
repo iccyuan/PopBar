@@ -199,7 +199,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         SetBrush("BarFgBrush", light ? "#1F2937" : "#F1F3F7");
         SetBrush("BarHoverBrush", light ? "#18000000" : "#2EFFFFFF");
         SetBrush("BarPressedBrush", light ? "#26000000" : "#45FFFFFF");
-        SetBrush("BarSepBrush", light ? "#1A000000" : "#22FFFFFF");
+        SetBrush("BarSepBrush", light ? "#24000000" : "#30FFFFFF");
         Shadow.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(light ? "#FFFFFFFF" : "#FF1E232D"));
     }
 
@@ -330,11 +330,14 @@ public partial class PopupWindow : Window, IPopupPresenter
         var fg = (Brush)Resources["BarFgBrush"];
         if (Buttons.Children.Count > 0)
         {
-            Buttons.Children.Add(new Rectangle
+            // Hairline that fades out at both ends, so it reads as a soft gap rather than a drawn rule.
+            var sep = ((SolidColorBrush)Resources["BarSepBrush"]).Color;
+            var fade = new LinearGradientBrush(new GradientStopCollection
             {
-                Width = 1, Margin = new Thickness(3, 9, 3, 9),
-                Fill = (Brush)Resources["BarSepBrush"],
-            });
+                new(Color.FromArgb(0, sep.R, sep.G, sep.B), 0), new(sep, 0.35), new(sep, 0.65), new(Color.FromArgb(0, sep.R, sep.G, sep.B), 1),
+            }, new Point(0, 0), new Point(0, 1));
+            fade.Freeze();
+            Buttons.Children.Add(new Rectangle { Width = 1, Margin = new Thickness(3, 7, 3, 7), Fill = fade, SnapsToDevicePixels = true });
         }
 
         // 16 DIP = 24 px at 150 % DPI, i.e. the icon's native grid: pixel-crisp strokes.
@@ -369,7 +372,20 @@ public partial class PopupWindow : Window, IPopupPresenter
         };
         if (compact) btn.Padding = new Thickness(7, 0, 7, 0);
         btn.Click += (_, _) => onClick();
+        // The hover plate has its own edges; the hairlines touching it step aside while it shows.
+        btn.MouseEnter += (_, _) => FadeNeighbourSeparators(btn, 0);
+        btn.MouseLeave += (_, _) => FadeNeighbourSeparators(btn, 1);
         Buttons.Children.Add(btn);
+    }
+
+    private void FadeNeighbourSeparators(Button btn, double to)
+    {
+        int i = Buttons.Children.IndexOf(btn);
+        foreach (int j in new[] { i - 1, i + 1 })
+        {
+            if (j < 0 || j >= Buttons.Children.Count || Buttons.Children[j] is not Rectangle r) continue;
+            r.BeginAnimation(OpacityProperty, new DoubleAnimation(to, TimeSpan.FromMilliseconds(to == 0 ? 90 : 160)) { EasingFunction = new SineEase() });
+        }
     }
 
     private void Run(ActionDefinition a)
