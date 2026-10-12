@@ -325,19 +325,31 @@ public partial class PanelWindow : Window, IPanel
         if (busy == _busy) return;
         _busy = busy;
         var fade = new DoubleAnimation(busy ? 1 : 0, TimeSpan.FromMilliseconds(busy ? 320 : 420)) { EasingFunction = new SineEase() };
-        if (!busy) fade.Completed += (_, _) => { if (!_busy) BusyX.BeginAnimation(TranslateTransform.XProperty, null); };
+        if (!busy) fade.Completed += (_, _) => { if (!_busy) StopFlow(); };
         BusyTrack.BeginAnimation(OpacityProperty, fade);
         if (busy) StartFlow();
     }
 
     /// <summary>
-    /// Slide the repeating gradient by one full period at constant speed, forever: the colours drift along the edge
-    /// seamlessly, like iOS's glow, instead of a highlight racing across and snapping back.
+    /// Drift each repeating gradient by one full period at constant speed, forever, so the colours slide along the edge
+    /// seamlessly; the halo goes the other way, slower, and breathes a little. The interference of the two makes the
+    /// light swell and fade in places like iOS's glow, with nothing racing across or snapping back.
     /// </summary>
     private void StartFlow()
     {
-        var run = new DoubleAnimation(-1, 0, TimeSpan.FromSeconds(3)) { RepeatBehavior = RepeatBehavior.Forever };
-        BusyX.BeginAnimation(TranslateTransform.XProperty, run);
+        BusyX.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(-1, 0, TimeSpan.FromSeconds(4.5)) { RepeatBehavior = RepeatBehavior.Forever });
+        BusyGlowX.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(0, -1, TimeSpan.FromSeconds(7)) { RepeatBehavior = RepeatBehavior.Forever });
+        BusyGlow.BeginAnimation(OpacityProperty, new DoubleAnimation(0.32, 0.7, TimeSpan.FromSeconds(1.6))
+        {
+            AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        });
+    }
+
+    private void StopFlow()
+    {
+        BusyX.BeginAnimation(TranslateTransform.XProperty, null);
+        BusyGlowX.BeginAnimation(TranslateTransform.XProperty, null);
+        BusyGlow.BeginAnimation(OpacityProperty, null);
     }
 
     /// <summary>

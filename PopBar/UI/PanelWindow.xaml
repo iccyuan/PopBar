@@ -82,23 +82,41 @@
       <Grid x:Name="ShellBody">
         <!-- busy indicator: a thin line hugging the top edge, clipped to the frame's rounded corners so it bends with them;
              faint track with a gradient "comet" sweeping across (animated from code) -->
-        <Grid x:Name="BusyTrack" Height="3" VerticalAlignment="Top" Opacity="0" IsHitTestVisible="False" SizeChanged="BusyTrack_SizeChanged">
+        <Grid x:Name="BusyTrack" Height="20" VerticalAlignment="Top" Opacity="0" IsHitTestVisible="False" SizeChanged="BusyTrack_SizeChanged">
             <Grid.Clip>
                 <RectangleGeometry x:Name="BusyClip" RadiusX="12" RadiusY="12" Rect="0,0,0,24"/>
             </Grid.Clip>
-            <!-- iOS-style glow: the whole line is a soft multicolour gradient that flows continuously (the brush repeats and
-                 its offset is animated from code), so there is no comet and no visible restart; same in both themes -->
-            <Border x:Name="BusyFlow">
+            <!-- iOS-style glow along the top edge: a soft blurred halo bleeding into the panel plus a crisp line on the edge.
+                 Both are repeating multicolour gradients whose offsets drift from code, at different speeds and in opposite
+                 directions, and the halo breathes - so the light looks alive instead of a rainbow bar scrolling past. -->
+            <Border x:Name="BusyGlow" Height="7" VerticalAlignment="Top" Opacity="0.5">
+                <Border.Effect>
+                    <BlurEffect Radius="16" KernelType="Gaussian" RenderingBias="Performance"/>
+                </Border.Effect>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" SpreadMethod="Repeat">
+                        <LinearGradientBrush.RelativeTransform>
+                            <TranslateTransform x:Name="BusyGlowX"/>
+                        </LinearGradientBrush.RelativeTransform>
+                        <GradientStop Color="#FF60A5FA" Offset="0"/>
+                        <GradientStop Color="#FFA78BFA" Offset="0.3"/>
+                        <GradientStop Color="#FFF472B6" Offset="0.55"/>
+                        <GradientStop Color="#FFFB923C" Offset="0.8"/>
+                        <GradientStop Color="#FF60A5FA" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border x:Name="BusyFlow" Height="2.5" VerticalAlignment="Top">
                 <Border.Background>
                     <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" SpreadMethod="Repeat">
                         <LinearGradientBrush.RelativeTransform>
                             <TranslateTransform x:Name="BusyX"/>
                         </LinearGradientBrush.RelativeTransform>
-                        <GradientStop Color="#FF22D3EE" Offset="0"/>
-                        <GradientStop Color="#FF3B82F6" Offset="0.25"/>
-                        <GradientStop Color="#FF8B5CF6" Offset="0.5"/>
-                        <GradientStop Color="#FFEC4899" Offset="0.75"/>
-                        <GradientStop Color="#FF22D3EE" Offset="1"/>
+                        <GradientStop Color="#FF38BDF8" Offset="0"/>
+                        <GradientStop Color="#FF818CF8" Offset="0.3"/>
+                        <GradientStop Color="#FFF472B6" Offset="0.55"/>
+                        <GradientStop Color="#FFFDBA74" Offset="0.8"/>
+                        <GradientStop Color="#FF38BDF8" Offset="1"/>
                     </LinearGradientBrush>
                 </Border.Background>
             </Border>
