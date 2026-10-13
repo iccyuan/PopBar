@@ -81,6 +81,14 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 5;
                         migrated = true;
                     }
+                    if (cfg.ConfigVersion < 6)
+                    {
+                        // v0.4: the bar waits for the reveal key by default, and the theme follows the system again.
+                        cfg.ShowMode = "key";
+                        cfg.Theme = "system";
+                        cfg.ConfigVersion = 6;
+                        migrated = true;
+                    }
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();

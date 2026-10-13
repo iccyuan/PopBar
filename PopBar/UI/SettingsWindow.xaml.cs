@@ -157,8 +157,8 @@ public partial class SettingsWindow : Window
         };
         ShowModeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
-            new("auto", "选中后自动显示"),
             new("key", "按键后显示"),
+            new("auto", "选中后自动显示"),
         };
         // Built-in choices first, then whatever the loaded plugins put in the tray menu (same ids as `PopBar.exe --run <id>`).
         var trayChoices = new List<KeyValuePair<string, string>> { new("settings", "打开设置"), new("menu", "打开托盘菜单") };
@@ -294,7 +294,7 @@ public partial class SettingsWindow : Window
             Enabled = EnabledSw.IsChecked == true,
             AutoStart = AutoStartSw.IsChecked == true,
             TrayClick = TrayClickCombo.SelectedValue as string ?? "settings",
-            ShowMode = ShowModeCombo.SelectedValue as string ?? "auto",
+            ShowMode = ShowModeCombo.SelectedValue as string ?? "key",
             ShowKey = _showKey,
             TriggerOnDrag = DragSw.IsChecked == true,
             TriggerOnDoubleClick = DblSw.IsChecked == true,

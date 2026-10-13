@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 5;
+    public int ConfigVersion { get; set; } = 6;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
@@ -17,8 +17,8 @@ public sealed class AppConfig
     /// </summary>
     public string TrayClick { get; set; } = "settings";
 
-    /// <summary>"auto" = bar appears right after a selection; "key" = only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds).</summary>
-    public string ShowMode { get; set; } = "auto";
+    /// <summary>"key" (default) = bar appears only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds); "auto" = right after a selection.</summary>
+    public string ShowMode { get; set; } = "key";
     /// <summary>ctrl | alt | win — the key that reveals the bar in "key" mode.</summary>
     public string ShowKey { get; set; } = "ctrl";
 
@@ -33,7 +33,7 @@ public sealed class AppConfig
     public int ShowDelayMs { get; set; } = 60;
     public int MaxTextLength { get; set; } = 10000;
 
-    /// <summary>"dark" or "light".</summary>
+    /// <summary>"system" (default), "dark" or "light".</summary>
     public string Theme { get; set; } = "system";
     public bool ShowLabels { get; set; } = true;
     /// <summary>Bar buttons shown at once; the rest fold behind a "更多" button. 0 = no limit.</summary>
