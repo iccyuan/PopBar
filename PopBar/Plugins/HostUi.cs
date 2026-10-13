@@ -105,6 +105,8 @@ internal sealed class HostUi : IHostUi
         else MessageBox.Show(message, title ?? "PopBar", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
+    public System.Windows.Media.Imaging.BitmapSource? BlurImage(System.Windows.Media.Imaging.BitmapSource source) => FrostedGlass.Blur(source);
+
     public FrameworkElement Icon(string name, double size = 16, Brush? brush = null)
     {
         var img = new IconImage { Icon = name, Size = size };

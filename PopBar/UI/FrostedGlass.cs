@@ -90,6 +90,43 @@ internal static class FrostedGlass
         }
     }
 
+    /// <summary>
+    /// Blurred, down-scaled copy of an image already in hand (e.g. a frozen screenshot an overlay is drawn over), same
+    /// framing as the source. There is no screen beyond its edges to pad with, so the rim is filled with a mirror of the
+    /// edge: the blur then does not fade to transparent at the borders.
+    /// </summary>
+    public static BitmapSource? Blur(BitmapSource source, double downscale = 0.5, double radius = 18)
+    {
+        try
+        {
+            int sw = Math.Max(1, (int)Math.Ceiling(source.PixelWidth * downscale)), sh = Math.Max(1, (int)Math.Ceiling(source.PixelHeight * downscale));
+            int pad = (int)Math.Ceiling(radius * 1.5);
+            var mirror = new ImageBrush(source)
+            {
+                TileMode = TileMode.FlipXY, Stretch = Stretch.Fill,
+                ViewportUnits = BrushMappingMode.Absolute, Viewport = new Rect(pad, pad, sw, sh),
+            };
+            var fill = new System.Windows.Shapes.Rectangle
+            {
+                Width = sw + 2 * pad, Height = sh + 2 * pad, Fill = mirror,
+                Effect = new BlurEffect { Radius = radius, KernelType = KernelType.Gaussian, RenderingBias = RenderingBias.Performance },
+            };
+            RenderOptions.SetBitmapScalingMode(fill, BitmapScalingMode.Linear);
+            fill.Measure(new Size(fill.Width, fill.Height));
+            fill.Arrange(new Rect(0, 0, fill.Width, fill.Height));
+            var rtb = new RenderTargetBitmap(sw + 2 * pad, sh + 2 * pad, 96, 96, PixelFormats.Pbgra32);
+            rtb.Render(fill);
+            var cropped = new CroppedBitmap(rtb, new Int32Rect(pad, pad, sw, sh));
+            cropped.Freeze();
+            return cropped;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("frosted blur failed: " + ex.Message);
+            return null;
+        }
+    }
+
     /// <summary>Convenience: an ImageBrush ready for a Border background (null when capture failed).</summary>
     public static ImageBrush? Brush(int x, int y, int w, int h, double radius = 36)
     {

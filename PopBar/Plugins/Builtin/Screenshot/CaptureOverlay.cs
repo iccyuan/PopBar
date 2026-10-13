@@ -38,6 +38,8 @@ internal sealed class CaptureOverlay : Window
 
     private readonly Canvas _root = new();
     private readonly Image _bg = new();
+    /// <summary>Blurred copy of <see cref="_screen"/> behind the toolbar and style bar; null = plain cards.</summary>
+    private readonly BitmapSource? _glass;
     private readonly Path _dim = new() { Fill = new SolidColorBrush(Color.FromArgb(0x78, 0, 0, 0)), IsHitTestVisible = false };
     private readonly Rectangle _border = new() { StrokeThickness = 1.5, IsHitTestVisible = false, Visibility = Visibility.Collapsed };
     private readonly List<Rectangle> _handles = new();
@@ -87,6 +89,7 @@ internal sealed class CaptureOverlay : Window
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
 
         _bg.Source = screen;
+        _glass = host.Ui.BlurImage(screen); // before the bars are built: they pick their tint by whether it exists
         RenderOptions.SetBitmapScalingMode(_bg, BitmapScalingMode.NearestNeighbor);
         _root.Children.Add(_bg);
         _root.Children.Add(_dim);
@@ -545,18 +548,36 @@ internal sealed class CaptureOverlay : Window
         RefreshStyleBar();
     }
 
+    /// <summary>
+    /// Frosted bar: the outer border shows the blurred screenshot under it (see <see cref="PlaceGlass"/>), the inner one
+    /// lays the popup tint over that and holds the buttons. Without a blurred copy it is a plain card.
+    /// </summary>
     private void StyleChrome(Border b, UIElement child)
     {
-        b.Child = child;
-        b.Padding = new Thickness(6);
+        b.Child = new Border { CornerRadius = new CornerRadius(11), Padding = new Thickness(6), Child = child };
+        ((Border)b.Child).SetResourceReference(Border.BackgroundProperty, _glass != null ? "PopupTintBrush" : "CardBrush");
         b.CornerRadius = new CornerRadius(12);
-        b.Background = Res("CardBrush", Brushes.White);
+        b.Background = Brushes.Transparent;
         b.BorderBrush = Res("BorderBrush", Brushes.Gainsboro);
         b.BorderThickness = new Thickness(1);
-        b.Effect = new DropShadowEffect { BlurRadius = 22, ShadowDepth = 4, Direction = 270, Opacity = 0.22 };
+        b.Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Direction = 270, Opacity = 0.18 };
         b.Visibility = Visibility.Collapsed;
         b.Cursor = Cursors.Arrow;
         RenderOptions.SetClearTypeHint(b, ClearTypeHint.Enabled);
+    }
+
+    /// <summary>Point a bar's background at the part of the blurred screenshot it covers.</summary>
+    private void PlaceGlass(Border bar, double x, double y)
+    {
+        if (_glass == null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        var size = bar.DesiredSize;
+        var brush = new ImageBrush(_glass)
+        {
+            Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+            Viewbox = new Rect(x / Bounds.Width, y / Bounds.Height, size.Width / Bounds.Width, size.Height / Bounds.Height),
+        };
+        brush.Freeze();
+        bar.Background = brush;
     }
 
     private void RefreshStyleBar()
@@ -698,11 +719,15 @@ internal sealed class CaptureOverlay : Window
             y = _sel.Top - ts.Height - 8 - styleH;
             if (y < 4) y = _sel.Bottom - ts.Height - 8 - styleH; // inside the selection as a last resort
         }
-        Canvas.SetLeft(_toolbar, x); Canvas.SetTop(_toolbar, below ? y : y + styleH);
+        double toolbarY = below ? y : y + styleH;
+        Canvas.SetLeft(_toolbar, x); Canvas.SetTop(_toolbar, toolbarY);
+        PlaceGlass(_toolbar, x, toolbarY);
         if (_styleBar.Visibility == Visibility.Visible)
         {
+            double styleY = below ? y + ts.Height + 6 : y;
             Canvas.SetLeft(_styleBar, x);
-            Canvas.SetTop(_styleBar, below ? y + ts.Height + 6 : y);
+            Canvas.SetTop(_styleBar, styleY);
+            PlaceGlass(_styleBar, x, styleY);
         }
     }
 

@@ -45,6 +45,13 @@ public interface IHostUi
     /// <summary>Simple notice.</summary>
     void Alert(string message, string? title = null);
 
+    /// <summary>
+    /// Gaussian-blurred copy of <paramref name="source"/> (at reduced resolution, same framing) for frosted chrome over
+    /// an image you already show, such as a toolbar on a screenshot overlay: paint it with an ImageBrush whose Viewbox
+    /// is the chrome's rect relative to the image, under the "PopupTintBrush" resource. Null if blurring failed.
+    /// </summary>
+    System.Windows.Media.Imaging.BitmapSource? BlurImage(System.Windows.Media.Imaging.BitmapSource source);
+
     /// <summary>Crisp line icon from PopBar's icon set (same control the bar uses).</summary>
     FrameworkElement Icon(string name, double size = 16, Brush? brush = null);
 
