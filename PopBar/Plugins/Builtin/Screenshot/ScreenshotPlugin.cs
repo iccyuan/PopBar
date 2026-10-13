@@ -13,7 +13,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 {
     public sealed class Settings
     {
-        public string CaptureHotkey { get; set; } = "F1";
+        public string CaptureHotkey { get; set; } = DefaultCaptureHotkey;
         public string PinHotkey { get; set; } = "F3";
         public string SaveDir { get; set; } = "";
         public bool ShowMagnifier { get; set; } = true;
@@ -38,6 +38,11 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
         public string KeyText { get; set; } = "T";
     }
 
+    /// <summary>Same Ctrl+Alt family as OCR / QR / screen translate; F1 is taken by Snipaste and similar tools on many machines.</summary>
+    public const string DefaultCaptureHotkey = "Ctrl+Alt+A";
+    /// <summary>The default before 0.4; a stored value equal to it is moved to <see cref="DefaultCaptureHotkey"/> once.</summary>
+    private const string LegacyCaptureHotkey = "F1";
+
     public static string DefaultSaveDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "PopBar");
 
     private IPluginHost _host = null!;
@@ -53,6 +58,11 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
     {
         _host = host;
         _cfg = host.Storage.Get<Settings>();
+        if (string.Equals(_cfg.CaptureHotkey, LegacyCaptureHotkey, StringComparison.OrdinalIgnoreCase))
+        {
+            _cfg.CaptureHotkey = DefaultCaptureHotkey;
+            host.Storage.Set(_cfg);
+        }
         host.AddTrayMenuItem("capture", "截图", Capture, "crop");
         host.AddTrayMenuItem("pin", "贴图（剪贴板）", PinClipboard, "pin");
         RegisterHotkeys();
