@@ -291,8 +291,48 @@ public partial class PanelWindow : Window, IPanel
         BadgeBox.Visibility = string.IsNullOrWhiteSpace(badge) ? Visibility.Collapsed : Visibility.Visible;
         BadgeBox.ToolTip = badge;
     }
-    public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); ShowTextArea(); });
-    public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); ShowTextArea(); });
+    public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); ShowTextArea(); if (text.Length > 0) EndThinking(); });
+    public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); ShowTextArea(); if (text.Length > 0) EndThinking(); });
+
+    public void AppendThinking(string text) => Ui(() =>
+    {
+        if (text.Length == 0) return;
+        if (ThinkBox.Visibility != Visibility.Visible)
+        {
+            ThinkBox.Visibility = Visibility.Visible;
+            _thinkStarted = DateTime.UtcNow;
+            _thinking = true;
+            SetThinkOpen(true);
+        }
+        ThinkText.AppendText(text);
+        ThinkText.ScrollToEnd();
+    });
+
+    private bool _thinking, _thinkToggled;
+    private DateTime _thinkStarted;
+
+    /// <summary>The answer has started: stamp how long the model thought and fold the block, unless the user opened / closed it themselves.</summary>
+    private void EndThinking()
+    {
+        if (!_thinking) return;
+        _thinking = false;
+        var secs = Math.Max(1, (int)Math.Round((DateTime.UtcNow - _thinkStarted).TotalSeconds));
+        ThinkHeader.Text = $"已思考 {secs} 秒";
+        if (!_thinkToggled) SetThinkOpen(false);
+    }
+
+    private void SetThinkOpen(bool open)
+    {
+        ThinkBody.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+        ThinkChevron.Icon = open ? "chevron-down" : "chevron-right";
+        ThinkToggle.ToolTip = open ? "收起思考过程" : "展开思考过程";
+    }
+
+    private void ThinkToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _thinkToggled = true;
+        SetThinkOpen(ThinkBody.Visibility != Visibility.Visible);
+    }
 
     /// <summary>The text area hides while an error is the only content (no blank block above the red box) and returns with text.</summary>
     private void ShowTextArea()
@@ -309,13 +349,14 @@ public partial class PanelWindow : Window, IPanel
         if (has)
         {
             SetBusyCore(false);
+            EndThinking();
             StatusText.Text = "";
             if (ResultBox.Text.Length == 0 && TextArea.Visibility == Visibility.Visible) TextArea.Visibility = Visibility.Collapsed;
         }
         else ShowTextArea();
     });
 
-    public void SetBusy(bool busy) => Ui(() => SetBusyCore(busy));
+    public void SetBusy(bool busy) => Ui(() => { SetBusyCore(busy); if (!busy) EndThinking(); });
 
     private bool _busy;
 

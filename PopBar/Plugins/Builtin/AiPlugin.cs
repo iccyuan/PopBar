@@ -26,6 +26,8 @@ public sealed class AiPlugin : IPopBarPlugin
         public int MaxTokens { get; set; } = 2048;
         /// <summary>Show the answer as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
+        /// <summary>Ask the model to think first; its reasoning shows in a foldable block above the answer.</summary>
+        public bool Thinking { get; set; }
         /// <summary>Model override for this plugin; empty = the default from the service settings.</summary>
         public string Model { get; set; } = "";
     }
@@ -103,11 +105,28 @@ public sealed class AiPlugin : IPopBarPlugin
                 Effort = _cfg.Effort,
                 MaxTokens = _cfg.MaxTokens,
                 Model = _cfg.Model,
+                Thinking = _cfg.Thinking,
             };
             if (_cfg.Stream)
-                await foreach (var chunk in _host.Llm.StreamAsync(req, linked.Token)) panel.AppendText(chunk);
+            {
+                bool? wasThinking = null;
+                await foreach (var chunk in _host.Llm.StreamChunksAsync(req, linked.Token))
+                {
+                    if (chunk.IsThinking != wasThinking) panel.SetStatus(chunk.IsThinking ? "思考中…" : "生成中…");
+                    wasThinking = chunk.IsThinking;
+                    if (chunk.IsThinking) panel.AppendThinking(chunk.Text);
+                    else panel.AppendText(chunk.Text);
+                }
+            }
             else
-                panel.SetText((await _host.Llm.CompleteAsync(req, linked.Token)).Trim());
+            {
+                var thinking = new System.Text.StringBuilder();
+                var answer = new System.Text.StringBuilder();
+                await foreach (var chunk in _host.Llm.StreamChunksAsync(req, linked.Token))
+                    (chunk.IsThinking ? thinking : answer).Append(chunk.Text);
+                if (thinking.Length > 0) panel.AppendThinking(thinking.ToString().Trim());
+                panel.SetText(answer.ToString().Trim());
+            }
             panel.SetStatus("");
         }
         catch (OperationCanceledException) { }
@@ -175,6 +194,7 @@ public sealed class AiPlugin : IPopBarPlugin
                 Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型"),
                 Form.Row("回答深度", Form.Combo(new[] { ("low", "快（low）"), ("medium", "中（medium）"), ("high", "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
                 Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示"),
+                Form.Row("思考", Form.Toggle(d.Thinking, v => { d.Thinking = v; Changed(); }), "先推理再回答，思考过程显示在答案上方，可收起"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),

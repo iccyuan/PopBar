@@ -425,6 +425,7 @@ public partial class SettingsWindow : Window
             (Sdk.LlmFeatures.SystemPrompt, "系统提示词", "message-square", "支持为请求设置系统提示（角色、口吻）"),
             (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "支持 low / medium / high 推理深度"),
             (Sdk.LlmFeatures.ModelList, "获取模型列表", "search", "可从接口拉取可用模型"),
+            (Sdk.LlmFeatures.Thinking, "思考过程", "sparkles", "可开关思考，并显示模型的推理过程"),
         })
         {
             bool on = provider.Features.HasFlag(flag);

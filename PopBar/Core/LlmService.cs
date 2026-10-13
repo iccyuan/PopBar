@@ -73,11 +73,17 @@ internal sealed class LlmService : ILlmService
         return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model.Trim(), _http);
     }
 
-    public IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default)
+    public async IAsyncEnumerable<string> StreamAsync(LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var c in StreamChunksAsync(request, ct))
+            if (!c.IsThinking) yield return c.Text;
+    }
+
+    public IAsyncEnumerable<LlmChunk> StreamChunksAsync(LlmRequest request, CancellationToken ct = default)
     {
         var p = Current ?? throw new InvalidOperationException($"未知的模型提供商“{ProviderId}”，请在 设置 → 插件 → AI 模型服务 重新选择。");
         if (!IsConfigured) throw new InvalidOperationException("尚未配置 AI 模型，请在 设置 → 插件 → AI 模型服务 中填写。");
-        return p.StreamAsync(Resolve(p, request.Model), request, ct);
+        return p.StreamChunksAsync(Resolve(p, request.Model), request, ct);
     }
 
     public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)

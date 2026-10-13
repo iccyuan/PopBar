@@ -22,8 +22,11 @@ public interface ILlmService
     /// <summary>Register a provider so it appears in the settings "协议" list. Call from <c>IPopBarPlugin.Initialize</c>.</summary>
     void RegisterProvider(ILlmProvider provider);
 
-    /// <summary>Stream the assistant reply as text chunks.</summary>
+    /// <summary>Stream the assistant reply as text chunks (the answer only; thinking is dropped).</summary>
     IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default);
+
+    /// <summary>Stream the reply with thinking and answer told apart (<see cref="LlmChunk.IsThinking"/>).</summary>
+    IAsyncEnumerable<LlmChunk> StreamChunksAsync(LlmRequest request, CancellationToken ct = default);
 
     /// <summary>Model ids the configured backend offers.</summary>
     Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default);
@@ -58,8 +61,19 @@ public interface ILlmProvider
     string? Hint { get; }
 
     IAsyncEnumerable<string> StreamAsync(LlmConnection connection, LlmRequest request, CancellationToken ct);
+    /// <summary>
+    /// Thinking and answer as separate chunks. Override when the backend streams its reasoning (and declare
+    /// <see cref="LlmFeatures.Thinking"/>); the default treats everything from <see cref="StreamAsync"/> as answer.
+    /// </summary>
+    async IAsyncEnumerable<LlmChunk> StreamChunksAsync(LlmConnection connection, LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await foreach (var s in StreamAsync(connection, request, ct)) yield return new LlmChunk(s);
+    }
     Task<IReadOnlyList<string>> ListModelsAsync(LlmConnection connection, CancellationToken ct);
 }
+
+/// <summary>A piece of the reply: answer text, or (with <see cref="IsThinking"/>) the model's reasoning before it.</summary>
+public readonly record struct LlmChunk(string Text, bool IsThinking = false);
 
 /// <summary>Capabilities a model backend declares.</summary>
 [Flags]
@@ -74,6 +88,8 @@ public enum LlmFeatures
     Effort = 4,
     /// <summary>Implements <see cref="ILlmProvider.ListModelsAsync"/>.</summary>
     ModelList = 8,
+    /// <summary>Honours <see cref="LlmRequest.Thinking"/> and streams the reasoning as thinking chunks.</summary>
+    Thinking = 16,
 }
 
 /// <summary>Resolved connection settings handed to a provider (base URL already defaulted).</summary>
@@ -88,4 +104,6 @@ public sealed class LlmRequest
     public int MaxTokens { get; init; } = 4096;
     /// <summary>"low" | "medium" | "high" - reasoning effort where the backend supports it.</summary>
     public string Effort { get; init; } = "low";
+    /// <summary>Ask the model to think before answering, where the backend can switch it on. Reasoning models may think regardless.</summary>
+    public bool Thinking { get; init; }
 }

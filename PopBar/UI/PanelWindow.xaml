@@ -184,6 +184,39 @@
                     </Grid>
                 </Border>
                 <ContentControl x:Name="CustomHost" Visibility="Collapsed" Focusable="False"/>
+                <!-- model reasoning: open while it streams, folds once the answer starts; the header toggles it -->
+                <StackPanel x:Name="ThinkBox" Visibility="Collapsed" Margin="0,0,0,8">
+                    <Button x:Name="ThinkToggle" Click="ThinkToggle_Click" HorizontalAlignment="Left" Cursor="Hand" Focusable="False" Margin="-6,0,0,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bd" CornerRadius="7" Background="Transparent" Padding="6,3,8,3">
+                                    <ContentPresenter/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PHover}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:IconImage Icon="sparkles" Size="13" Brush="{DynamicResource PMuted}" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="ThinkHeader" Text="思考中…" FontSize="12" Foreground="{DynamicResource PMuted}" Margin="6,0,4,1" VerticalAlignment="Center"/>
+                            <ui:IconImage x:Name="ThinkChevron" Icon="chevron-down" Size="13" Brush="{DynamicResource PMuted}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Border x:Name="ThinkBody" BorderBrush="{DynamicResource PSource}" BorderThickness="2,0,0,0" Padding="10,0,0,0" Margin="1,4,0,0">
+                        <TextBox x:Name="ThinkText" MaxHeight="160" FontSize="12" Background="Transparent" BorderThickness="0" Padding="0"
+                                 Foreground="{DynamicResource PMuted}" SelectionBrush="{DynamicResource PAccent}" TextWrapping="Wrap" IsReadOnly="True"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <TextBox.Template>
+                                <ControlTemplate TargetType="TextBox">
+                                    <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" Style="{StaticResource PBodyScroll}"/>
+                                </ControlTemplate>
+                            </TextBox.Template>
+                        </TextBox>
+                    </Border>
+                </StackPanel>
                 <Grid x:Name="TextArea">
                     <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"

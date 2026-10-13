@@ -14,6 +14,11 @@ public interface IPanel
     void SetBadge(string? badge);
     void SetText(string text);
     void AppendText(string text);
+    /// <summary>
+    /// Add to the collapsible "thinking" block above the result. It stays open while thinking streams in and folds
+    /// itself once answer text arrives; the user can open / close it any time.
+    /// </summary>
+    void AppendThinking(string text);
     /// <summary>Small grey line under the result (e.g. "en → zh-CN · Google").</summary>
     void SetStatus(string status);
     /// <summary>Show a failure prominently (red box with an icon, selectable text). Null / empty hides it.</summary>
