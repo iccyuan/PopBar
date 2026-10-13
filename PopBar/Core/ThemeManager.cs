@@ -42,7 +42,7 @@ internal static class ThemeManager
         return c.A == 255 ? c : Color.FromArgb((byte)Math.Round(c.A * PopupTintRatio), c.R, c.G, c.B);
     }
 
-    private const double PopupTintRatio = 0.6;
+    private const double PopupTintRatio = 0.75;
 
     private static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 

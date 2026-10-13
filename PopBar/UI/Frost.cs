@@ -20,7 +20,7 @@ namespace PopBar.UI;
 internal static class Frost
 {
     private const double Scale = 0.5;   // blur at half resolution: 4x cheaper, looks identical through a 3-12px tint
-    private const double Radius = 18;
+    private const double Radius = 28;  // strong enough that only soft colour shows through, never readable shapes
 
     private static BitmapSource? _shot;
     private static RECT _work;
