@@ -27,6 +27,20 @@
     <!-- translucent layer over the frosted snapshot in menus / drop-downs; alpha follows the blur opacity setting -->
     <SolidColorBrush x:Key="PopupTintBrush" Color="#E0FFFFFF"/>
     <SolidColorBrush x:Key="BarTintBrush" Color="#E0FFFFFF"/>
+    <SolidColorBrush x:Key="SeparatorBrush" Color="#1C000000"/>
+    <!-- opacity masks that fade a hairline out at both ends, so it reads as a soft gap rather than a drawn rule -->
+    <LinearGradientBrush x:Key="FadeMaskH" StartPoint="0,0" EndPoint="1,0">
+        <GradientStop Color="#00000000" Offset="0"/>
+        <GradientStop Color="#FF000000" Offset="0.2"/>
+        <GradientStop Color="#FF000000" Offset="0.8"/>
+        <GradientStop Color="#00000000" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="FadeMaskV" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#00000000" Offset="0"/>
+        <GradientStop Color="#FF000000" Offset="0.35"/>
+        <GradientStop Color="#FF000000" Offset="0.65"/>
+        <GradientStop Color="#00000000" Offset="1"/>
+    </LinearGradientBrush>
     <!-- item hover / selection inside those frosted popups: translucent so the glass shows through -->
     <SolidColorBrush x:Key="PopupHoverBrush" Color="#14000000"/>
     <SolidColorBrush x:Key="PopupSelectedBrush" Color="#1F3B82F6"/>
@@ -817,7 +831,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Separator">
-                    <Border Height="1" Margin="8,4" Background="{DynamicResource BorderBrush}"/>
+                    <Border Height="1" Margin="10,4" Background="{DynamicResource SeparatorBrush}" OpacityMask="{StaticResource FadeMaskH}"/>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

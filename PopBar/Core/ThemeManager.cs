@@ -42,7 +42,7 @@ internal static class ThemeManager
         return c.A == 255 ? c : Color.FromArgb((byte)Math.Round(c.A * PopupTintRatio), c.R, c.G, c.B);
     }
 
-    private const double PopupTintRatio = 0.72;
+    private const double PopupTintRatio = 0.6;
 
     private static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
@@ -165,6 +165,7 @@ internal static class ThemeManager
             Set("BarTintBrush", Hex(BlurTint(true, BlurOpacity < 100)));   // persistent chrome on glass (screenshot toolbar)
             Set("PopupHoverBrush", "#1FFFFFFF");      // translucent: a solid block would sit oddly on the frosted surface
             Set("PopupSelectedBrush", "#335B9BFF");
+            Set("SeparatorBrush", "#26FFFFFF");       // hairlines inside menus and bars, shaped by FadeMaskH / FadeMaskV
             Set("ScrollThumbBrush", "#FF3F485A");
         }
         else
@@ -194,6 +195,7 @@ internal static class ThemeManager
             Set("BarTintBrush", Hex(BlurTint(false, BlurOpacity < 100)));
             Set("PopupHoverBrush", "#14000000");
             Set("PopupSelectedBrush", "#1F3B82F6");
+            Set("SeparatorBrush", "#1C000000");
             Set("ScrollThumbBrush", "#FFC7CCD6");
         }
     }

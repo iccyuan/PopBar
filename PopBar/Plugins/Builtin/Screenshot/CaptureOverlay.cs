@@ -520,7 +520,12 @@ internal sealed class CaptureOverlay : Window
         _root.Children.Add(_toolbar);
     }
 
-    private UIElement Separator() => new Rectangle { Width = 1, Height = 16, Margin = new Thickness(5, 0, 5, 0), Fill = Res("BorderBrush", Brushes.LightGray), VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>Hairline that fades out at both ends (same look as the selection bar and the menus).</summary>
+    private UIElement Separator() => new Rectangle
+    {
+        Width = 1, Height = ButtonSize - 6, Margin = new Thickness(5, 0, 5, 0), VerticalAlignment = VerticalAlignment.Center,
+        Fill = Res("SeparatorBrush", Brushes.LightGray), OpacityMask = Res("FadeMaskV", Brushes.Black),
+    };
 
     private void BuildStyleBar()
     {

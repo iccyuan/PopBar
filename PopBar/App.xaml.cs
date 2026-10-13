@@ -188,7 +188,7 @@ public partial class App : Application
         UI.Frost.PrepareAtCursor(); // blur the monitor before the menu covers it
         _trayAnchor.Show();
         _trayAnchor.Activate();
-        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+        PlaceTrayMenu(menu, _trayAnchor);
         // IsOpen flips to false the instant the menu is dismissed; the Closed event only fires after the fade-out,
         // which is later than the tray's mouse-up, so the close time is taken from the property change.
         var isOpen = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(System.Windows.Controls.ContextMenu.IsOpenProperty, typeof(System.Windows.Controls.ContextMenu));
@@ -198,6 +198,36 @@ public partial class App : Application
         _trayMenu = menu;
         menu.IsOpen = true;
     }
+
+    /// <summary>
+    /// Hang the menu off the taskbar next to the icon, like the shell's own menus, rather than off the cursor (which
+    /// moved it with every click position). The invisible anchor window is laid over the icon and the menu opens on
+    /// its far side from the taskbar; without an icon rect it falls back to the cursor.
+    /// </summary>
+    private void PlaceTrayMenu(System.Windows.Controls.ContextMenu menu, Window anchor)
+    {
+        if (_tray == null || Native.TrayIconLocator.GetRect(_tray) is not { } icon)
+        {
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            return;
+        }
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(anchor).Handle;
+        Native.NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, icon.Left, icon.Top, icon.Width, icon.Height,
+            Native.NativeMethods.SWP_NOZORDER | Native.NativeMethods.SWP_NOACTIVATE);
+        var (work, _) = Native.NativeMethods.GetMonitorAt(icon.Left + icon.Width / 2, icon.Top + icon.Height / 2);
+        menu.PlacementTarget = anchor;
+        // The menu template keeps MenuShadowRoom around the card for its shadow: pull that back so the card itself
+        // lines up with the icon's edge and sits MenuGap away from the taskbar.
+        (menu.Placement, menu.HorizontalOffset, menu.VerticalOffset) =
+            icon.Bottom <= work.Top ? (System.Windows.Controls.Primitives.PlacementMode.Bottom, -MenuShadowRoom, MenuGap - MenuShadowRoom) : // taskbar on top
+            icon.Right <= work.Left ? (System.Windows.Controls.Primitives.PlacementMode.Right, MenuGap - MenuShadowRoom, -MenuShadowRoom) :
+            icon.Left >= work.Right ? (System.Windows.Controls.Primitives.PlacementMode.Left, MenuShadowRoom - MenuGap, -MenuShadowRoom) :
+            (System.Windows.Controls.Primitives.PlacementMode.Top, -MenuShadowRoom, MenuShadowRoom - MenuGap);                              // bottom, and auto-hide
+    }
+
+    /// <summary>Margin of the ContextMenu template's root grid (Themes/Modern.xaml), room for the shadow.</summary>
+    private const double MenuShadowRoom = 10;
+    private const double MenuGap = 4;
 
     private System.Windows.Controls.ContextMenu BuildTrayMenu()
     {
