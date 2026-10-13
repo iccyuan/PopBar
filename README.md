@@ -106,7 +106,7 @@ UI           PopupWindow、PanelWindow、SettingsWindow、FrostedGlass、Icons
 App          组合根：托盘、单实例、热键
 ```
 
-扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`）；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
+扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
 
 ## 已知边界
 

@@ -55,6 +55,8 @@ public interface ILlmProvider
     /// <summary>Suggested model when the model field is empty.</summary>
     string? DefaultModel { get; }
     bool RequiresApiKey { get; }
+    /// <summary>False when the provider reaches a default host by itself, so an empty address and no <see cref="DefaultBaseUrl"/> is fine.</summary>
+    bool RequiresBaseUrl => DefaultBaseUrl == null;
     /// <summary>What this backend supports; shown on the settings "服务" page. Defaults to streaming + system prompt.</summary>
     LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt;
     /// <summary>One-line help shown next to the provider.</summary>
@@ -92,6 +94,15 @@ public enum LlmFeatures
     Thinking = 16,
 }
 
+/// <summary>Values of <see cref="LlmRequest.Effort"/>.</summary>
+public static class LlmEffort
+{
+    public const string Low = "low";
+    public const string Medium = "medium";
+    public const string High = "high";
+    public const string Max = "max";
+}
+
 /// <summary>Resolved connection settings handed to a provider (base URL already defaulted).</summary>
 public sealed record LlmConnection(string BaseUrl, string ApiKey, string Model, HttpClient Http);
 
@@ -102,8 +113,13 @@ public sealed class LlmRequest
     /// <summary>Model id to use instead of the default from settings; null / empty keeps the default.</summary>
     public string? Model { get; init; }
     public int MaxTokens { get; init; } = 4096;
-    /// <summary>"low" | "medium" | "high" - reasoning effort where the backend supports it.</summary>
-    public string Effort { get; init; } = "low";
+    /// <summary>One of <see cref="LlmEffort"/>: reasoning effort where the backend supports it.</summary>
+    public string Effort { get; init; } = LlmEffort.Low;
     /// <summary>Ask the model to think before answering, where the backend can switch it on. Reasoning models may think regardless.</summary>
     public bool Thinking { get; init; }
+
+    /// <summary>Output floor while thinking: thinking tokens count towards the limit, so a small one leaves no room for the answer.</summary>
+    public const int MinMaxTokensWithThinking = 8192;
+    /// <summary>The output limit providers should send: <see cref="MaxTokens"/>, raised to <see cref="MinMaxTokensWithThinking"/> when thinking.</summary>
+    public int EffectiveMaxTokens => Thinking ? Math.Max(MaxTokens, MinMaxTokensWithThinking) : MaxTokens;
 }

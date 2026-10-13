@@ -70,7 +70,7 @@ public sealed class AppConfig
 /// <summary>Model backend settings. Protocol "anthropic" uses the official SDK, "openai" any /chat/completions endpoint.</summary>
 public sealed class LlmConfig
 {
-    public string Protocol { get; set; } = "anthropic";
+    public string Protocol { get; set; } = Core.Llm.LlmProviderIds.Anthropic;
     /// <summary>Optional for anthropic (defaults to api.anthropic.com); required for openai (e.g. http://localhost:4000/v1).</summary>
     public string BaseUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";

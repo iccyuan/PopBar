@@ -20,10 +20,7 @@ internal sealed class LlmService : ILlmService
     {
         _store = store;
         _http = http;
-        RegisterProvider(new AnthropicProvider());
-        RegisterProvider(OpenAiCompatibleProvider.Generic());
-        RegisterProvider(OpenAiCompatibleProvider.Ollama());
-        RegisterProvider(OpenAiCompatibleProvider.DeepSeek());
+        foreach (var p in BuiltinProviders.Create()) RegisterProvider(p);
     }
 
     public IReadOnlyList<ILlmProvider> Providers { get { lock (_gate) return _providers.ToList(); } }
@@ -57,7 +54,7 @@ internal sealed class LlmService : ILlmService
             var p = Current;
             if (p == null) return false;
             var c = Resolve(p);
-            bool hasEndpoint = !string.IsNullOrWhiteSpace(c.BaseUrl) || p.Id == "anthropic"; // the SDK knows its own default host
+            bool hasEndpoint = !string.IsNullOrWhiteSpace(c.BaseUrl) || !p.RequiresBaseUrl;
             bool hasKey = !p.RequiresApiKey || !string.IsNullOrWhiteSpace(c.ApiKey) || !string.IsNullOrWhiteSpace(_store.Current.Llm.BaseUrl); // a custom relay may not need one
             return !string.IsNullOrWhiteSpace(c.Model) && hasEndpoint && hasKey;
         }
@@ -90,7 +87,7 @@ internal sealed class LlmService : ILlmService
     {
         var p = Current ?? throw new InvalidOperationException("请先选择模型提供商。");
         var c = Resolve(p);
-        if (string.IsNullOrWhiteSpace(c.BaseUrl) && p.Id != "anthropic") throw new InvalidOperationException("请先填写接口地址。");
+        if (string.IsNullOrWhiteSpace(c.BaseUrl) && p.RequiresBaseUrl) throw new InvalidOperationException("请先填写接口地址。");
         return p.ListModelsAsync(c, ct);
     }
 }

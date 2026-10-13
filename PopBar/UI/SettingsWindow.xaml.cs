@@ -312,7 +312,7 @@ public partial class SettingsWindow : Window
             DisabledPlugins = _disabledPlugins.ToList(),
             Llm = new LlmConfig
             {
-                Protocol = LlmProtocolCombo.SelectedValue as string ?? "anthropic",
+                Protocol = LlmProtocolCombo.SelectedValue as string ?? Core.Llm.LlmProviderIds.Anthropic,
                 BaseUrl = LlmBaseUrlBox.Text.Trim(),
                 ApiKey = LlmKeyBox.Password.Trim(),
                 Model = (LlmModelBox.Text ?? "").Trim(),
@@ -745,7 +745,7 @@ public partial class SettingsWindow : Window
         ShowLlmResult("连接中…");
         try
         {
-            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = "low" }); // room for reasoning models that think before answering
+            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = Sdk.LlmEffort.Low }); // room for reasoning models that think before answering
             var text = reply.Trim().Replace("\n", " ");
             ShowLlmResult(text.Length > 0 ? "连接成功：" + text : "连接成功，但模型没有返回文字（可能是思考型模型输出被截断）", ok: true);
         }
