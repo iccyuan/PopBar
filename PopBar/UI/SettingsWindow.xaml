@@ -79,6 +79,21 @@
                                 <ComboBox x:Name="TrayClickCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
                                           DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
                             </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="托盘右键菜单" VerticalAlignment="Center"/>
+                                    <ui:InfoTip x:Name="TrayMenuTip"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock x:Name="TrayMenuSummary" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <Button Content="自定义" Click="TrayMenu_Click"/>
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

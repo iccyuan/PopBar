@@ -229,6 +229,16 @@ public partial class App : Application
     private const double MenuShadowRoom = 10;
     private const double MenuGap = 4;
 
+    /// <summary>The plugin entries the user chose for the menu (see <see cref="AppConfig.TrayMenuItems"/>), capped.</summary>
+    private List<(string Id, string Label, string? Icon, Action Callback)> TrayMenuEntries(AppConfig cfg)
+    {
+        var chosen = cfg.TrayMenuItems == null
+            ? _pluginTrayItems
+            : cfg.TrayMenuItems.Select(id => _pluginTrayItems.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase)))
+                .Where(i => i.Id != null);
+        return chosen.Take(AppConfig.MaxTrayMenuItems).ToList();
+    }
+
     private System.Windows.Controls.ContextMenu BuildTrayMenu()
     {
         var menu = new System.Windows.Controls.ContextMenu();
@@ -247,10 +257,11 @@ public partial class App : Application
         menu.Items.Add(Item(enabled ? "已启用 · 点击暂停" : "已暂停 · 点击启用", enabled ? "toggle-right" : "toggle-left",
             () => _store.Update(c => c.Enabled = !c.Enabled), enabled ? accent : muted));
 
-        if (_pluginTrayItems.Count > 0)
+        var shown = TrayMenuEntries(_store.Current);
+        if (shown.Count > 0)
         {
             menu.Items.Add(new System.Windows.Controls.Separator());
-            foreach (var (_, label, icon, cb) in _pluginTrayItems) menu.Items.Add(Item(label, icon ?? "circle", cb));
+            foreach (var (_, label, icon, cb) in shown) menu.Items.Add(Item(label, icon ?? "circle", cb));
         }
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(Item("设置…", "settings", () => ShowSettings()));

@@ -130,6 +130,8 @@ public partial class SettingsWindow : Window
     private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _excluded = new();
     private readonly List<string> _noClip = new();
+    /// <summary>Draft of <see cref="AppConfig.TrayMenuItems"/>; null = never customised.</summary>
+    private List<string>? _trayMenu;
     private bool _loading;
 
     private sealed record AppPick(string Exe, string Label);
@@ -269,6 +271,8 @@ public partial class SettingsWindow : Window
             _excluded.Clear(); _excluded.AddRange(c.ExcludedApps);
             _noClip.Clear(); _noClip.AddRange(c.NoClipboardApps);
             RenderAppLists();
+            _trayMenu = c.TrayMenuItems?.ToList();
+            UpdateTrayMenuSummary();
 
             LlmProtocolCombo.SelectedValue = c.Llm.Protocol;
             if (LlmProtocolCombo.SelectedIndex < 0) LlmProtocolCombo.SelectedIndex = 0;
@@ -302,12 +306,13 @@ public partial class SettingsWindow : Window
             ClipboardFallback = FallbackCombo.SelectedValue as string ?? "ibeam",
             ShowDelayMs = ParseInt(DelayBox.Text, 60, 0, 2000),
             MaxTextLength = ParseInt(MaxLenBox.Text, 10000, 1, 1_000_000),
-            Theme = ThemeCombo.SelectedValue as string ?? "dark",
+            Theme = ThemeCombo.SelectedValue as string ?? "system",
             ShowLabels = LabelsSw.IsChecked == true,
             MaxBarItems = int.TryParse(MaxItemsCombo.SelectedValue as string, out var mx) ? mx : 7,
             BlurOpacity = (int)BlurSlider.Value,
             ExcludedApps = _excluded.ToList(),
             NoClipboardApps = _noClip.ToList(),
+            TrayMenuItems = _trayMenu?.ToList(),
             Actions = _rows.Select(r => r.Def.Clone()).ToList(),
             DisabledPlugins = _disabledPlugins.ToList(),
             Llm = new LlmConfig
@@ -544,6 +549,83 @@ public partial class SettingsWindow : Window
     {
         try { Process.Start(new ProcessStartInfo("https://github.com/iccyuan/PopBar") { UseShellExecute = true }); }
         catch (Exception ex) { Log.Error("open repo", ex); }
+    }
+
+    // ------------------------------------------------------------------ tray menu
+
+    private List<(string Id, string Label, string? Icon)> AllTrayItems() => TrayItems?.Invoke() ?? new();
+
+    /// <summary>The ids the menu shows now: the draft, or by default the first ones in registration order.</summary>
+    private List<string> ShownTrayIds()
+    {
+        var all = AllTrayItems();
+        var ids = _trayMenu ?? all.Select(i => i.Id).ToList();
+        return ids.Where(id => all.Any(i => i.Id == id)).Take(AppConfig.MaxTrayMenuItems).ToList();
+    }
+
+    private void UpdateTrayMenuSummary()
+    {
+        TrayMenuSummary.Text = $"已选 {ShownTrayIds().Count} / {AppConfig.MaxTrayMenuItems}";
+        TrayMenuTip.Text = $"插件提供的入口，最多 {AppConfig.MaxTrayMenuItems} 项；启用 / 暂停、设置、退出始终显示";
+    }
+
+    /// <summary>Pick and order the menu's plugin entries: a switch per entry, up / down to reorder, capped at the limit.</summary>
+    private void TrayMenu_Click(object sender, RoutedEventArgs e)
+    {
+        var all = AllTrayItems();
+        var shown = ShownTrayIds();
+        // Draft rows: chosen ones in menu order, then the rest in registration order.
+        var rows = shown.Select(id => (Item: all.First(i => i.Id == id), On: true))
+            .Concat(all.Where(i => !shown.Contains(i.Id)).Select(i => (Item: i, On: false))).ToList();
+
+        var list = new StackPanel();
+        var counter = new TextBlock { Style = (Style)FindResource("Muted"), Margin = new Thickness(2, 4, 0, 10) };
+        void Render()
+        {
+            list.Children.Clear();
+            int on = rows.Count(r => r.On);
+            counter.Text = on >= AppConfig.MaxTrayMenuItems
+                ? $"已选 {on} / {AppConfig.MaxTrayMenuItems}，已达上限：先关掉一项再开别的"
+                : $"已选 {on} / {AppConfig.MaxTrayMenuItems}";
+            for (int i = 0; i < rows.Count; i++)
+            {
+                int index = i;
+                var (item, isOn) = rows[i];
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+                foreach (var w in new[] { GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto })
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
+                row.Children.Add(new IconImage { Icon = item.Icon ?? "circle", Size = 15, Brush = (Brush)FindResource("MutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 10, 0) });
+                var label = new TextBlock { Text = item.Label, VerticalAlignment = VerticalAlignment.Center, Opacity = isOn ? 1 : 0.6 };
+                Grid.SetColumn(label, 1);
+                row.Children.Add(label);
+                Button Move(string icon, string tip, int to)
+                {
+                    var b = new Button { Style = (Style)FindResource("IconButton"), ToolTip = tip, IsEnabled = to >= 0 && to < rows.Count,
+                        Content = new IconImage { Icon = icon, Size = 13, Brush = (Brush)FindResource("MutedBrush") } };
+                    b.Click += (_, _) => { (rows[index], rows[to]) = (rows[to], rows[index]); Render(); };
+                    return b;
+                }
+                var up = Move("arrow-up", "上移", index - 1);
+                var down = Move("arrow-down", "下移", index + 1);
+                Grid.SetColumn(up, 2); Grid.SetColumn(down, 3);
+                row.Children.Add(up); row.Children.Add(down);
+                var sw = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = isOn, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
+                    IsEnabled = isOn || on < AppConfig.MaxTrayMenuItems };
+                sw.Click += (_, _) => { rows[index] = (item, sw.IsChecked == true); Render(); };
+                Grid.SetColumn(sw, 4);
+                row.Children.Add(sw);
+                list.Children.Add(new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(12, 6, 10, 6), Margin = new Thickness(0, 0, 0, 6), CornerRadius = new CornerRadius(9), Child = row });
+            }
+        }
+        Render();
+        var content = new StackPanel();
+        content.Children.Add(counter);
+        content.Children.Add(new ScrollViewer { Content = list, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        if (!new Plugins.HostUi(_llm).EditDialog("托盘右键菜单", content, 460)) return;
+
+        _trayMenu = rows.Where(r => r.On).Select(r => r.Item.Id).ToList();
+        UpdateTrayMenuSummary();
+        Changed(sender, e);
     }
 
     // ------------------------------------------------------------------ apps page

@@ -17,6 +17,14 @@ public sealed class AppConfig
     /// </summary>
     public string TrayClick { get; set; } = "settings";
 
+    /// <summary>Most plugin entries the tray menu lists; enable / pause, settings and exit are always there besides.</summary>
+    public const int MaxTrayMenuItems = 8;
+    /// <summary>
+    /// Plugin tray entries shown in the right-click menu, in order (ids as for <see cref="TrayClick"/>). Null until the user
+    /// picks: then the first <see cref="MaxTrayMenuItems"/> in registration order. Ids of missing plugins are skipped.
+    /// </summary>
+    public List<string>? TrayMenuItems { get; set; }
+
     /// <summary>"key" (default) = bar appears only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds); "auto" = right after a selection.</summary>
     public string ShowMode { get; set; } = "key";
     /// <summary>ctrl | alt | win — the key that reveals the bar in "key" mode.</summary>
