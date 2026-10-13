@@ -49,7 +49,11 @@ internal sealed class CaptureOverlay : Window
     private readonly Border _toolbar = new();
     private readonly Border _styleBar = new();
     private readonly Border _magnifier = new();
-    private readonly Image _magImage = new() { Width = 120, Height = 90, Stretch = Stretch.Fill };
+    // Magnifier: MagColumns x MagRows source pixels (odd, so the cursor has a middle cell), each MagCell DIP square.
+    private const int MagColumns = 15, MagRows = 11;
+    private const double MagCell = 8;
+    private readonly Image _magImage = new() { Width = MagColumns * MagCell, Height = MagRows * MagCell, Stretch = Stretch.Fill };
+    private readonly MagnifierGrid _magGrid = new(MagColumns, MagRows, MagCell);
     private readonly TextBlock _magText = new() { Foreground = Brushes.White, FontSize = 11.5, Margin = new Thickness(6, 4, 6, 4) };
     private readonly Dictionary<ShotTool, Button> _toolButtons = new();
     private readonly List<Border> _swatches = new();
@@ -619,9 +623,7 @@ internal sealed class CaptureOverlay : Window
         RenderOptions.SetBitmapScalingMode(_magImage, BitmapScalingMode.NearestNeighbor);
         var grid = new Grid();
         grid.Children.Add(_magImage);
-        var cross = new Brush[] { new SolidColorBrush(Color.FromArgb(150, 59, 130, 246)) };
-        grid.Children.Add(new Rectangle { Width = 120, Height = 1, Fill = cross[0], VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false });
-        grid.Children.Add(new Rectangle { Width = 1, Height = 90, Fill = cross[0], HorizontalAlignment = HorizontalAlignment.Center, IsHitTestVisible = false });
+        grid.Children.Add(_magGrid);
         var stack = new StackPanel();
         stack.Children.Add(new Border { Child = grid, BorderBrush = Brushes.White, BorderThickness = new Thickness(1) });
         stack.Children.Add(_magText);
@@ -640,9 +642,9 @@ internal sealed class CaptureOverlay : Window
         _magnifier.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         if (!show) return;
         int px = (int)(p.X * _s), py = (int)(p.Y * _s);
-        const int hw = 7, hh = 5;
-        int x0 = Math.Clamp(px - hw, 0, _screen.PixelWidth - (2 * hw + 1)), y0 = Math.Clamp(py - hh, 0, _screen.PixelHeight - (2 * hh + 1));
-        _magImage.Source = new CroppedBitmap(_screen, new Int32Rect(x0, y0, 2 * hw + 1, 2 * hh + 1));
+        int x0 = Math.Clamp(px - MagColumns / 2, 0, _screen.PixelWidth - MagColumns), y0 = Math.Clamp(py - MagRows / 2, 0, _screen.PixelHeight - MagRows);
+        _magImage.Source = new CroppedBitmap(_screen, new Int32Rect(x0, y0, MagColumns, MagRows));
+        _magGrid.SetCursor(Math.Clamp(px - x0, 0, MagColumns - 1), Math.Clamp(py - y0, 0, MagRows - 1));
         var pixel = new byte[4];
         _screen.CopyPixels(new Int32Rect(Math.Clamp(px, 0, _screen.PixelWidth - 1), Math.Clamp(py, 0, _screen.PixelHeight - 1), 1, 1), pixel, 4, 0);
         _pixelColor = Color.FromRgb(pixel[2], pixel[1], pixel[0]);
