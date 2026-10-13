@@ -33,7 +33,8 @@ public partial class App : Application
     private HttpClient? _http;
     private LlmService? _llm;
     private readonly PanelRegistry _panels = new();
-    private readonly List<(string Id, string Label, string? Icon, Action Callback)> _pluginTrayItems = new();
+    /// <summary>Plugin tray entries in registration order, keyed by their full id ("plugin:item").</summary>
+    private readonly List<(string Id, TrayItem Item)> _pluginTrayItems = new();
     /// <summary>Delays a tray left click past the double-click window so a double click (settings) does not also fire the click action.</summary>
     private System.Windows.Threading.DispatcherTimer? _trayClickTimer;
     private System.Windows.Controls.ContextMenu? _trayMenu;
@@ -95,7 +96,7 @@ public partial class App : Application
             Http = _http,
             Hotkeys = _hotkeys,
             Panels = _panels,
-            AddTrayItem = (id, label, icon, cb) => _pluginTrayItems.Add((id, label, icon, cb)),
+            AddTrayItem = (id, item) => _pluginTrayItems.Add((id, item)),
             ShowPopup = ctx => _engine?.ShowExternal(ctx),
             OpenSettings = pluginId => Dispatcher.InvokeAsync(() => ShowSettings(pluginId)),
             RunAction = (id, ctx) => _plugins!.ExecuteAsync(id, ctx),
@@ -103,7 +104,7 @@ public partial class App : Application
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         SettingsWindow.PluginDrafts = services.SettingsHub;
-        SettingsWindow.TrayItems = () => _pluginTrayItems.Select(i => (i.Id, i.Label, i.Icon)).ToList();
+        SettingsWindow.TrayItems = () => _pluginTrayItems.ToList();
         ActionRunner.Plugins = _plugins;
         _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
@@ -167,8 +168,8 @@ public partial class App : Application
         if (cmd == "settings") { ShowSettings(); return true; }
         if (cmd == "menu") { ShowTrayMenu(); return true; }
         var item = _pluginTrayItems.FirstOrDefault(i => string.Equals(i.Id, cmd, StringComparison.OrdinalIgnoreCase));
-        if (item.Callback == null) { Log.Warn("tray command unknown: " + cmd); return false; }
-        try { item.Callback(); } catch (Exception ex) { Log.Error("tray command " + cmd, ex); }
+        if (item.Item == null) { Log.Warn("tray command unknown: " + cmd); return false; }
+        try { item.Item.Callback(); } catch (Exception ex) { Log.Error("tray command " + cmd, ex); }
         return true;
     }
 
@@ -229,14 +230,18 @@ public partial class App : Application
     private const double MenuShadowRoom = 10;
     private const double MenuGap = 4;
 
-    /// <summary>The plugin entries the user chose for the menu (see <see cref="AppConfig.TrayMenuItems"/>), capped.</summary>
-    private List<(string Id, string Label, string? Icon, Action Callback)> TrayMenuEntries(AppConfig cfg)
+    /// <summary>
+    /// The plugin entries the menu lists: the user's choice (<see cref="AppConfig.TrayMenuItems"/>) or the entries shown
+    /// by default, only those that support the menu, capped.
+    /// </summary>
+    private List<TrayItem> TrayMenuEntries(AppConfig cfg)
     {
+        var menuable = _pluginTrayItems.Where(i => i.Item.InMenu).ToList();
         var chosen = cfg.TrayMenuItems == null
-            ? _pluginTrayItems
-            : cfg.TrayMenuItems.Select(id => _pluginTrayItems.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase)))
-                .Where(i => i.Id != null);
-        return chosen.Take(AppConfig.MaxTrayMenuItems).ToList();
+            ? menuable.Where(i => i.Item.InMenuByDefault)
+            : cfg.TrayMenuItems.Select(id => menuable.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase)))
+                .Where(i => i.Item != null);
+        return chosen.Take(AppConfig.MaxTrayMenuItems).Select(i => i.Item).ToList();
     }
 
     private System.Windows.Controls.ContextMenu BuildTrayMenu()
@@ -261,7 +266,7 @@ public partial class App : Application
         if (shown.Count > 0)
         {
             menu.Items.Add(new System.Windows.Controls.Separator());
-            foreach (var (_, label, icon, cb) in shown) menu.Items.Add(Item(label, icon ?? "circle", cb));
+            foreach (var t in shown) menu.Items.Add(Item(t.Label, t.Icon ?? "circle", t.Callback));
         }
         menu.Items.Add(new System.Windows.Controls.Separator());
         menu.Items.Add(Item("设置…", "settings", () => ShowSettings()));

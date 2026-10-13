@@ -164,7 +164,7 @@ public partial class SettingsWindow : Window
         };
         // Built-in choices first, then whatever the loaded plugins put in the tray menu (same ids as `PopBar.exe --run <id>`).
         var trayChoices = new List<KeyValuePair<string, string>> { new("settings", "打开设置"), new("menu", "打开托盘菜单") };
-        if (TrayItems != null) trayChoices.AddRange(TrayItems().Select(i => new KeyValuePair<string, string>(i.Id, i.Label)));
+        if (TrayItems != null) trayChoices.AddRange(TrayItems().Where(i => i.Item.AsClick).Select(i => new KeyValuePair<string, string>(i.Id, i.Item.Label)));
         TrayClickCombo.ItemsSource = trayChoices;
         ShowKeyBox.GestureChanged += g => { _showKey = g; Changed(ShowKeyBox, new RoutedEventArgs()); };
         ThemeCombo.ItemsSource = new List<KeyValuePair<string, string>>
@@ -414,7 +414,7 @@ public partial class SettingsWindow : Window
     /// <summary>Set by the app: plugin settings drafts waiting for Save.</summary>
     internal static Plugins.SettingsHub? PluginDrafts;
     /// <summary>Tray menu entries registered by plugins, offered as choices for the tray left-click action.</summary>
-    internal static Func<List<(string Id, string Label, string? Icon)>>? TrayItems;
+    internal static Func<List<(string Id, Sdk.TrayItem Item)>>? TrayItems;
 
     /// <summary>Chips under the AI service: what the selected protocol supports (declared by its provider).</summary>
     private void BuildLlmFeatures()
@@ -556,13 +556,15 @@ public partial class SettingsWindow : Window
     /// <summary>Width of the theme's ScrollBar (Themes/Modern.xaml) plus a hair of gap.</summary>
     private const double ScrollBarRoom = 14;
 
-    private List<(string Id, string Label, string? Icon)> AllTrayItems() => TrayItems?.Invoke() ?? new();
+    /// <summary>The entries that support the menu (<see cref="Sdk.TrayItem.InMenu"/>), in registration order.</summary>
+    private List<(string Id, string Label, string? Icon, bool ByDefault)> AllTrayItems() =>
+        (TrayItems?.Invoke() ?? new()).Where(i => i.Item.InMenu).Select(i => (i.Id, i.Item.Label, i.Item.Icon, i.Item.InMenuByDefault)).ToList();
 
     /// <summary>The ids the menu shows now: the draft, or by default the first ones in registration order.</summary>
     private List<string> ShownTrayIds()
     {
         var all = AllTrayItems();
-        var ids = _trayMenu ?? all.Select(i => i.Id).ToList();
+        var ids = _trayMenu ?? all.Where(i => i.ByDefault).Select(i => i.Id).ToList();
         return ids.Where(id => all.Any(i => i.Id == id)).Take(AppConfig.MaxTrayMenuItems).ToList();
     }
 
@@ -575,7 +577,7 @@ public partial class SettingsWindow : Window
     /// <summary>One entry of the tray-menu editor; its controls are built once and only updated afterwards.</summary>
     private sealed class TrayMenuRow
     {
-        public required (string Id, string Label, string? Icon) Item { get; init; }
+        public required (string Id, string Label, string? Icon, bool ByDefault) Item { get; init; }
         public bool On { get; set; }
         public required Border Card { get; init; }
         public required TextBlock Label { get; init; }

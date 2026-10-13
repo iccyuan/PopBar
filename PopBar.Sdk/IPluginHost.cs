@@ -54,8 +54,14 @@ public interface IPluginHost
     /// <summary>Register a global hotkey ("Ctrl+Alt+O"). Returns false if the combination is taken.</summary>
     bool RegisterHotkey(string id, string gesture, Action callback);
     void UnregisterHotkey(string id);
-    /// <summary>Add an entry to the tray context menu. <paramref name="icon"/> is a name from <see cref="IHostUi.IconNames"/>.</summary>
-    void AddTrayMenuItem(string id, string label, Action callback, string? icon = null);
+    /// <summary>
+    /// Register a tray entry: it can be listed in the tray's right-click menu, picked as the tray icon's left-click action,
+    /// and run as <c>PopBar.exe --run &lt;plugin&gt;:&lt;id&gt;</c>. <see cref="TrayItem"/> says which of those it supports.
+    /// </summary>
+    void AddTrayItem(TrayItem item);
+    /// <summary>Shorthand for <see cref="AddTrayItem"/> with the defaults (menu, shown by default, left click allowed).</summary>
+    void AddTrayMenuItem(string id, string label, Action callback, string? icon = null) =>
+        AddTrayItem(new TrayItem { Id = id, Label = label, Callback = callback, Icon = icon });
     /// <summary>
     /// Call after your <see cref="IPopBarPlugin.GetActions"/> result changed (items added, removed, renamed): new actions
     /// join the bar right away, removed ones leave it, and an open settings window refreshes its action list.
