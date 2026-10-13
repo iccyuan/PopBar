@@ -50,11 +50,17 @@ internal sealed class CaptureOverlay : Window
     private readonly Border _styleBar = new();
     private readonly Border _magnifier = new();
     // Magnifier: MagColumns x MagRows source pixels (odd, so the cursor has a middle cell), each MagCell DIP square.
-    private const int MagColumns = 15, MagRows = 11;
+    private const int MagColumns = 21, MagRows = 15;
     private const double MagCell = 8;
     private readonly Image _magImage = new() { Width = MagColumns * MagCell, Height = MagRows * MagCell, Stretch = Stretch.Fill };
     private readonly MagnifierGrid _magGrid = new(MagColumns, MagRows, MagCell);
-    private readonly TextBlock _magText = new() { Foreground = Brushes.White, FontSize = 11.5, Margin = new Thickness(6, 4, 6, 4) };
+    private const double MagRadius = 10;
+    private static readonly FontFamily MagMono = new("Cascadia Mono, Consolas");
+    private static readonly Brush MagMuted = Frozen(Color.FromArgb(0xA6, 0xFF, 0xFF, 0xFF));
+    private readonly Border _magSwatch = new() { Width = 14, Height = 14, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), BorderBrush = Frozen(Color.FromArgb(0x59, 0xFF, 0xFF, 0xFF)) };
+    private readonly TextBlock _magHex = new() { Foreground = Brushes.White, FontFamily = MagMono, FontSize = 13, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0) };
+    private readonly TextBlock _magRgb = new() { Foreground = MagMuted, FontFamily = MagMono, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _magPos = new() { Foreground = MagMuted, FontFamily = MagMono, FontSize = 11.5, VerticalAlignment = VerticalAlignment.Center };
     private readonly Dictionary<ShotTool, Button> _toolButtons = new();
     private readonly List<Border> _swatches = new();
     private readonly List<Border> _widthDots = new();
@@ -618,19 +624,50 @@ internal sealed class CaptureOverlay : Window
         UpdateVisuals();
     }
 
+    private static SolidColorBrush Frozen(Color c)
+    {
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    /// <summary>Dark card: rounded zoom with the pixel grid on top, then colour (swatch, hex, rgb) and position below.</summary>
     private void BuildMagnifier()
     {
         RenderOptions.SetBitmapScalingMode(_magImage, BitmapScalingMode.NearestNeighbor);
-        var grid = new Grid();
-        grid.Children.Add(_magImage);
-        grid.Children.Add(_magGrid);
-        var stack = new StackPanel();
-        stack.Children.Add(new Border { Child = grid, BorderBrush = Brushes.White, BorderThickness = new Thickness(1) });
-        stack.Children.Add(_magText);
+        double w = MagColumns * MagCell, h = MagRows * MagCell, inner = MagRadius - 4;
+        var zoom = new Grid { Width = w, Height = h, Clip = new RectangleGeometry(new Rect(0, 0, w, h), inner, inner) };
+        zoom.Children.Add(_magImage);
+        zoom.Children.Add(_magGrid);
+        zoom.Children.Add(new Border { CornerRadius = new CornerRadius(inner), BorderThickness = new Thickness(1), BorderBrush = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)) });
+
+        var hint = new Border
+        {
+            CornerRadius = new CornerRadius(4), Padding = new Thickness(5, 0, 5, 1), Background = Frozen(Color.FromArgb(0x26, 0xFF, 0xFF, 0xFF)),
+            Child = new TextBlock { Text = "C 复制", Foreground = MagMuted, FontSize = 11, VerticalAlignment = VerticalAlignment.Center },
+        };
+        // Row 1: swatch + hex, the copy hint on the right. Row 2: rgb, the position on the right.
+        var colour = new DockPanel { LastChildFill = false, Margin = new Thickness(2, 8, 2, 0) };
+        DockPanel.SetDock(hint, Dock.Right);
+        colour.Children.Add(hint);
+        colour.Children.Add(_magSwatch);
+        colour.Children.Add(_magHex);
+        var position = new DockPanel { LastChildFill = false, Margin = new Thickness(2, 5, 2, 1) };
+        DockPanel.SetDock(_magPos, Dock.Right);
+        position.Children.Add(_magPos);
+        position.Children.Add(_magRgb);
+
+        var stack = new StackPanel { Width = w };
+        stack.Children.Add(zoom);
+        stack.Children.Add(colour);
+        stack.Children.Add(position);
         _magnifier.Child = stack;
-        _magnifier.Background = new SolidColorBrush(Color.FromArgb(0xE6, 0x11, 0x18, 0x27));
-        _magnifier.CornerRadius = new CornerRadius(6);
-        _magnifier.Padding = new Thickness(3);
+        _magnifier.Background = Frozen(Color.FromArgb(0xEB, 0x15, 0x18, 0x1F));
+        _magnifier.BorderBrush = Frozen(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
+        _magnifier.BorderThickness = new Thickness(1);
+        _magnifier.CornerRadius = new CornerRadius(MagRadius);
+        _magnifier.Padding = new Thickness(4, 4, 4, 6);
+        _magnifier.Effect = new DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Direction = 270, Opacity = 0.3 };
         _magnifier.IsHitTestVisible = false;
         _magnifier.Visibility = Visibility.Collapsed;
         _root.Children.Add(_magnifier);
@@ -648,7 +685,10 @@ internal sealed class CaptureOverlay : Window
         var pixel = new byte[4];
         _screen.CopyPixels(new Int32Rect(Math.Clamp(px, 0, _screen.PixelWidth - 1), Math.Clamp(py, 0, _screen.PixelHeight - 1), 1, 1), pixel, 4, 0);
         _pixelColor = Color.FromRgb(pixel[2], pixel[1], pixel[0]);
-        _magText.Text = $"{px + _vs.X}, {py + _vs.Y}\n#{pixel[2]:X2}{pixel[1]:X2}{pixel[0]:X2}   C 复制颜色";
+        if (_magSwatch.Background is not SolidColorBrush { Color: var shown } || shown != _pixelColor) _magSwatch.Background = Frozen(_pixelColor);
+        _magHex.Text = $"#{_pixelColor.R:X2}{_pixelColor.G:X2}{_pixelColor.B:X2}";
+        _magRgb.Text = $"{_pixelColor.R}, {_pixelColor.G}, {_pixelColor.B}";
+        _magPos.Text = $"{px + _vs.X}, {py + _vs.Y}";
         _magnifier.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var sz = _magnifier.DesiredSize;
         double x = p.X + 18, y = p.Y + 22;
