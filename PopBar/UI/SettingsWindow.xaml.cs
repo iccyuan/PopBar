@@ -553,6 +553,9 @@ public partial class SettingsWindow : Window
 
     // ------------------------------------------------------------------ tray menu
 
+    /// <summary>Width of the theme's ScrollBar (Themes/Modern.xaml) plus a hair of gap.</summary>
+    private const double ScrollBarRoom = 14;
+
     private List<(string Id, string Label, string? Icon)> AllTrayItems() => TrayItems?.Invoke() ?? new();
 
     /// <summary>The ids the menu shows now: the draft, or by default the first ones in registration order.</summary>
@@ -569,58 +572,96 @@ public partial class SettingsWindow : Window
         TrayMenuTip.Text = $"插件提供的入口，最多 {AppConfig.MaxTrayMenuItems} 项；启用 / 暂停、设置、退出始终显示";
     }
 
-    /// <summary>Pick and order the menu's plugin entries: a switch per entry, up / down to reorder, capped at the limit.</summary>
+    /// <summary>One entry of the tray-menu editor; its controls are built once and only updated afterwards.</summary>
+    private sealed class TrayMenuRow
+    {
+        public required (string Id, string Label, string? Icon) Item { get; init; }
+        public bool On { get; set; }
+        public required Border Card { get; init; }
+        public required TextBlock Label { get; init; }
+        public required CheckBox Switch { get; init; }
+        public required Button Up { get; init; }
+        public required Button Down { get; init; }
+    }
+
+    /// <summary>
+    /// Pick and order the menu's plugin entries: a switch per entry, up / down to reorder, capped at the limit. Rows are
+    /// not rebuilt on a change (that replayed every switch's animation): toggles update state, moves shift one card.
+    /// </summary>
     private void TrayMenu_Click(object sender, RoutedEventArgs e)
     {
         var all = AllTrayItems();
         var shown = ShownTrayIds();
-        // Draft rows: chosen ones in menu order, then the rest in registration order.
-        var rows = shown.Select(id => (Item: all.First(i => i.Id == id), On: true))
-            .Concat(all.Where(i => !shown.Contains(i.Id)).Select(i => (Item: i, On: false))).ToList();
-
         var list = new StackPanel();
         var counter = new TextBlock { Style = (Style)FindResource("Muted"), Margin = new Thickness(2, 4, 0, 10) };
-        void Render()
+        var rows = new List<TrayMenuRow>();
+
+        void Refresh()
         {
-            list.Children.Clear();
             int on = rows.Count(r => r.On);
-            counter.Text = on >= AppConfig.MaxTrayMenuItems
+            bool full = on >= AppConfig.MaxTrayMenuItems;
+            counter.Text = full
                 ? $"已选 {on} / {AppConfig.MaxTrayMenuItems}，已达上限：先关掉一项再开别的"
                 : $"已选 {on} / {AppConfig.MaxTrayMenuItems}";
             for (int i = 0; i < rows.Count; i++)
             {
-                int index = i;
-                var (item, isOn) = rows[i];
-                var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-                foreach (var w in new[] { GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto })
-                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
-                row.Children.Add(new IconImage { Icon = item.Icon ?? "circle", Size = 15, Brush = (Brush)FindResource("MutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 10, 0) });
-                var label = new TextBlock { Text = item.Label, VerticalAlignment = VerticalAlignment.Center, Opacity = isOn ? 1 : 0.6 };
-                Grid.SetColumn(label, 1);
-                row.Children.Add(label);
-                Button Move(string icon, string tip, int to)
-                {
-                    var b = new Button { Style = (Style)FindResource("IconButton"), ToolTip = tip, IsEnabled = to >= 0 && to < rows.Count,
-                        Content = new IconImage { Icon = icon, Size = 13, Brush = (Brush)FindResource("MutedBrush") } };
-                    b.Click += (_, _) => { (rows[index], rows[to]) = (rows[to], rows[index]); Render(); };
-                    return b;
-                }
-                var up = Move("arrow-up", "上移", index - 1);
-                var down = Move("arrow-down", "下移", index + 1);
-                Grid.SetColumn(up, 2); Grid.SetColumn(down, 3);
-                row.Children.Add(up); row.Children.Add(down);
-                var sw = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = isOn, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0),
-                    IsEnabled = isOn || on < AppConfig.MaxTrayMenuItems };
-                sw.Click += (_, _) => { rows[index] = (item, sw.IsChecked == true); Render(); };
-                Grid.SetColumn(sw, 4);
-                row.Children.Add(sw);
-                list.Children.Add(new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(12, 6, 10, 6), Margin = new Thickness(0, 0, 0, 6), CornerRadius = new CornerRadius(9), Child = row });
+                var r = rows[i];
+                r.Switch.IsEnabled = r.On || !full;
+                r.Label.Opacity = r.On ? 1 : 0.6;
+                r.Up.IsEnabled = i > 0;
+                r.Down.IsEnabled = i < rows.Count - 1;
             }
         }
-        Render();
+
+        void Move(TrayMenuRow row, int by)
+        {
+            int from = rows.IndexOf(row), to = from + by;
+            if (to < 0 || to >= rows.Count) return;
+            rows.RemoveAt(from); rows.Insert(to, row);
+            list.Children.RemoveAt(from); list.Children.Insert(to, row.Card);
+            Refresh();
+        }
+
+        Button MoveButton(string icon, string tip) => new()
+        {
+            Style = (Style)FindResource("IconButton"), ToolTip = tip,
+            Content = new IconImage { Icon = icon, Size = 13, Brush = (Brush)FindResource("MutedBrush") },
+        };
+
+        // Chosen entries in menu order, then the rest in registration order.
+        var ordered = shown.Select(id => (Item: all.First(i => i.Id == id), On: true))
+            .Concat(all.Where(i => !shown.Contains(i.Id)).Select(i => (Item: i, On: false)));
+        foreach (var (item, on) in ordered)
+        {
+            var grid = new Grid();
+            foreach (var w in new[] { GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto, GridLength.Auto })
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
+            grid.Children.Add(new IconImage { Icon = item.Icon ?? "circle", Size = 15, Brush = (Brush)FindResource("MutedBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 0, 10, 0) });
+            var row = new TrayMenuRow
+            {
+                Item = item, On = on,
+                Label = new TextBlock { Text = item.Label, VerticalAlignment = VerticalAlignment.Center },
+                Switch = new CheckBox { Style = (Style)FindResource("Switch"), IsChecked = on, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 0, 0) },
+                Up = MoveButton("arrow-up", "上移"),
+                Down = MoveButton("arrow-down", "下移"),
+                Card = new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(12, 6, 10, 6), Margin = new Thickness(0, 0, 0, 6), CornerRadius = new CornerRadius(9), Child = grid },
+            };
+            Grid.SetColumn(row.Label, 1); Grid.SetColumn(row.Up, 2); Grid.SetColumn(row.Down, 3); Grid.SetColumn(row.Switch, 4);
+            grid.Children.Add(row.Label); grid.Children.Add(row.Up); grid.Children.Add(row.Down); grid.Children.Add(row.Switch);
+            row.Switch.Click += (_, _) => { row.On = row.Switch.IsChecked == true; Refresh(); };
+            row.Up.Click += (_, _) => Move(row, -1);
+            row.Down.Click += (_, _) => Move(row, 1);
+            rows.Add(row);
+            list.Children.Add(row.Card);
+        }
+        Refresh();
+
         var content = new StackPanel();
         content.Children.Add(counter);
-        content.Children.Add(new ScrollViewer { Content = list, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        // The theme's scroll bar floats over the content: make room for it only while the list actually scrolls.
+        var scroller = new ScrollViewer { Content = list, MaxHeight = 420, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        scroller.ScrollChanged += (_, _) => list.Margin = new Thickness(0, 0, scroller.ScrollableHeight > 0 ? ScrollBarRoom : 0, 0);
+        content.Children.Add(scroller);
         if (!new Plugins.HostUi(_llm).EditDialog("托盘右键菜单", content, 460)) return;
 
         _trayMenu = rows.Where(r => r.On).Select(r => r.Item.Id).ToList();
