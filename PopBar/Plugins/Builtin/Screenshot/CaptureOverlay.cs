@@ -440,16 +440,19 @@ internal sealed class CaptureOverlay : Window
 
     private readonly Dictionary<ShotTool, string> _toolIcons = new();
 
+    // Bar metrics: 30px buttons in 4px of padding make a 40px bar, the height of a compact Windows 11 command bar.
+    private const double ButtonSize = 30, IconSize = 16, ChromePadding = 4, ChromeRadius = 10, PlateRadius = 7;
+
     /// <summary>Flat 36x36 icon button with a rounded hover plate. Active tools are tinted with the accent.</summary>
     private Button IconBtn(string icon, string tip, Action click, Brush? iconBrush = null)
     {
-        var plate = new Border { CornerRadius = new CornerRadius(8), Background = Brushes.Transparent, Width = 36, Height = 36, RenderTransformOrigin = new Point(0.5, 0.5) };
+        var plate = new Border { CornerRadius = new CornerRadius(PlateRadius), Background = Brushes.Transparent, Width = ButtonSize, Height = ButtonSize, RenderTransformOrigin = new Point(0.5, 0.5) };
         var b = new Button
         {
-            ToolTip = tip, Focusable = false, Cursor = Cursors.Hand, Margin = new Thickness(1, 0, 1, 0),
+            ToolTip = tip, Focusable = false, Cursor = Cursors.Hand,
             Template = PlainButtonTemplate(), Content = plate,
         };
-        plate.Child = Centered(_host.Ui.Icon(icon, 18, iconBrush ?? TextFg));
+        plate.Child = Centered(_host.Ui.Icon(icon, IconSize, iconBrush ?? TextFg));
         b.MouseEnter += (_, _) => { if (!IsActiveTool(b)) plate.Background = Hover; };
         b.MouseLeave += (_, _) => { if (!IsActiveTool(b)) plate.Background = Brushes.Transparent; plate.RenderTransform = null; };
         b.PreviewMouseLeftButtonDown += (_, _) => plate.RenderTransform = new ScaleTransform(0.92, 0.92);
@@ -501,10 +504,10 @@ internal sealed class CaptureOverlay : Window
         panel.Children.Add(IconBtn("x", "取消  Esc", Close, new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44))));
 
         // Primary action: accent pill with a label.
-        var done = new Border { CornerRadius = new CornerRadius(8), Background = Accent, Height = 36, Padding = new Thickness(12, 0, 14, 0), Margin = new Thickness(6, 0, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
+        var done = new Border { CornerRadius = new CornerRadius(PlateRadius), Background = Accent, Height = ButtonSize, Padding = new Thickness(10, 0, 12, 0), Margin = new Thickness(4, 0, 0, 0), RenderTransformOrigin = new Point(0.5, 0.5) };
         var doneRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        doneRow.Children.Add(Centered(_host.Ui.Icon("check", 16, Brushes.White)));
-        doneRow.Children.Add(new TextBlock { Text = "完成", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 13.5, Margin = new Thickness(6, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
+        doneRow.Children.Add(Centered(_host.Ui.Icon("check", IconSize - 2, Brushes.White)));
+        doneRow.Children.Add(new TextBlock { Text = "完成", Foreground = Brushes.White, FontWeight = FontWeights.SemiBold, FontSize = 12.5, Margin = new Thickness(5, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
         done.Child = doneRow;
         var doneBtn = new Button { Template = PlainButtonTemplate(), Content = done, Focusable = false, Cursor = Cursors.Hand, ToolTip = "复制到剪贴板  " + string.Join(" / ", new[] { "Enter", Shortcut.Display(_cfg.KeyCopy), "双击" }.Where(s => s.Length > 0)) };
         doneBtn.MouseEnter += (_, _) => done.Background = AccentStrong;
@@ -517,7 +520,7 @@ internal sealed class CaptureOverlay : Window
         _root.Children.Add(_toolbar);
     }
 
-    private UIElement Separator() => new Rectangle { Width = 1, Height = 22, Margin = new Thickness(7, 0, 7, 0), Fill = Res("BorderBrush", Brushes.LightGray), VerticalAlignment = VerticalAlignment.Center };
+    private UIElement Separator() => new Rectangle { Width = 1, Height = 16, Margin = new Thickness(5, 0, 5, 0), Fill = Res("BorderBrush", Brushes.LightGray), VerticalAlignment = VerticalAlignment.Center };
 
     private void BuildStyleBar()
     {
@@ -525,7 +528,7 @@ internal sealed class CaptureOverlay : Window
         foreach (var w in Widths)
         {
             double d = 4 + w * 1.4;
-            var dot = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(8), Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = w, ToolTip = "粗细", Margin = new Thickness(1, 0, 1, 0) };
+            var dot = new Border { Width = ButtonSize, Height = ButtonSize, CornerRadius = new CornerRadius(PlateRadius), Cursor = Cursors.Hand, Background = Brushes.Transparent, Tag = w, ToolTip = "粗细" };
             dot.Child = new Ellipse { Width = d, Height = d, Fill = TextFg, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
             dot.MouseEnter += (_, _) => { if ((double)dot.Tag != _width) dot.Background = Hover; };
             dot.MouseLeave += (_, _) => { if ((double)dot.Tag != _width) dot.Background = Brushes.Transparent; };
@@ -537,8 +540,8 @@ internal sealed class CaptureOverlay : Window
         foreach (var c in Palette)
         {
             // Outer ring shows selection; inner disc is the colour (hairline keeps white visible).
-            var disc = new Ellipse { Width = 18, Height = 18, Fill = new SolidColorBrush(c), Stroke = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)), StrokeThickness = 1 };
-            var ring = new Border { Width = 28, Height = 28, CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent, Margin = new Thickness(1, 0, 1, 0), Cursor = Cursors.Hand, Tag = c, Background = Brushes.Transparent, Child = Centered(disc) };
+            var disc = new Ellipse { Width = 16, Height = 16, Fill = new SolidColorBrush(c), Stroke = new SolidColorBrush(Color.FromArgb(50, 0, 0, 0)), StrokeThickness = 1 };
+            var ring = new Border { Width = 24, Height = 24, CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent, Margin = new Thickness(3, 0, 3, 0), Cursor = Cursors.Hand, Tag = c, Background = Brushes.Transparent, Child = Centered(disc) };
             ring.MouseLeftButtonDown += (_, e) => { _color = (Color)ring.Tag; RefreshStyleBar(); if (_editor != null) _editor.Foreground = new SolidColorBrush(_color); e.Handled = true; };
             _swatches.Add(ring);
             panel.Children.Add(ring);
@@ -554,13 +557,14 @@ internal sealed class CaptureOverlay : Window
     /// </summary>
     private void StyleChrome(Border b, UIElement child)
     {
-        b.Child = new Border { CornerRadius = new CornerRadius(11), Padding = new Thickness(6), Child = child };
-        ((Border)b.Child).SetResourceReference(Border.BackgroundProperty, _glass != null ? "PopupTintBrush" : "CardBrush");
-        b.CornerRadius = new CornerRadius(12);
+        b.Child = new Border { CornerRadius = new CornerRadius(ChromeRadius - 1), Padding = new Thickness(ChromePadding), Child = child };
+        // The selection bar's tint, not the thinner popup one: a toolbar stays up over any content and must read cleanly.
+        ((Border)b.Child).SetResourceReference(Border.BackgroundProperty, _glass != null ? "BarTintBrush" : "CardBrush");
+        b.CornerRadius = new CornerRadius(ChromeRadius);
         b.Background = Brushes.Transparent;
         b.BorderBrush = Res("BorderBrush", Brushes.Gainsboro);
         b.BorderThickness = new Thickness(1);
-        b.Effect = new DropShadowEffect { BlurRadius = 14, ShadowDepth = 2, Direction = 270, Opacity = 0.18 };
+        b.Effect = new DropShadowEffect { BlurRadius = 10, ShadowDepth = 1, Direction = 270, Opacity = 0.18 };
         b.Visibility = Visibility.Collapsed;
         b.Cursor = Cursors.Arrow;
         RenderOptions.SetClearTypeHint(b, ClearTypeHint.Enabled);

@@ -26,6 +26,7 @@
     <SolidColorBrush x:Key="PopupBrush" Color="#FFFFFF"/>
     <!-- translucent layer over the frosted snapshot in menus / drop-downs; alpha follows the blur opacity setting -->
     <SolidColorBrush x:Key="PopupTintBrush" Color="#E0FFFFFF"/>
+    <SolidColorBrush x:Key="BarTintBrush" Color="#E0FFFFFF"/>
     <!-- item hover / selection inside those frosted popups: translucent so the glass shows through -->
     <SolidColorBrush x:Key="PopupHoverBrush" Color="#14000000"/>
     <SolidColorBrush x:Key="PopupSelectedBrush" Color="#1F3B82F6"/>

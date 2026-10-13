@@ -162,6 +162,7 @@ internal static class ThemeManager
             Set("SwitchOffBrush", "#FF3A4254");
             Set("PopupBrush", "#FF232936");
             Set("PopupTintBrush", Hex(PopupTint(true)));
+            Set("BarTintBrush", Hex(BlurTint(true, BlurOpacity < 100)));   // persistent chrome on glass (screenshot toolbar)
             Set("PopupHoverBrush", "#1FFFFFFF");      // translucent: a solid block would sit oddly on the frosted surface
             Set("PopupSelectedBrush", "#335B9BFF");
             Set("ScrollThumbBrush", "#FF3F485A");
@@ -190,6 +191,7 @@ internal static class ThemeManager
             Set("SwitchOffBrush", "#FFD1D5DB");
             Set("PopupBrush", "#FFFFFFFF");
             Set("PopupTintBrush", Hex(PopupTint(false)));
+            Set("BarTintBrush", Hex(BlurTint(false, BlurOpacity < 100)));
             Set("PopupHoverBrush", "#14000000");
             Set("PopupSelectedBrush", "#1F3B82F6");
             Set("ScrollThumbBrush", "#FFC7CCD6");
