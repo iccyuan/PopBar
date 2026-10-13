@@ -128,9 +128,9 @@ internal static class ShotNative
     /// (pinned images, result panels, notes, settings) are included like any other, except the action bar; for our
     /// layered windows the rect is the visible card, not the transparent margin reserved for the shadow.
     /// </summary>
-    public static List<Int32Rect> WindowRects(Int32Rect vs)
+    public static List<ShotTarget> WindowRects(Int32Rect vs)
     {
-        var list = new List<Int32Rect>();
+        var list = new List<ShotTarget>();
         uint self = (uint)Environment.ProcessId;
         EnumWindows((h, _) =>
         {
@@ -144,7 +144,7 @@ internal static class ShotNative
             if (pid == self && !OwnWindowRect(h, ref r)) return true;
             int l = Math.Max(r.L, vs.X), t = Math.Max(r.T, vs.Y), rr = Math.Min(r.R, vs.X + vs.Width), b = Math.Min(r.B, vs.Y + vs.Height);
             if (rr - l < 8 || b - t < 8) return true;
-            list.Add(new Int32Rect(l, t, rr - l, b - t));
+            list.Add(new ShotTarget(h, new Int32Rect(l, t, rr - l, b - t)));
             return true;
         }, IntPtr.Zero);
         return list;

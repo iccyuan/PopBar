@@ -34,7 +34,10 @@ internal sealed class CaptureOverlay : Window
     private readonly ScreenshotPlugin.Settings _cfg;
     private readonly BitmapSource _screen;
     private readonly Int32Rect _vs;
-    private readonly List<Int32Rect> _windows;
+    private readonly List<ShotTarget> _windows;
+    /// <summary>Rects under the cursor from the smallest part out to the whole window; the wheel walks this list.</summary>
+    private readonly List<Int32Rect> _hoverStack = new();
+    private int _hoverLevel;
 
     private readonly Canvas _root = new();
     private readonly Image _bg = new();
@@ -84,7 +87,7 @@ internal sealed class CaptureOverlay : Window
     /// <summary>Raised for "long" (scrolling screenshot) or "gif" (recording); arg: physical screen rect of the selection.</summary>
     public event Action<string, Int32Rect>? LiveRequested;
 
-    public CaptureOverlay(IPluginHost host, ScreenshotPlugin.Settings cfg, BitmapSource screen, Int32Rect vs, List<Int32Rect> windows)
+    public CaptureOverlay(IPluginHost host, ScreenshotPlugin.Settings cfg, BitmapSource screen, Int32Rect vs, List<ShotTarget> windows)
     {
         _host = host; _cfg = cfg; _screen = screen; _vs = vs; _windows = windows;
         WindowStyle = WindowStyle.None;
@@ -143,6 +146,7 @@ internal sealed class CaptureOverlay : Window
 
         MouseLeftButtonDown += OnDown;
         MouseMove += OnMove;
+        MouseWheel += OnHoverWheel;
         MouseLeftButtonUp += OnUp;
         MouseRightButtonUp += OnRightClick;
         PreviewKeyDown += OnKey;
@@ -297,13 +301,41 @@ internal sealed class CaptureOverlay : Window
         return false;
     }
 
+    /// <summary>
+    /// The topmost window under the cursor, narrowed to the smallest of its parts there (a control, a taskbar button).
+    /// The wheel then steps out to enclosing parts and the whole window, and back in; moving to another element
+    /// starts again from the smallest.
+    /// </summary>
     private void UpdateHover(Point p)
     {
         if (!_cfg.DetectWindows) { _hover = null; return; }
         int px = (int)(p.X * _s) + _vs.X, py = (int)(p.Y * _s) + _vs.Y;
-        foreach (var r in _windows)
-            if (px >= r.X && px < r.X + r.Width && py >= r.Y && py < r.Y + r.Height) { _hover = ToDip(r); return; }
-        _hover = Bounds;
+        static bool Has(Int32Rect r, int x, int y) => x >= r.X && x < r.X + r.Width && y >= r.Y && y < r.Y + r.Height;
+        var window = _windows.FirstOrDefault(w => Has(w.Rect, px, py));
+        if (window == null) { _hoverStack.Clear(); _hover = Bounds; return; }
+        var stack = window.Parts.Where(r => Has(r, px, py)).Distinct()
+            .OrderBy(r => (long)r.Width * r.Height).Append(window.Rect).ToList();
+        if (!stack.SequenceEqual(_hoverStack))
+        {
+            // Keep the chosen level while the cursor stays inside the same element.
+            var current = _hoverLevel < _hoverStack.Count ? _hoverStack[_hoverLevel] : (Int32Rect?)null;
+            _hoverStack.Clear();
+            _hoverStack.AddRange(stack);
+            int same = current is { } c ? _hoverStack.IndexOf(c) : -1;
+            _hoverLevel = same >= 0 && Has(_hoverStack[same], px, py) ? same : 0;
+        }
+        _hover = ToDip(_hoverStack[_hoverLevel]);
+    }
+
+    private void OnHoverWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (_state != State.Idle || _hoverStack.Count < 2) return;
+        int level = Math.Clamp(_hoverLevel + (e.Delta > 0 ? 1 : -1), 0, _hoverStack.Count - 1);
+        if (level == _hoverLevel) return;
+        _hoverLevel = level;
+        _hover = ToDip(_hoverStack[level]);
+        UpdateVisuals();
+        e.Handled = true;
     }
 
     private void ResetSelection()

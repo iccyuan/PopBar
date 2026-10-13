@@ -91,7 +91,8 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
             try
             {
                 var vs = ShotNative.VirtualScreen();
-                var windows = _cfg.DetectWindows ? ShotNative.WindowRects(vs) : new List<Int32Rect>();
+                var windows = _cfg.DetectWindows ? ShotNative.WindowRects(vs) : new List<ShotTarget>();
+                if (_cfg.DetectWindows) ShotTargets.FillParts(windows);
                 var screen = ShotNative.CaptureScreen(vs);   // before our overlay exists
                 var suppress = _host.SuppressSelection();     // our drags must not look like text selections
                 var overlay = new CaptureOverlay(_host, _cfg, screen, vs, windows);
