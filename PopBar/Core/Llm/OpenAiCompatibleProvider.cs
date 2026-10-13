@@ -77,11 +77,11 @@ internal class OpenAiCompatibleProvider : ILlmProvider
 
         using var stream = await resp.Content.ReadAsStreamAsync(ct);
         using var reader = new System.IO.StreamReader(stream);
-        while (!reader.EndOfStream)
+        // Not `while (!reader.EndOfStream)`: EndOfStream is a blocking read, and this loop runs on the UI thread,
+        // so the panel could not repaint between chunks and the whole answer appeared at once.
+        string? line;
+        while ((line = await reader.ReadLineAsync(ct)) != null)
         {
-            ct.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync(ct);
-            if (line == null) break;
             if (!line.StartsWith("data:")) continue;
             var data = line[5..].Trim();
             if (data == "[DONE]") break;
