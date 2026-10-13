@@ -10,12 +10,13 @@ internal sealed class ShotTarget(IntPtr hwnd, Int32Rect rect)
 {
     public IntPtr Hwnd { get; } = hwnd;
     public Int32Rect Rect { get; } = rect;
-    /// <summary>Child controls and UI elements, any order; the overlay picks among those under the cursor.</summary>
-    public List<Int32Rect> Parts { get; } = new();
+    /// <summary>Child controls and UI elements, any order; the overlay picks among those under the cursor. Set on the UI thread.</summary>
+    public IReadOnlyList<Int32Rect> Parts { get; set; } = [];
 }
 
 /// <summary>
-/// Collects the parts of each <see cref="ShotTarget"/> before the overlay covers the screen: visible child windows
+/// Collects the parts of each <see cref="ShotTarget"/>, off the UI thread while the overlay is already up (neither
+/// source depends on what is drawn on top): visible child windows
 /// (classic Win32 controls), plus UI Automation elements for the taskbar, whose buttons, tray icons and clock live in
 /// one XAML surface with no child windows of their own.
 /// </summary>
@@ -31,15 +32,20 @@ internal static class ShotTargets
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(IntPtr parent, EnumChildProc cb, IntPtr l);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, StringBuilder name, int max);
 
-    private static IUIAutomation? _uia;
+    [ThreadStatic] private static IUIAutomation? _uia; // COM object of the collecting thread
 
-    public static void FillParts(List<ShotTarget> targets)
+    /// <summary>Parts per target, in the order of <paramref name="targets"/>. Safe to call from any thread.</summary>
+    public static List<Int32Rect>[] CollectParts(IReadOnlyList<ShotTarget> targets)
     {
-        foreach (var t in targets)
+        var parts = new List<Int32Rect>[targets.Count];
+        for (int i = 0; i < targets.Count; i++)
         {
-            AddChildWindows(t);
-            if (IsTaskbar(t.Hwnd)) AddUiaElements(t);
+            var t = targets[i];
+            parts[i] = new List<Int32Rect>();
+            AddChildWindows(t, parts[i]);
+            if (IsTaskbar(t.Hwnd)) AddUiaElements(t, parts[i]);
         }
+        return parts;
     }
 
     private static bool IsTaskbar(IntPtr h)
@@ -49,16 +55,16 @@ internal static class ShotTargets
         return TaskbarClasses.Contains(sb.ToString());
     }
 
-    private static void AddChildWindows(ShotTarget t)
+    private static void AddChildWindows(ShotTarget t, List<Int32Rect> parts)
     {
         EnumChildWindows(t.Hwnd, (h, _) =>
         {
-            if (ShotNative.IsWindowVisible(h) && ShotNative.GetWindowRect(h, out var r)) Add(t, r.L, r.T, r.R, r.B);
+            if (ShotNative.IsWindowVisible(h) && ShotNative.GetWindowRect(h, out var r)) Add(t, parts, r.L, r.T, r.R, r.B);
             return true;
         }, IntPtr.Zero);
     }
 
-    private static void AddUiaElements(ShotTarget t)
+    private static void AddUiaElements(ShotTarget t, List<Int32Rect> parts)
     {
         try
         {
@@ -68,7 +74,7 @@ internal static class ShotTargets
             for (int i = 0, n = Math.Min(all.Length, MaxUiaParts); i < n; i++)
             {
                 var b = all.GetElement(i).CurrentBoundingRectangle;
-                Add(t, b.left, b.top, b.right, b.bottom);
+                Add(t, parts, b.left, b.top, b.right, b.bottom);
             }
         }
         catch (Exception ex) { Log.Warn("taskbar elements unavailable: " + ex.Message); }
@@ -82,13 +88,13 @@ internal static class ShotTargets
     }
 
     /// <summary>Clip to the window, drop slivers and the window's own rect (that is the target itself).</summary>
-    private static void Add(ShotTarget t, int left, int top, int right, int bottom)
+    private static void Add(ShotTarget t, List<Int32Rect> parts, int left, int top, int right, int bottom)
     {
         var w = t.Rect;
         int l = Math.Max(left, w.X), tp = Math.Max(top, w.Y), r = Math.Min(right, w.X + w.Width), b = Math.Min(bottom, w.Y + w.Height);
         if (r - l < MinSize || b - tp < MinSize) return;
         var part = new Int32Rect(l, tp, r - l, b - tp);
         if (part.Equals(w)) return;
-        t.Parts.Add(part);
+        parts.Add(part);
     }
 }

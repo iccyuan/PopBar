@@ -82,6 +82,23 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
 
     // ------------------------------------------------------------------ capture
 
+    /// <summary>
+    /// Fill in the windows' parts (controls, taskbar buttons) without holding up the overlay: the UI Automation walk of
+    /// the taskbar takes long enough to be felt between the hotkey and the overlay.
+    /// </summary>
+    private async Task LoadPartsAsync(CaptureOverlay overlay, List<ShotTarget> windows)
+    {
+        try
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var parts = await Task.Run(() => ShotTargets.CollectParts(windows));
+            for (int i = 0; i < windows.Count; i++) windows[i].Parts = parts[i];
+            _host.Log.Info($"window parts: {parts.Sum(p => p.Count)} in {clock.ElapsedMilliseconds} ms");
+            if (ReferenceEquals(_overlay, overlay)) overlay.PartsReady();
+        }
+        catch (Exception ex) { _host.Log.Warn("window parts unavailable: " + ex.Message); }
+    }
+
     /// <summary>Freeze the screen and open the selection overlay (UI thread).</summary>
     public void Capture()
     {
@@ -92,7 +109,6 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
             {
                 var vs = ShotNative.VirtualScreen();
                 var windows = _cfg.DetectWindows ? ShotNative.WindowRects(vs) : new List<ShotTarget>();
-                if (_cfg.DetectWindows) ShotTargets.FillParts(windows);
                 var screen = ShotNative.CaptureScreen(vs);   // before our overlay exists
                 var suppress = _host.SuppressSelection();     // our drags must not look like text selections
                 var overlay = new CaptureOverlay(_host, _cfg, screen, vs, windows);
@@ -106,6 +122,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
                 };
                 _overlay = overlay;
                 overlay.Show();
+                if (windows.Count > 0) _ = LoadPartsAsync(overlay, windows);
             }
             catch (Exception ex)
             {

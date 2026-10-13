@@ -38,6 +38,8 @@ internal sealed class CaptureOverlay : Window
     /// <summary>Rects under the cursor from the smallest part out to the whole window; the wheel walks this list.</summary>
     private readonly List<Int32Rect> _hoverStack = new();
     private int _hoverLevel;
+    /// <summary>The rect the user stepped to with the wheel; kept while the cursor stays inside it, else null.</summary>
+    private Int32Rect? _hoverChosen;
 
     private readonly Canvas _root = new();
     private readonly Image _bg = new();
@@ -312,19 +314,27 @@ internal sealed class CaptureOverlay : Window
         int px = (int)(p.X * _s) + _vs.X, py = (int)(p.Y * _s) + _vs.Y;
         static bool Has(Int32Rect r, int x, int y) => x >= r.X && x < r.X + r.Width && y >= r.Y && y < r.Y + r.Height;
         var window = _windows.FirstOrDefault(w => Has(w.Rect, px, py));
-        if (window == null) { _hoverStack.Clear(); _hover = Bounds; return; }
+        if (window == null) { _hoverStack.Clear(); _hoverChosen = null; _hover = Bounds; return; }
         var stack = window.Parts.Where(r => Has(r, px, py)).Distinct()
             .OrderBy(r => (long)r.Width * r.Height).Append(window.Rect).ToList();
         if (!stack.SequenceEqual(_hoverStack))
         {
-            // Keep the chosen level while the cursor stays inside the same element.
-            var current = _hoverLevel < _hoverStack.Count ? _hoverStack[_hoverLevel] : (Int32Rect?)null;
             _hoverStack.Clear();
             _hoverStack.AddRange(stack);
-            int same = current is { } c ? _hoverStack.IndexOf(c) : -1;
-            _hoverLevel = same >= 0 && Has(_hoverStack[same], px, py) ? same : 0;
+            // A level picked with the wheel holds while the cursor stays inside it; otherwise the smallest part wins.
+            int chosen = _hoverChosen is { } c ? _hoverStack.IndexOf(c) : -1;
+            if (chosen < 0) _hoverChosen = null;
+            _hoverLevel = Math.Max(chosen, 0);
         }
         _hover = ToDip(_hoverStack[_hoverLevel]);
+    }
+
+    /// <summary>The window parts were collected in the background after the overlay opened: re-run hover with them.</summary>
+    public void PartsReady()
+    {
+        if (_state != State.Idle) return;
+        UpdateHover(Mouse.GetPosition(_root));
+        UpdateVisuals();
     }
 
     private void OnHoverWheel(object sender, MouseWheelEventArgs e)
@@ -333,6 +343,7 @@ internal sealed class CaptureOverlay : Window
         int level = Math.Clamp(_hoverLevel + (e.Delta > 0 ? 1 : -1), 0, _hoverStack.Count - 1);
         if (level == _hoverLevel) return;
         _hoverLevel = level;
+        _hoverChosen = level == 0 ? null : _hoverStack[level];
         _hover = ToDip(_hoverStack[level]);
         UpdateVisuals();
         e.Handled = true;
@@ -671,7 +682,6 @@ internal sealed class CaptureOverlay : Window
         var zoom = new Grid { Width = w, Height = h, Clip = new RectangleGeometry(new Rect(0, 0, w, h), inner, inner) };
         zoom.Children.Add(_magImage);
         zoom.Children.Add(_magGrid);
-        zoom.Children.Add(new Border { CornerRadius = new CornerRadius(inner), BorderThickness = new Thickness(1), BorderBrush = Frozen(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF)) });
 
         var hint = new Border
         {
@@ -695,8 +705,6 @@ internal sealed class CaptureOverlay : Window
         stack.Children.Add(position);
         _magnifier.Child = stack;
         _magnifier.Background = Frozen(Color.FromArgb(0xEB, 0x15, 0x18, 0x1F));
-        _magnifier.BorderBrush = Frozen(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
-        _magnifier.BorderThickness = new Thickness(1);
         _magnifier.CornerRadius = new CornerRadius(MagRadius);
         _magnifier.Padding = new Thickness(4, 4, 4, 6);
         _magnifier.Effect = new DropShadowEffect { BlurRadius = 12, ShadowDepth = 2, Direction = 270, Opacity = 0.3 };
@@ -728,6 +736,31 @@ internal sealed class CaptureOverlay : Window
         if (y + sz.Height > Bounds.Height) y = p.Y - 22 - sz.Height;
         Canvas.SetLeft(_magnifier, x);
         Canvas.SetTop(_magnifier, y);
+    }
+
+    /// <summary>
+    /// Outside the rect wherever it fits: above, below (not once selected, the toolbar goes there), right, left, and
+    /// clear of the magnifier that trails the cursor. Only a rect filling the screen gets the tag inside.
+    /// </summary>
+    private Point SizeTagPosition(Rect r, Size tag, bool selected)
+    {
+        const double gap = 6, edge = 2;
+        double left = Math.Clamp(r.Left, edge, Math.Max(edge, Bounds.Width - tag.Width - edge));
+        var candidates = new List<Point> { new(left, r.Top - tag.Height - gap) };
+        if (!selected) candidates.Add(new(left, r.Bottom + gap));
+        double side = Math.Clamp(r.Top, edge, Math.Max(edge, Bounds.Height - tag.Height - edge)); // a rect touching the screen top still has room beside it
+        candidates.Add(new(r.Right + gap, side));
+        candidates.Add(new(r.Left - tag.Width - gap, side));
+        var magnifier = _magnifier.Visibility == Visibility.Visible
+            ? new Rect(Canvas.GetLeft(_magnifier), Canvas.GetTop(_magnifier), _magnifier.DesiredSize.Width, _magnifier.DesiredSize.Height)
+            : Rect.Empty;
+        bool Fits(Point c) => c.X >= edge && c.Y >= edge && c.X + tag.Width <= Bounds.Width - edge && c.Y + tag.Height <= Bounds.Height - edge;
+        bool Clear(Point c) => magnifier.IsEmpty || !magnifier.IntersectsWith(new Rect(c, tag));
+        foreach (var c in candidates)
+            if (Fits(c) && Clear(c)) return c;
+        foreach (var c in candidates)
+            if (Fits(c)) return c;
+        return new(left + gap, r.Top + gap);
     }
 
     private void UpdateVisuals()
@@ -769,10 +802,9 @@ internal sealed class CaptureOverlay : Window
         {
             _sizeText.Text = $"{(int)Math.Round(shown.Width * _s)} × {(int)Math.Round(shown.Height * _s)}";
             _sizeTag.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double ty = shown.Top - _sizeTag.DesiredSize.Height - 6;
-            if (ty < 2) ty = shown.Top + 6;
-            Canvas.SetLeft(_sizeTag, Math.Max(2, shown.Left));
-            Canvas.SetTop(_sizeTag, ty);
+            var at = SizeTagPosition(shown, _sizeTag.DesiredSize, selected);
+            Canvas.SetLeft(_sizeTag, at.X);
+            Canvas.SetTop(_sizeTag, at.Y);
         }
 
         _layer.ClipRect = _sel;
