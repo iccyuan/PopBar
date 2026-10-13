@@ -32,6 +32,18 @@ internal static class ThemeManager
         return dark ? Color.FromArgb(a, 0x1C, 0x21, 0x2B) : Color.FromArgb(a, 0xFF, 0xFF, 0xFF);
     }
 
+    /// <summary>
+    /// Menus, drop-downs and tooltips sit right on top of busy content and are only up for a moment, so their tint is
+    /// thinner than the bar's: at the same alpha the blur under a small popup reads as a solid card.
+    /// </summary>
+    public static Color PopupTint(bool dark)
+    {
+        var c = BlurTint(dark, BlurOpacity < 100);
+        return c.A == 255 ? c : Color.FromArgb((byte)Math.Round(c.A * PopupTintRatio), c.R, c.G, c.B);
+    }
+
+    private const double PopupTintRatio = 0.72;
+
     private static string Hex(Color c) => $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
 
     /// <summary>Accent-policy tint (0xAABBGGRR): white-ish in light mode, blue-black in dark mode, alpha from <see cref="BlurOpacity"/>.</summary>
@@ -149,7 +161,7 @@ internal static class ThemeManager
             Set("SuccessBrush", "#FF4ADE80");
             Set("SwitchOffBrush", "#FF3A4254");
             Set("PopupBrush", "#FF232936");
-            Set("PopupTintBrush", Hex(BlurTint(true, BlurOpacity < 100)));
+            Set("PopupTintBrush", Hex(PopupTint(true)));
             Set("PopupHoverBrush", "#1FFFFFFF");      // translucent: a solid block would sit oddly on the frosted surface
             Set("PopupSelectedBrush", "#335B9BFF");
             Set("ScrollThumbBrush", "#FF3F485A");
@@ -177,7 +189,7 @@ internal static class ThemeManager
             Set("SuccessBrush", "#FF16A34A");
             Set("SwitchOffBrush", "#FFD1D5DB");
             Set("PopupBrush", "#FFFFFFFF");
-            Set("PopupTintBrush", Hex(BlurTint(false, BlurOpacity < 100)));
+            Set("PopupTintBrush", Hex(PopupTint(false)));
             Set("PopupHoverBrush", "#14000000");
             Set("PopupSelectedBrush", "#1F3B82F6");
             Set("ScrollThumbBrush", "#FFC7CCD6");

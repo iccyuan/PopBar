@@ -325,7 +325,8 @@
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
         <Setter Property="MinHeight" Value="34"/>
-        <Setter Property="Padding" Value="10,0,30,0"/>
+        <!-- 12 = the drop-down list's 4px padding + an item's 8px, so the open list's text lines up with this one -->
+        <Setter Property="Padding" Value="12,0,30,0"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="ScrollViewer.CanContentScroll" Value="False"/>
@@ -343,12 +344,14 @@
                                  Margin="{TemplateBinding Padding}" VerticalAlignment="Center" Background="Transparent" BorderThickness="0"
                                  Foreground="{TemplateBinding Foreground}" CaretBrush="{DynamicResource TextBrush}" IsReadOnly="{TemplateBinding IsReadOnly}"/>
                         <Popup x:Name="PART_Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True"
-                               PopupAnimation="Fade" HorizontalOffset="-10" VerticalOffset="-6" StaysOpen="False">
+                               PopupAnimation="Fade" VerticalOffset="4" StaysOpen="False">
+                            <!-- the margin is room for the shadow; measured on screen, the card itself lands flush with the
+                                 control's left edge, so no offset compensates for it (a -10 / -6 pull had it 10px left, overlapping) -->
                             <Grid Margin="10" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
                                 <!-- shadow caster under the frosted snapshot, then the tint and the items (see ui:Frost) -->
                                 <Border CornerRadius="12" Background="{DynamicResource PopupBrush}">
                                     <Border.Effect>
-                                        <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.18"/>
+                                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Direction="270" Opacity="0.12"/>
                                     </Border.Effect>
                                 </Border>
                                 <Border CornerRadius="12" ui:Frost.IsGlass="True"/>
@@ -377,21 +380,26 @@
     <Style TargetType="ComboBoxItem">
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="Padding" Value="8,7"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
-                    <Border x:Name="Bd" CornerRadius="8" Background="Transparent" Padding="{TemplateBinding Padding}">
-                        <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
-                    </Border>
+                    <Grid>
+                        <Border x:Name="Bd" CornerRadius="8" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <!-- selection marker: a short accent pill on the left, as in Windows 11 lists -->
+                        <Border x:Name="Pill" Width="3" Height="16" CornerRadius="1.5" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                Background="{DynamicResource AccentBrush}" Visibility="Collapsed"/>
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupSelectedBrush}"/>
-                            <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}"/>
+                            <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>
+                            <Setter TargetName="Pill" Property="Visibility" Value="Visible"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -721,7 +729,7 @@
                     <Grid Margin="8">
                         <Border CornerRadius="8" Background="{DynamicResource PopupBrush}">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="14" ShadowDepth="2" Direction="270" Opacity="0.14"/>
+                                <DropShadowEffect BlurRadius="8" ShadowDepth="1" Direction="270" Opacity="0.12"/>
                             </Border.Effect>
                         </Border>
                         <Border CornerRadius="8" ui:Frost.IsGlass="True"/>
@@ -755,7 +763,7 @@
                         <!-- shadow caster; its opaque body sits under the glass snapshot so only the shadow shows -->
                         <Border CornerRadius="12" Background="{DynamicResource PopupBrush}">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="22" ShadowDepth="3" Direction="270" Opacity="0.18"/>
+                                <DropShadowEffect BlurRadius="10" ShadowDepth="2" Direction="270" Opacity="0.12"/>
                             </Border.Effect>
                         </Border>
                         <!-- blurred screenshot of what is underneath, placed once the menu knows where it landed -->

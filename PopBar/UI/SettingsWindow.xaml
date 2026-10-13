@@ -352,7 +352,6 @@
                 <!-- ===== Services: capabilities shared by plugins ===== -->
                 <StackPanel x:Name="PanelServices" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,8"/>
-                    <WrapPanel x:Name="LlmFeatureChips" Margin="4,0,0,10"/>
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <Grid Style="{StaticResource Row}">
@@ -407,9 +406,13 @@
                                     <TextBlock Text="默认模型" VerticalAlignment="Center"/>
                                     <ui:InfoTip Text="各插件可在自己的设置里另选模型"/>
                                     </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ComboBox x:Name="LlmModelBox" Width="236" IsEditable="True" SelectionChanged="Llm_Changed"/>
-                                    <Button Content="获取模型" Margin="8,0,0,0" Click="FetchModels_Click"/>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ComboBox x:Name="LlmModelBox" Width="236" IsEditable="True" SelectionChanged="Llm_Changed"/>
+                                        <Button Content="获取模型" Margin="8,0,0,0" Click="FetchModels_Click"/>
+                                    </StackPanel>
+                                    <!-- what this protocol can do with the model: right under it, not above the whole card -->
+                                    <WrapPanel x:Name="LlmFeatureChips" Margin="0,8,0,2" MaxWidth="330" HorizontalAlignment="Left"/>
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
