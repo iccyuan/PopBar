@@ -134,7 +134,8 @@ internal sealed class SelectionEngine : IDisposable
 
                 _lastUpTriggered = true;
                 int seq = Volatile.Read(ref _seq);
-                Enqueue(() => CaptureJob(seq, x, y, dbl, now, cfg, chain));
+                int? startY = drag ? _downY : null;
+                Enqueue(() => CaptureJob(seq, x, y, startY, dbl, now, cfg, chain));
                 break;
             }
 
@@ -213,9 +214,9 @@ internal sealed class SelectionEngine : IDisposable
 
     // ------------------------------------------------------------------ worker
 
-    private void CaptureJob(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg, bool update = false)
+    private void CaptureJob(int seq, int x, int y, int? startY, bool dbl, long upTicks, AppConfig cfg, bool update = false)
     {
-        if (CaptureAndShow(seq, x, y, dbl, upTicks, cfg, update) || !update) return;
+        if (CaptureAndShow(seq, x, y, startY, dbl, upTicks, cfg, update) || !update) return;
         // A chain click that selected nothing (many apps restart the count after a triple click, collapsing the
         // selection) must not leave the bar up with stale text. But hiding at once makes the bar flicker when the
         // next click of the chain selects again, so wait out the double-click window first; any further click
@@ -228,7 +229,7 @@ internal sealed class SelectionEngine : IDisposable
     }
 
     /// <summary>False when nothing was shown (no text, no actions, superseded...).</summary>
-    private bool CaptureAndShow(int seq, int x, int y, bool dbl, long upTicks, AppConfig cfg, bool update)
+    private bool CaptureAndShow(int seq, int x, int y, int? startY, bool dbl, long upTicks, AppConfig cfg, bool update)
     {
         long wait = upTicks + cfg.ShowDelayMs - Environment.TickCount64;
         if (wait > 0) Thread.Sleep((int)wait);
@@ -252,7 +253,7 @@ internal sealed class SelectionEngine : IDisposable
         if (string.IsNullOrWhiteSpace(text)) return false;
         if (text.Length > cfg.MaxTextLength) return false;
 
-        var sel = new Selection(text, source, x, y);
+        var sel = new Selection(text, source, x, y) { StartY = startY };
         var actions = ResolveActions(sel, cfg);
         if (actions.Count == 0) return false;
         Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms");

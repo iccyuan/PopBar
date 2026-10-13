@@ -95,15 +95,17 @@ public partial class PopupWindow : Window, IPopupPresenter
         int w = (int)Math.Ceiling(size.Width * scale);
         int h = (int)Math.Ceiling(size.Height * scale);
         int m = (int)Math.Round(margin * scale);
-        // The anchor is the mouse-up point, i.e. the middle of the text line: clear half a line plus breathing room
-        // above, and the cursor arrow below.
+        // Horizontally centred on the mouse-up point. Vertically the anchors are the middle of the selection's first and
+        // last line the mouse touched (a drag down ends on the last one): clear half a line plus breathing room above the
+        // first, else the cursor arrow below the last, so a multi-line selection is never covered.
         int gap = (int)Math.Round(18 * scale);
-        bool above = y - (h - m) - gap >= work.Top;
+        int top = sel.Top, bottom = sel.Bottom;
+        bool above = top - (h - m) - gap >= work.Top;
         int px = Math.Clamp(x - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
-        int py = above ? y - h + m - gap : y - m + (int)Math.Round(28 * scale);
+        int py = above ? top - h + m - gap : bottom - m + (int)Math.Round(28 * scale);
         py = Math.Clamp(py, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
 
-        _anchorX = x; _anchorY = y; _above = above; _py = py; _m = m; _gap = gap; _scale = scale; _work = work;
+        _anchorX = x; _anchorY = top; _above = above; _py = py; _m = m; _gap = gap; _scale = scale; _work = work;
 
         // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
         if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
@@ -134,7 +136,7 @@ public partial class PopupWindow : Window, IPopupPresenter
             if (w2 != w || h2 != h)
             {
                 int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
-                int py2 = above ? y - h2 + m - gap : py;
+                int py2 = above ? top - h2 + m - gap : py;
                 if (_strip != null) Glass.Background = StripBrush(px2 + m, py2 + m, w2 - 2 * m, h2 - 2 * m);
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
