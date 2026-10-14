@@ -248,15 +248,22 @@ internal sealed class SelectionEngine : IDisposable
 
         bool allowClipboard = !cfg.ClipboardFallbackOff && (cfg.ClipboardFallbackAlways || dbl || IsIBeamCursor());
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        var text = _capture.Capture(x, y, allowClipboard, cfg.NoClipboardApps, out var method);
+        var captured = _capture.Capture(x, y, allowClipboard, cfg.NoClipboardApps, out var method);
         if (seq != Volatile.Read(ref _seq)) return false;
+        var text = captured?.Text;
         if (string.IsNullOrWhiteSpace(text)) return false;
         if (text.Length > cfg.MaxTextLength) return false;
 
-        var sel = new Selection(text, source, x, y) { StartY = startY };
+        var sel = new Selection(text, source, x, y)
+        {
+            Bounds = captured!.Bounds,
+            StartY = startY,
+            LineHeight = captured.Bounds == null ? CaretProbe.LineHeight(source) : null,
+        };
         var actions = ResolveActions(sel, cfg);
         if (actions.Count == 0) return false;
-        Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms");
+        Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms"
+            + (sel.Bounds is { } b ? $", text at {b.Left},{b.Top} {b.Width}x{b.Height}" : sel.LineHeight is { } lh ? $", line {lh}px" : ""));
 
         if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))
         {

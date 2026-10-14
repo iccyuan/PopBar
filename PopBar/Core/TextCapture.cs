@@ -9,13 +9,16 @@ internal enum CaptureMethod { None, Uia, Clipboard }
 /// <summary>Everything a capture strategy may need to decide and act.</summary>
 internal sealed record CaptureContext(int X, int Y, IntPtr ForegroundWindow, string ForegroundProcess, bool AllowClipboard, IReadOnlyCollection<string> NoClipboardApps);
 
+/// <summary>A read selection; <paramref name="Bounds"/> is the selected text's on-screen rectangle (physical pixels) when known.</summary>
+internal sealed record CapturedText(string Text, RECT? Bounds = null);
+
 /// <summary>One way of reading the current selection. Strategies run in order until one returns text.</summary>
 internal interface ITextCaptureStrategy
 {
     CaptureMethod Method { get; }
     /// <summary>Cheap pre-check (e.g. clipboard fallback is disabled for terminals).</summary>
     bool CanRun(CaptureContext ctx);
-    string? Capture(CaptureContext ctx);
+    CapturedText? Capture(CaptureContext ctx);
 }
 
 /// <summary>Reads the selection of the foreground app by running the strategy chain (UIA first, Ctrl+C fallback second).</summary>
@@ -26,7 +29,7 @@ internal sealed class TextCapture
     public TextCapture() : this(new ITextCaptureStrategy[] { new UiaCaptureStrategy(), new ClipboardCaptureStrategy() }) { }
     public TextCapture(IEnumerable<ITextCaptureStrategy> strategies) => _strategies = strategies.ToList();
 
-    public string? Capture(int x, int y, bool allowClipboard, IReadOnlyCollection<string> noClipboardApps, out CaptureMethod method)
+    public CapturedText? Capture(int x, int y, bool allowClipboard, IReadOnlyCollection<string> noClipboardApps, out CaptureMethod method)
     {
         method = CaptureMethod.None;
         IntPtr fg = GetForegroundWindow();
@@ -34,18 +37,32 @@ internal sealed class TextCapture
         foreach (var s in _strategies)
         {
             if (!s.CanRun(ctx)) continue;
-            string? text = null;
-            try { text = s.Capture(ctx); }
+            CapturedText? got = null;
+            try { got = s.Capture(ctx); }
             catch (Exception ex) { Log.Warn($"{s.Method} capture failed: {ex.Message}"); }
-            if (!string.IsNullOrWhiteSpace(text)) { method = s.Method; return text; }
+            if (!string.IsNullOrWhiteSpace(got?.Text)) { method = s.Method; return got; }
         }
         return null;
     }
 }
 
-/// <summary>UI Automation TextPattern.GetSelection() - no side effects, works in Edge/Chrome/Word/Notepad/Terminal.</summary>
+/// <summary>
+/// UI Automation TextPattern.GetSelection() - no side effects, works in Edge/Chrome/Word/Notepad/Terminal. The ranges'
+/// bounding rectangles also say exactly where the selected text is, so the bar can sit clear of it.
+/// </summary>
 internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
 {
+    /// <summary>
+    /// How far (px) the mouse-up point may be above or below the reported text: a drag may end past the last line, but a
+    /// provider reporting client instead of screen coordinates lands far off and is ignored.
+    /// </summary>
+    private const int MaxMouseDistance = 240;
+    /// <summary>
+    /// Chromium answers the first query after it switches its accessibility on with text but no geometry yet; one retry
+    /// after this many ms gets the rectangles.
+    /// </summary>
+    private const int GeometryRetryMs = 60;
+
     private IUIAutomation? _uia;
 
     public CaptureMethod Method => CaptureMethod.Uia;
@@ -72,15 +89,15 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         }
     }
 
-    public string? Capture(CaptureContext ctx)
+    public CapturedText? Capture(CaptureContext ctx)
     {
         try
         {
             var focused = Uia.GetFocusedElement();
-            var t = SelectionOf(focused);
-            if (!string.IsNullOrEmpty(t)) return t;
+            var t = SelectionOf(focused, ctx);
+            if (!string.IsNullOrEmpty(t?.Text)) return t;
             var under = Uia.ElementFromPoint(new tagPOINT { x = ctx.X, y = ctx.Y });
-            return SelectionOf(under);
+            return SelectionOf(under, ctx);
         }
         catch
         {
@@ -89,7 +106,7 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         }
     }
 
-    private static string? SelectionOf(IUIAutomationElement? el)
+    private static CapturedText? SelectionOf(IUIAutomationElement? el, CaptureContext ctx)
     {
         if (el == null) return null;
         if (el.CurrentIsPassword != 0) return null;
@@ -99,12 +116,84 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         int n = ranges.Length;
         if (n == 0) return null;
         var sb = new StringBuilder();
+        var list = new List<IUIAutomationTextRange>(n);
         for (int i = 0; i < n; i++)
         {
-            var s = ranges.GetElement(i)?.GetText(-1);
+            var range = ranges.GetElement(i);
+            if (range == null) continue;
+            list.Add(range);
+            var s = range.GetText(-1);
             if (!string.IsNullOrEmpty(s)) sb.Append(s);
         }
-        return sb.ToString();
+        if (sb.Length == 0) return null;
+        var bounds = BoundsOf(list);
+        if (bounds == null) { Thread.Sleep(GeometryRetryMs); bounds = BoundsOf(list); }
+        return new CapturedText(sb.ToString(), Plausible(bounds, ctx));
+    }
+
+    private static RECT? BoundsOf(List<IUIAutomationTextRange> ranges)
+    {
+        RECT? u = null;
+        foreach (var r in ranges) u = Union(u, BoundsOf(r));
+        return u;
+    }
+
+    /// <summary>The union of a range's line rectangles (left, top, width, height, ...); only the visible lines are reported.</summary>
+    private static RECT? BoundsOf(IUIAutomationTextRange range)
+    {
+        double[]? r;
+        try { r = range.GetBoundingRectangles() as double[]; }
+        catch { return null; } // a provider without geometry: placement falls back to the mouse
+        if (r == null) return null;
+        RECT? u = null;
+        for (int i = 0; i + 3 < r.Length; i += 4)
+        {
+            if (r[i + 2] <= 0 || r[i + 3] <= 0) continue;
+            u = Union(u, new RECT
+            {
+                Left = (int)Math.Floor(r[i]), Top = (int)Math.Floor(r[i + 1]),
+                Right = (int)Math.Ceiling(r[i] + r[i + 2]), Bottom = (int)Math.Ceiling(r[i + 1] + r[i + 3]),
+            });
+        }
+        return u;
+    }
+
+    private static RECT? Union(RECT? a, RECT? b) => a is not { } x ? b : b is not { } y ? x : new RECT
+    {
+        Left = Math.Min(x.Left, y.Left), Top = Math.Min(x.Top, y.Top),
+        Right = Math.Max(x.Right, y.Right), Bottom = Math.Max(x.Bottom, y.Bottom),
+    };
+
+    /// <summary>The bounds clipped to the source window, or null when they cannot be where the user just selected.</summary>
+    private static RECT? Plausible(RECT? bounds, CaptureContext ctx)
+    {
+        if (bounds is not { } b) return null;
+        if (ctx.ForegroundWindow != IntPtr.Zero && GetWindowRect(ctx.ForegroundWindow, out var w))
+            b = new RECT { Left = Math.Max(b.Left, w.Left), Top = Math.Max(b.Top, w.Top), Right = Math.Min(b.Right, w.Right), Bottom = Math.Min(b.Bottom, w.Bottom) };
+        if (b.Width <= 0 || b.Height <= 0) return null;
+        if (ctx.Y < b.Top - MaxMouseDistance || ctx.Y > b.Bottom + MaxMouseDistance) return null;
+        return b;
+    }
+}
+
+/// <summary>The system caret of the foreground thread: where the selection ended and, by its height, how tall a line is.</summary>
+internal static class CaretProbe
+{
+    /// <summary>Caret heights outside this range (px) are not a text line (hidden or placeholder carets).</summary>
+    private const int MinLineHeight = 6, MaxLineHeight = 400;
+
+    /// <summary>The caret height in pixels, or null when the window shows no system caret (many modern apps).</summary>
+    public static int? LineHeight(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return null;
+        var info = new GUITHREADINFO { cbSize = System.Runtime.InteropServices.Marshal.SizeOf<GUITHREADINFO>() };
+        if (!GetGUIThreadInfo(GetWindowThreadProcessId(window, out _), ref info) || info.hwndCaret == IntPtr.Zero) return null;
+        // Map both corners: the caret is in the caret window's client coordinates, which DPI virtualisation may scale.
+        var a = new POINT { X = info.rcCaret.Left, Y = info.rcCaret.Top };
+        var b = new POINT { X = info.rcCaret.Left, Y = info.rcCaret.Bottom };
+        if (!ClientToScreen(info.hwndCaret, ref a) || !ClientToScreen(info.hwndCaret, ref b)) return null;
+        int h = b.Y - a.Y;
+        return h is >= MinLineHeight and <= MaxLineHeight ? h : null;
     }
 }
 
@@ -123,7 +212,7 @@ internal sealed class ClipboardCaptureStrategy : ITextCaptureStrategy
 
     public bool CanRun(CaptureContext ctx) => ctx.AllowClipboard && !IsTerminal(ctx.ForegroundWindow, ctx.ForegroundProcess, ctx.NoClipboardApps);
 
-    public string? Capture(CaptureContext ctx) => InputSender.CopySelection();
+    public CapturedText? Capture(CaptureContext ctx) => InputSender.CopySelection() is { } t ? new CapturedText(t) : null;
 
     public static bool IsTerminal(IntPtr hwnd, string proc, IReadOnlyCollection<string> noClipboardApps)
     {

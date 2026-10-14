@@ -32,7 +32,14 @@ public partial class PopupWindow : Window, IPopupPresenter
     // Layout of the current show, kept so the bar can re-size in place when a group expands / collapses.
     private IReadOnlyList<ActionDefinition> _actions = Array.Empty<ActionDefinition>();
     private bool _showLabels, _above, _hasGroup;
-    private int _anchorX, _anchorY, _py, _m, _gap;
+    /// <summary>DIP between the bar and the selected text.</summary>
+    private const double TextGap = 6;
+    /// <summary>Half a text line (DIP), for estimating the text around the mouse when the app does not report it.</summary>
+    private const double HalfLine = 12;
+    /// <summary>DIP below the mouse hotspot the cursor arrow covers.</summary>
+    private const double CursorHeight = 28;
+
+    private int _anchorX, _barBottom, _py, _m;
     private double _scale = 1;
     private RECT _work;
     // Blurred strip of the whole work-area width at the bar's height: lets a wider (expanded) bar keep its glass
@@ -95,17 +102,11 @@ public partial class PopupWindow : Window, IPopupPresenter
         int w = (int)Math.Ceiling(size.Width * scale);
         int h = (int)Math.Ceiling(size.Height * scale);
         int m = (int)Math.Round(margin * scale);
-        // Horizontally centred on the mouse-up point. Vertically the anchors are the middle of the selection's first and
-        // last line the mouse touched (a drag down ends on the last one): clear half a line plus breathing room above the
-        // first, else the cursor arrow below the last, so a multi-line selection is never covered.
-        int gap = (int)Math.Round(18 * scale);
-        int top = sel.Top, bottom = sel.Bottom;
-        bool above = top - (h - m) - gap >= work.Top;
         int px = Math.Clamp(x - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
-        int py = above ? top - h + m - gap : bottom - m + (int)Math.Round(28 * scale);
-        py = Math.Clamp(py, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
+        var (above, barTop) = PlaceVertically(sel, h - 2 * m, work, scale);
+        int py = Math.Clamp(barTop - m, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
 
-        _anchorX = x; _anchorY = top; _above = above; _py = py; _m = m; _gap = gap; _scale = scale; _work = work;
+        _anchorX = x; _barBottom = barTop + h - 2 * m; _above = above; _py = py; _m = m; _scale = scale; _work = work;
 
         // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
         if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
@@ -136,13 +137,35 @@ public partial class PopupWindow : Window, IPopupPresenter
             if (w2 != w || h2 != h)
             {
                 int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
-                int py2 = above ? top - h2 + m - gap : py;
+                int py2 = above ? _barBottom - h2 + m : py;
                 if (_strip != null) Glass.Background = StripBrush(px2 + m, py2 + m, w2 - 2 * m, h2 - 2 * m);
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
             }
             Animate(above);
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// The bar's visible top edge (px) for a bar <paramref name="barH"/> tall, and whether it sits above the text: above the
+    /// selected text (and the mouse), else below it (and the cursor arrow), else - a selection filling the screen - next to
+    /// the mouse. The text is the reported <see cref="Selection.Bounds"/>, or estimated from the lines the mouse touched.
+    /// </summary>
+    private static (bool Above, int BarTop) PlaceVertically(Selection sel, int barH, RECT work, double scale)
+    {
+        int Px(double dip) => (int)Math.Round(dip * scale);
+        int half = sel.LineHeight is { } lh ? (lh + 1) / 2 : Px(HalfLine);
+        int textTop = sel.Bounds?.Top ?? sel.Top - half;
+        int textBottom = sel.Bounds?.Bottom ?? sel.Bottom + half;
+        int gap = Px(TextGap), cursor = sel.Y + Px(CursorHeight);
+
+        int aboveBottom = Math.Min(textTop, sel.Y) - gap;
+        if (aboveBottom - barH >= work.Top) return (true, aboveBottom - barH);
+        int belowTop = Math.Max(textBottom + gap, cursor);
+        if (belowTop + barH <= work.Bottom) return (false, belowTop);
+        // No room around the whole selection: keep the line under the mouse readable instead.
+        int mouseAbove = sel.Y - half - gap;
+        return mouseAbove - barH >= work.Top ? (true, mouseAbove - barH) : (false, cursor);
     }
 
     public void UpdateFor(Selection sel, IReadOnlyList<ActionDefinition> actions, AppConfig cfg)
@@ -318,7 +341,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         int w = (int)Math.Ceiling(size.Width * _scale);
         int h = (int)Math.Ceiling(size.Height * _scale);
         int px = Math.Clamp(_anchorX - w / 2, _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
-        int py = _above ? _anchorY - h + m - _gap : _py;
+        int py = _above ? _barBottom - h + m : _py;
         if (_strip != null) Glass.Background = StripBrush(px + m, py + m, w - 2 * m, h - 2 * m);
         SetWindowPos(_hwnd, HWND_TOPMOST, px, py, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         Shown?.Invoke(new RECT { Left = px + m, Top = py + m, Right = px + w - m, Bottom = py + h - m });
