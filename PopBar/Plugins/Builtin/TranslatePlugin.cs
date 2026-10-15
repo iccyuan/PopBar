@@ -56,6 +56,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         System = "You are a professional translator. Translate the user's text into the requested language. Output only the translation, no explanations, keep formatting and line breaks.",
         User = $"Target language: {target}\n\n{text}",
         Effort = LlmEffort.Low,
+        Thinking = false, // a translation should come back fast, whatever the service's 深度思考 setting
         Model = _cfg.Model,
     };
 

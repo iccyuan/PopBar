@@ -83,4 +83,8 @@ public sealed class LlmConfig
     public string BaseUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";
     public string Model { get; set; } = "claude-opus-5-5";
+    /// <summary>"深度思考": think before answering, for requests that leave <see cref="Sdk.LlmRequest.Thinking"/> unset.</summary>
+    public bool Thinking { get; set; }
+    /// <summary>Thinking depth (<see cref="Sdk.LlmEffort"/>) used while <see cref="Thinking"/> is on.</summary>
+    public string Effort { get; set; } = Sdk.LlmEffort.Medium;
 }

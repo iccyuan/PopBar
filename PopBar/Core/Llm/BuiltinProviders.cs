@@ -60,12 +60,12 @@ internal sealed class OllamaDialect : ChatCompletionsDialect
     private const string Off = "none";
 
     public override void AddReasoning(IDictionary<string, object> body, LlmRequest request) =>
-        body[ChatCompletionsFields.ReasoningEffort] = request.Thinking ? Effort(request) : Off;
+        body[ChatCompletionsFields.ReasoningEffort] = request.ThinkingOn ? Effort(request) : Off;
 }
 
 /// <summary>
 /// api-docs.deepseek.com/guides/thinking_mode: thinking is on by default and switched by its own "thinking" field, so
-/// "off" has to be sent; reasoning_effort takes low / high / max (medium is mapped to high).
+/// "off" has to be sent; reasoning_effort takes low / high / max (medium is mapped to high by the server).
 /// </summary>
 internal sealed class DeepSeekDialect : ChatCompletionsDialect
 {
@@ -73,7 +73,9 @@ internal sealed class DeepSeekDialect : ChatCompletionsDialect
 
     public override void AddReasoning(IDictionary<string, object> body, LlmRequest request)
     {
-        body[Field] = new { type = request.Thinking ? Enabled : Disabled };
-        if (request.Thinking) body[ChatCompletionsFields.ReasoningEffort] = Effort(request);
+        body[Field] = new { type = request.ThinkingOn ? Enabled : Disabled };
+        if (request.ThinkingOn) body[ChatCompletionsFields.ReasoningEffort] = Effort(request);
     }
+
+    protected override string Effort(LlmRequest request) => request.EffortLevel == LlmEffort.Max ? LlmEffort.Max : base.Effort(request);
 }

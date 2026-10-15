@@ -146,6 +146,13 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         LlmProtocolCombo.ItemsSource = _llm.Providers.Select(p => new KeyValuePair<string, string>(p.Id, p.Name)).ToList();
+        LlmEffortCombo.ItemsSource = new List<KeyValuePair<string, string>>
+        {
+            new(Sdk.LlmEffort.Low, "浅（low）"),
+            new(Sdk.LlmEffort.Medium, "中（medium）"),
+            new(Sdk.LlmEffort.High, "深（high）"),
+            new(Sdk.LlmEffort.Max, "最深（max）"),
+        };
         PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir;
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
@@ -280,6 +287,10 @@ public partial class SettingsWindow : Window
             LlmKeyBox.Password = c.Llm.ApiKey;
             if (LlmKeyPlain.Visibility == Visibility.Visible) LlmKeyPlain.Text = c.Llm.ApiKey;
             LlmModelBox.Text = c.Llm.Model;
+            LlmThinkingSw.IsChecked = c.Llm.Thinking;
+            LlmEffortCombo.SelectedValue = c.Llm.Effort;
+            if (LlmEffortCombo.SelectedIndex < 0) LlmEffortCombo.SelectedValue = Sdk.LlmEffort.Medium;
+            UpdateThinkingRow();
             _disabledPlugins.Clear();
             foreach (var id in c.DisabledPlugins) _disabledPlugins.Add(id);
 
@@ -321,6 +332,8 @@ public partial class SettingsWindow : Window
                 BaseUrl = LlmBaseUrlBox.Text.Trim(),
                 ApiKey = LlmKeyBox.Password.Trim(),
                 Model = (LlmModelBox.Text ?? "").Trim(),
+                Thinking = LlmThinkingSw.IsChecked == true,
+                Effort = LlmEffortCombo.SelectedValue as string ?? Sdk.LlmEffort.Medium,
             },
         };
         return c;
@@ -416,7 +429,10 @@ public partial class SettingsWindow : Window
     /// <summary>Tray menu entries registered by plugins, offered as choices for the tray left-click action.</summary>
     internal static Func<List<(string Id, Sdk.TrayItem Item)>>? TrayItems;
 
-    /// <summary>Chips under the AI service: what the selected protocol supports (declared by its provider).</summary>
+    /// <summary>
+    /// Chips under the model: how answers come back (declared by the selected protocol's provider). Connection-level
+    /// features are not chips: listing models enables the "获取模型" button, a system prompt is supported everywhere.
+    /// </summary>
     private void BuildLlmFeatures()
     {
         if (LlmFeatureChips == null) return;
@@ -424,13 +440,15 @@ public partial class SettingsWindow : Window
         var id = LlmProtocolCombo.SelectedValue as string;
         var provider = _llm.Providers.FirstOrDefault(p => p.Id == id);
         if (provider == null) return;
+        bool canList = provider.Features.HasFlag(Sdk.LlmFeatures.ModelList);
+        FetchModelsButton.IsEnabled = canList;
+        FetchModelsButton.ToolTip = canList ? "从接口拉取可用模型" : "此协议不支持拉取模型列表，请手动填写";
+        ToolTipService.SetShowOnDisabled(FetchModelsButton, true);
         foreach (var (flag, text, icon, tip) in new (Sdk.LlmFeatures, string, string, string)[]
         {
             (Sdk.LlmFeatures.Streaming, "流式输出", "zap", "回答边生成边显示"),
-            (Sdk.LlmFeatures.SystemPrompt, "系统提示词", "message-square", "支持为请求设置系统提示（角色、口吻）"),
-            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "支持 low / medium / high 推理深度"),
-            (Sdk.LlmFeatures.ModelList, "获取模型列表", "search", "可从接口拉取可用模型"),
             (Sdk.LlmFeatures.Thinking, "思考过程", "sparkles", "可开关思考，并显示模型的推理过程"),
+            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "可调思考深度（low / medium / high）"),
         })
         {
             bool on = provider.Features.HasFlag(flag);
@@ -445,6 +463,18 @@ public partial class SettingsWindow : Window
                 ToolTip = on ? tip : "此协议不支持：" + tip,
             });
         }
+        UpdateThinkingRow();
+    }
+
+    /// <summary>The 深度思考 row: only for protocols that can switch thinking; the depth only while it is on and adjustable.</summary>
+    private void UpdateThinkingRow()
+    {
+        if (LlmThinkingRow == null) return;
+        var provider = _llm.Providers.FirstOrDefault(p => p.Id == LlmProtocolCombo.SelectedValue as string);
+        bool can = provider?.Features.HasFlag(Sdk.LlmFeatures.Thinking) == true;
+        LlmThinkingRow.Visibility = LlmThinkingSep.Visibility = can ? Visibility.Visible : Visibility.Collapsed;
+        LlmEffortCombo.Visibility = provider?.Features.HasFlag(Sdk.LlmFeatures.Effort) == true ? Visibility.Visible : Visibility.Collapsed;
+        LlmEffortCombo.IsEnabled = LlmThinkingSw.IsChecked == true;
     }
 
     public void ShowPluginsPage(string? pluginId = null)
@@ -773,6 +803,7 @@ public partial class SettingsWindow : Window
     private void Llm_Changed(object sender, RoutedEventArgs e)
     {
         if (sender == LlmProtocolCombo) BuildLlmFeatures();
+        else if (sender == LlmThinkingSw) UpdateThinkingRow();
         Changed(sender, e);
     }
 
@@ -870,7 +901,7 @@ public partial class SettingsWindow : Window
         ShowLlmResult("连接中…");
         try
         {
-            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = Sdk.LlmEffort.Low }); // room for reasoning models that think before answering
+            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = Sdk.LlmEffort.Low, Thinking = false }); // room for reasoning models that think before answering
             var text = reply.Trim().Replace("\n", " ");
             ShowLlmResult(text.Length > 0 ? "连接成功：" + text : "连接成功，但模型没有返回文字（可能是思考型模型输出被截断）", ok: true);
         }

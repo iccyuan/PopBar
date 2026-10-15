@@ -48,14 +48,19 @@ public class ChatCompletionsDialect : IChatCompletionsDialect
 
     public virtual void AddReasoning(IDictionary<string, object> body, LlmRequest request)
     {
-        if (request.Thinking) body[ChatCompletionsFields.ReasoningEffort] = Effort(request);
+        if (request.ThinkingOn) body[ChatCompletionsFields.ReasoningEffort] = Effort(request);
     }
 
     /// <summary>DeepSeek / vLLM / SiliconFlow call it reasoning_content, Ollama / OpenRouter reasoning.</summary>
     public virtual string? ReadReasoning(JsonElement delta) => Str(delta, "reasoning_content") ?? Str(delta, "reasoning");
 
-    /// <summary><see cref="LlmRequest.Effort"/> limited to low / medium / high.</summary>
-    protected static string Effort(LlmRequest request) => request.Effort is LlmEffort.Medium or LlmEffort.High ? request.Effort : LlmEffort.Low;
+    /// <summary><see cref="LlmRequest.Effort"/> limited to low / medium / high (max becomes high).</summary>
+    protected virtual string Effort(LlmRequest request) => request.EffortLevel switch
+    {
+        LlmEffort.Max => LlmEffort.High,
+        LlmEffort.Medium or LlmEffort.High => request.EffortLevel,
+        _ => LlmEffort.Low,
+    };
 
     protected static string? Str(JsonElement e, string name) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
@@ -96,8 +101,8 @@ public class OpenAiCompatibleProvider : ILlmProvider
     public string? DefaultModel => _options.DefaultModel;
     public bool RequiresApiKey => _options.RequiresApiKey;
     public string? Hint => _options.Hint;
-    // Effort is not listed: it only applies together with thinking here, through the dialect.
-    public virtual LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.ModelList | LlmFeatures.Thinking;
+    // Effort applies together with thinking here, through the dialect (reasoning_effort).
+    public virtual LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.ModelList | LlmFeatures.Thinking | LlmFeatures.Effort;
 
     public async IAsyncEnumerable<string> StreamAsync(LlmConnection c, LlmRequest req, [EnumeratorCancellation] CancellationToken ct)
     {

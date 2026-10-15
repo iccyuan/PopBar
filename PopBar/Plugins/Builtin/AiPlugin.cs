@@ -22,12 +22,9 @@ public sealed class AiPlugin : IPopBarPlugin
     public sealed class Settings
     {
         public List<Prompt> Prompts { get; set; } = new();
-        public string Effort { get; set; } = LlmEffort.Low;
         public int MaxTokens { get; set; } = 2048;
         /// <summary>Show the answer as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
-        /// <summary>Ask the model to think first; its reasoning shows in a foldable block above the answer.</summary>
-        public bool Thinking { get; set; }
         /// <summary>Model override for this plugin; empty = the default from the service settings.</summary>
         public string Model { get; set; } = "";
     }
@@ -102,10 +99,9 @@ public sealed class AiPlugin : IPopBarPlugin
             {
                 System = string.IsNullOrWhiteSpace(prompt.System) ? DefaultSystem : prompt.System,
                 User = prompt.Template.Contains("{text}") ? prompt.Template.Replace("{text}", text) : prompt.Template + "\n\n" + text,
-                Effort = _cfg.Effort,
                 MaxTokens = _cfg.MaxTokens,
                 Model = _cfg.Model,
-                Thinking = _cfg.Thinking,
+                // Thinking / Effort left unset: the 深度思考 setting of the service page; the reasoning shows above the answer.
             };
             if (_cfg.Stream)
             {
@@ -192,15 +188,13 @@ public sealed class AiPlugin : IPopBarPlugin
         return Form.Stack(
             Form.Card(
                 Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型"),
-                Form.Row("回答深度", Form.Combo(new[] { (LlmEffort.Low, "快（low）"), (LlmEffort.Medium, "中（medium）"), (LlmEffort.High, "深（high）") }, d.Effort, v => { d.Effort = v; Changed(); }, 180), "对应模型的 effort 参数"),
                 Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示"),
-                Form.Row("思考", Form.Toggle(d.Thinking, v => { d.Thinking = v; Changed(); }), "先推理再回答，思考过程显示在答案上方，可收起"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),
             list,
             Form.Buttons(add),
-            Form.Hint("每个提示词是操作条上的一个按钮。"));
+            Form.Hint("每个提示词是操作条上的一个按钮。深度思考在「服务」页设置，思考过程显示在答案上方，可收起。"));
     }
 
     private static string Summary(Prompt p)

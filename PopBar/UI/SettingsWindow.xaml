@@ -424,10 +424,26 @@
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <StackPanel Orientation="Horizontal">
                                         <ComboBox x:Name="LlmModelBox" Width="236" IsEditable="True" SelectionChanged="Llm_Changed"/>
-                                        <Button Content="获取模型" Margin="8,0,0,0" Click="FetchModels_Click"/>
+                                        <Button x:Name="FetchModelsButton" Content="获取模型" Margin="8,0,0,0" Click="FetchModels_Click"/>
                                     </StackPanel>
                                     <!-- what this protocol can do with the model: right under it, not above the whole card -->
                                     <WrapPanel x:Name="LlmFeatureChips" Margin="0,8,0,2" MaxWidth="330" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Grid>
+                            <Rectangle x:Name="LlmThinkingSep" Style="{StaticResource RowSep}"/>
+                            <Grid x:Name="LlmThinkingRow" Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="深度思考" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="先推理再回答，更准但更慢、更费 token；AI 助手的思考过程显示在答案上方，可收起。翻译总是不思考"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ComboBox x:Name="LlmEffortCombo" Width="150" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="思考深度"
+                                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Llm_Changed"/>
+                                    <CheckBox x:Name="LlmThinkingSw" Style="{StaticResource Switch}" VerticalAlignment="Center" Checked="Llm_Changed" Unchecked="Llm_Changed"/>
                                 </StackPanel>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>

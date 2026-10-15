@@ -86,7 +86,7 @@ public enum LlmFeatures
     Streaming = 1,
     /// <summary>Honours <see cref="LlmRequest.System"/>.</summary>
     SystemPrompt = 2,
-    /// <summary>Honours <see cref="LlmRequest.Effort"/> (reasoning depth).</summary>
+    /// <summary>Honours <see cref="LlmRequest.Effort"/> (reasoning depth; some backends only while thinking).</summary>
     Effort = 4,
     /// <summary>Implements <see cref="ILlmProvider.ListModelsAsync"/>.</summary>
     ModelList = 8,
@@ -106,20 +106,31 @@ public static class LlmEffort
 /// <summary>Resolved connection settings handed to a provider (base URL already defaulted).</summary>
 public sealed record LlmConnection(string BaseUrl, string ApiKey, string Model, HttpClient Http);
 
-public sealed class LlmRequest
+public sealed record LlmRequest
 {
     public string? System { get; init; }
     public required string User { get; init; }
     /// <summary>Model id to use instead of the default from settings; null / empty keeps the default.</summary>
     public string? Model { get; init; }
     public int MaxTokens { get; init; } = 4096;
-    /// <summary>One of <see cref="LlmEffort"/>: reasoning effort where the backend supports it.</summary>
-    public string Effort { get; init; } = LlmEffort.Low;
-    /// <summary>Ask the model to think before answering, where the backend can switch it on. Reasoning models may think regardless.</summary>
-    public bool Thinking { get; init; }
+    /// <summary>
+    /// One of <see cref="LlmEffort"/>: reasoning effort where the backend supports it. Null = the "深度思考" level on
+    /// the settings "服务" page (low while thinking is off).
+    /// </summary>
+    public string? Effort { get; init; }
+    /// <summary>
+    /// Ask the model to think before answering, where the backend can switch it on (reasoning models may think
+    /// regardless). Null = the "深度思考" switch on the settings "服务" page; false for quick jobs such as translation.
+    /// </summary>
+    public bool? Thinking { get; init; }
+
+    /// <summary>Whether to think. Providers get requests with the service settings already filled in.</summary>
+    public bool ThinkingOn => Thinking == true;
+    /// <summary><see cref="Effort"/>, <see cref="LlmEffort.Low"/> when unset.</summary>
+    public string EffortLevel => Effort ?? LlmEffort.Low;
 
     /// <summary>Output floor while thinking: thinking tokens count towards the limit, so a small one leaves no room for the answer.</summary>
     public const int MinMaxTokensWithThinking = 8192;
     /// <summary>The output limit providers should send: <see cref="MaxTokens"/>, raised to <see cref="MinMaxTokensWithThinking"/> when thinking.</summary>
-    public int EffectiveMaxTokens => Thinking ? Math.Max(MaxTokens, MinMaxTokensWithThinking) : MaxTokens;
+    public int EffectiveMaxTokens => ThinkingOn ? Math.Max(MaxTokens, MinMaxTokensWithThinking) : MaxTokens;
 }

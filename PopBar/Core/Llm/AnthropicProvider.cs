@@ -36,14 +36,14 @@ internal sealed class AnthropicProvider : ILlmProvider
         // Which thinking setting a model takes differs per model (see the per-model table under
         // platform.claude.com/docs/en/build-with-claude/thinking), and relays may not know effort at all. Start from the
         // best fit, step down on a 400 that names the field, and remember what worked for the next request.
-        var key = (c.BaseUrl, c.Model, req.Thinking);
+        var key = (c.BaseUrl, c.Model, req.ThinkingOn);
         var shape = Shapes.TryGetValue(key, out var known) ? known : new Shape(0, true);
         while (true)
         {
             await using var e = Client(c).Messages.CreateStreaming(Params(c, req, shape), cancellationToken: ct).GetAsyncEnumerator(ct);
             Shape? next = null;
             try { if (!await e.MoveNextAsync()) yield break; }
-            catch (AnthropicBadRequestException ex) when ((next = StepDown(shape, req.Thinking, ex.ResponseBody)) != null) { }
+            catch (AnthropicBadRequestException ex) when ((next = StepDown(shape, req.ThinkingOn, ex.ResponseBody)) != null) { }
             if (next != null) { shape = next; continue; }
             Shapes[key] = shape;
             do
@@ -86,8 +86,8 @@ internal sealed class AnthropicProvider : ILlmProvider
         Model = c.Model,
         MaxTokens = req.EffectiveMaxTokens,
         Messages = [new() { Role = Role.User, Content = req.User }],
-        OutputConfig = shape.Effort ? new OutputConfig { Effort = ParseEffort(req.Effort) } : null,
-        Thinking = (req.Thinking ? ThinkingOn : ThinkingOff)[shape.Step](),
+        OutputConfig = shape.Effort ? new OutputConfig { Effort = ParseEffort(req.EffortLevel) } : null,
+        Thinking = (req.ThinkingOn ? ThinkingOn : ThinkingOff)[shape.Step](),
         System = string.IsNullOrWhiteSpace(req.System)
             ? null
             : (MessageCreateParamsSystem?)new List<TextBlockParam> { new() { Text = req.System } },

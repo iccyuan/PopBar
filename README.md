@@ -43,7 +43,7 @@ dotnet publish PopBar\PopBar.csproj -c Release -r win-x64 --self-contained false
 | 插件 | 做什么 |
 |---|---|
 | 翻译 | 面板里直接出译文，标明服务商；Google 或 AI 模型；本地检测源语言，原文已是目标语言时改译备用语言 |
-| AI 助手 | 解释 / 总结 / 润色，流式输出；可开思考，推理过程显示在答案上方、可收起；提示词可自定义，每条一个按钮 |
+| AI 助手 | 解释 / 总结 / 润色，流式输出；「服务」页可开深度思考并调深度，推理过程显示在答案上方、可收起；提示词可自定义，每条一个按钮 |
 | 屏幕 OCR | Ctrl+Alt+O 框选 → Windows 内置 OCR → 操作栏 + 可编辑结果 |
 | 截图 | 对标 Snipaste：Ctrl+Alt+A 截图，自动识别窗口，标注（矩形 / 椭圆 / 箭头 / 画笔 / 马赛克 / 文字），取色；长截图自动滚动拼接；录 GIF；F3 贴图 |
 | 发送到应用 | 把选中内容粘到指定程序、带参数启动程序或打开 URL 协议；多个目标合并成一个按钮 |
@@ -106,7 +106,7 @@ UI           PopupWindow、PanelWindow、SettingsWindow、FrostedGlass、Icons
 App          组合根：托盘、单实例、热键
 ```
 
-扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
+扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；`LlmRequest.Thinking` / `Effort` 留空即跟随「服务」页的深度思考设置；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
 
 ## 已知边界
 

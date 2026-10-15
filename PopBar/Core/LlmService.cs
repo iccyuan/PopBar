@@ -80,7 +80,15 @@ internal sealed class LlmService : ILlmService
     {
         var p = Current ?? throw new InvalidOperationException($"未知的模型提供商“{ProviderId}”，请在 设置 → 插件 → AI 模型服务 重新选择。");
         if (!IsConfigured) throw new InvalidOperationException("尚未配置 AI 模型，请在 设置 → 插件 → AI 模型服务 中填写。");
-        return p.StreamChunksAsync(Resolve(p, request.Model), request, ct);
+        return p.StreamChunksAsync(Resolve(p, request.Model), WithServiceDefaults(p, request), ct);
+    }
+
+    /// <summary>Fills what the request leaves to the "深度思考" settings; while not thinking the effort stays low.</summary>
+    private LlmRequest WithServiceDefaults(ILlmProvider p, LlmRequest request)
+    {
+        var cfg = _store.Current.Llm;
+        bool thinking = request.Thinking ?? (cfg.Thinking && p.Features.HasFlag(LlmFeatures.Thinking));
+        return request with { Thinking = thinking, Effort = request.Effort ?? (thinking ? cfg.Effort : LlmEffort.Low) };
     }
 
     public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
