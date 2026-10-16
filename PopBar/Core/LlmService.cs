@@ -6,8 +6,9 @@ using PopBar.Sdk;
 namespace PopBar.Core;
 
 /// <summary>
-/// Routes LLM calls to the provider selected in settings. Providers are pluggable (<see cref="ILlmProvider"/>):
-/// built-ins are registered here, plugins add their own through <see cref="RegisterProvider"/>.
+/// Routes LLM calls to the services configured on the settings "服务" page: one per provider, one of them the default.
+/// Providers are pluggable (<see cref="ILlmProvider"/>): built-ins are registered here, plugins add their own through
+/// <see cref="RegisterProvider"/>.
 /// </summary>
 internal sealed class LlmService : ILlmService
 {
@@ -35,39 +36,70 @@ internal sealed class LlmService : ILlmService
         Log.Info($"llm provider registered: {provider.Id}");
     }
 
-    public ILlmProvider? Current
+    private ILlmProvider? Provider(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return null;
+        lock (_gate) return _providers.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The service a request names (null / empty = the default) and the provider behind it; the config is null when it is not set up.</summary>
+    private (string Id, LlmConfig? Cfg, ILlmProvider? Provider) Service(string? providerId)
+    {
+        var c = _store.Current;
+        var id = string.IsNullOrWhiteSpace(providerId) ? c.LlmDefaultId : providerId.Trim();
+        var cfg = c.LlmServiceFor(id);
+        return (id, cfg, Provider(id));
+    }
+
+    public string ProviderId => _store.Current.LlmDefaultId;
+    public string ModelName => ModelNameFor(null, null);
+    public string ModelNameFor(string? providerId, string? model) => Resolve(providerId, model).Model;
+    public string ProviderNameFor(string? providerId)
+    {
+        var (id, _, p) = Service(providerId);
+        return p?.Name ?? id;
+    }
+
+    public IReadOnlyList<string> ConfiguredProviderIds
     {
         get
         {
-            var id = _store.Current.Llm.Protocol;
-            lock (_gate) return _providers.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase));
+            var c = _store.Current;
+            var ids = c.LlmServices.Select(s => s.Protocol).Where(IsConfiguredFor).ToList();
+            // the default first, so pickers list it where users look first
+            ids.Sort((a, b) => string.Equals(a, c.LlmDefaultId, StringComparison.OrdinalIgnoreCase) ? -1 : string.Equals(b, c.LlmDefaultId, StringComparison.OrdinalIgnoreCase) ? 1 : 0);
+            return ids;
         }
     }
 
-    public string ProviderId => _store.Current.Llm.Protocol;
-    public string ModelName => Resolve().Model;
+    public bool IsConfigured => IsConfiguredFor(null);
 
-    public bool IsConfigured
+    public bool IsConfiguredFor(string? providerId)
     {
-        get
-        {
-            var p = Current;
-            if (p == null) return false;
-            var c = Resolve(p);
-            bool hasEndpoint = !string.IsNullOrWhiteSpace(c.BaseUrl) || !p.RequiresBaseUrl;
-            bool hasKey = !p.RequiresApiKey || !string.IsNullOrWhiteSpace(c.ApiKey) || !string.IsNullOrWhiteSpace(_store.Current.Llm.BaseUrl); // a custom relay may not need one
-            return !string.IsNullOrWhiteSpace(c.Model) && hasEndpoint && hasKey;
-        }
+        var (_, cfg, p) = Service(providerId);
+        if (cfg == null || p == null) return false;
+        var c = Resolve(providerId);
+        bool hasEndpoint = !string.IsNullOrWhiteSpace(c.BaseUrl) || !p.RequiresBaseUrl;
+        bool hasKey = !p.RequiresApiKey || !string.IsNullOrWhiteSpace(c.ApiKey) || !string.IsNullOrWhiteSpace(cfg.BaseUrl); // a custom relay may not need one
+        return !string.IsNullOrWhiteSpace(c.Model) && hasEndpoint && hasKey;
     }
 
-    /// <summary>Config + provider defaults → concrete connection. <paramref name="model"/> (a per-request override) wins over the configured default.</summary>
-    private LlmConnection Resolve(ILlmProvider? p = null, string? model = null)
+    /// <summary>Config + provider defaults → concrete connection. <paramref name="model"/> (a per-request override) wins over the service's default.</summary>
+    private LlmConnection Resolve(string? providerId = null, string? model = null)
     {
-        p ??= Current;
-        var cfg = _store.Current.Llm;
+        var (_, cfg, p) = Service(providerId);
+        cfg ??= new LlmConfig();
         var baseUrl = string.IsNullOrWhiteSpace(cfg.BaseUrl) ? (p?.DefaultBaseUrl ?? "") : cfg.BaseUrl.Trim();
         if (string.IsNullOrWhiteSpace(model)) model = string.IsNullOrWhiteSpace(cfg.Model) ? (p?.DefaultModel ?? "") : cfg.Model.Trim();
         return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model.Trim(), _http);
+    }
+
+    public IReadOnlyList<string> EffortLevels(string? providerId, string? model)
+    {
+        var (_, _, p) = Service(providerId);
+        if (p == null) return Array.Empty<string>();
+        try { return p.EffortLevels(Resolve(providerId, model).Model); }
+        catch (Exception ex) { Log.Warn($"effort levels of {p.Id}: {ex.Message}"); return Array.Empty<string>(); }
     }
 
     public async IAsyncEnumerable<string> StreamAsync(LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
@@ -78,24 +110,38 @@ internal sealed class LlmService : ILlmService
 
     public IAsyncEnumerable<LlmChunk> StreamChunksAsync(LlmRequest request, CancellationToken ct = default)
     {
-        var p = Current ?? throw new InvalidOperationException($"未知的模型提供商“{ProviderId}”，请在 设置 → 插件 → AI 模型服务 重新选择。");
-        if (!IsConfigured) throw new InvalidOperationException("尚未配置 AI 模型，请在 设置 → 插件 → AI 模型服务 中填写。");
-        return p.StreamChunksAsync(Resolve(p, request.Model), WithServiceDefaults(p, request), ct);
+        var (id, cfg, p) = Service(request.Provider);
+        if (p == null) throw new InvalidOperationException($"未知的模型服务商“{id}”，请在 设置 → 服务 重新选择。");
+        if (cfg == null || !IsConfiguredFor(request.Provider)) throw new InvalidOperationException($"尚未配置 {p.Name}，请在 设置 → 服务 中填写。");
+        var connection = Resolve(request.Provider, request.Model);
+        return p.StreamChunksAsync(connection, WithServiceDefaults(p, cfg, connection.Model, request), ct);
     }
 
-    /// <summary>Fills what the request leaves to the "深度思考" settings; while not thinking the effort stays low.</summary>
-    private LlmRequest WithServiceDefaults(ILlmProvider p, LlmRequest request)
+    /// <summary>
+    /// Fills what the request leaves to the service's "深度思考" settings (while not thinking the effort stays low) and
+    /// snaps the effort to the levels the provider takes for this model.
+    /// </summary>
+    private static LlmRequest WithServiceDefaults(ILlmProvider p, LlmConfig cfg, string model, LlmRequest request)
     {
-        var cfg = _store.Current.Llm;
         bool thinking = request.Thinking ?? (cfg.Thinking && p.Features.HasFlag(LlmFeatures.Thinking));
-        return request with { Thinking = thinking, Effort = request.Effort ?? (thinking ? cfg.Effort : LlmEffort.Low) };
+        var effort = request.Effort ?? (thinking ? cfg.Effort : LlmEffort.Low);
+        var levels = p.EffortLevels(model);
+        if (levels.Count > 0) effort = LlmEffort.Nearest(effort, levels);
+        return request with { Thinking = thinking, Effort = effort };
     }
 
-    public Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default)
+    public IReadOnlyList<string> KnownModels(string? providerId = null) => _store.Current.LlmServiceFor(providerId)?.Models?.ToList() ?? new List<string>();
+
+    public async Task<IReadOnlyList<string>> ListModelsAsync(string? providerId = null, CancellationToken ct = default)
     {
-        var p = Current ?? throw new InvalidOperationException("请先选择模型提供商。");
-        var c = Resolve(p);
+        var (id, _, p) = Service(providerId);
+        if (p == null) throw new InvalidOperationException($"未知的模型服务商“{id}”，请先在 设置 → 服务 选择。");
+        var c = Resolve(providerId);
         if (string.IsNullOrWhiteSpace(c.BaseUrl) && p.RequiresBaseUrl) throw new InvalidOperationException("请先填写接口地址。");
-        return p.ListModelsAsync(c, ct);
+        var models = await p.ListModelsAsync(c, ct);
+        // Remember the list so pickers can show it next time without asking the server again.
+        if (models.Count > 0)
+            _store.Update(cfg => { var s = cfg.LlmServiceFor(id); if (s != null) s.Models = models.ToList(); });
+        return models;
     }
 }

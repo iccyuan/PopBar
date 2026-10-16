@@ -35,15 +35,15 @@ dotnet publish PopBar\PopBar.csproj -c Release -r win-x64 --self-contained false
 - 操作栏不抢焦点；替换粘贴时备份剪贴板、把焦点还给源窗口再 Ctrl+V。
 - 外部点击、滚轮、按键后操作栏消失；面板可用图钉固定。
 - 默认「按键后显示」：选中时按住或 4 秒内按一下 Ctrl / Alt / Win 才弹出；可改为「选中后自动显示」。
-- 连击按 Windows 规则判定，三击、四击原地更新操作栏。同插件的多个动作合并成一个按钮，超出「最多显示按钮数」的收进「···」。
+- 连击按 Windows 规则判定，三击、四击原地更新操作栏。同插件的多个动作可以收成一个按钮（插件自己声明，或在「动作」页打开「收起为一个按钮」），点开在按钮下方弹出列表再选，操作条本身不变；超出「最多显示按钮数」的收进「···」，同样下拉选择。
 - 联网走系统代理，按地址族建连（规避某些 VPN / TUN 下双栈套接字被拒的 10013）。
 
 ## 内置插件
 
 | 插件 | 做什么 |
 |---|---|
-| 翻译 | 面板里直接出译文，标明服务商；Google 或 AI 模型；本地检测源语言，原文已是目标语言时改译备用语言 |
-| AI 助手 | 解释 / 总结 / 润色，流式输出；「服务」页可开深度思考并调深度，推理过程显示在答案上方、可收起；提示词可自定义，每条一个按钮 |
+| 翻译 | 面板里直接出译文，标明服务商；Google 或 AI 模型（可选服务商与模型）；本地检测源语言，原文已是目标语言时改译备用语言 |
+| AI 助手 | 解释 / 总结 / 润色，流式输出；先选服务商再选模型；深度思考与深度默认跟随「服务」页，插件内可单独覆盖，深度档位由服务商 / 模型决定，推理过程显示在答案上方、可收起；提示词可自定义，每条一个按钮 |
 | 屏幕 OCR | Ctrl+Alt+O 框选 → Windows 内置 OCR → 操作栏 + 可编辑结果 |
 | 截图 | 对标 Snipaste：Ctrl+Alt+A 截图，自动识别窗口，标注（矩形 / 椭圆 / 箭头 / 画笔 / 马赛克 / 文字），取色；长截图自动滚动拼接；录 GIF；F3 贴图 |
 | 发送到应用 | 把选中内容粘到指定程序、带参数启动程序或打开 URL 协议；多个目标合并成一个按钮 |
@@ -57,7 +57,7 @@ AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `open
 ## 设置
 
 - 改动需点保存（Ctrl+S）才生效，取消恢复；主题、按钮文字、按钮数、毛玻璃不透明度即时生效。
-- 「动作」页拖动排序，同插件的动作成组；「插件」页每个插件一张卡片，齿轮展开其设置。
+- 「动作」页拖动排序，同插件的动作成组，组上可开「收起为一个按钮」让它在操作条上只占一格；「插件」页每个插件一张卡片，齿轮展开其设置。
 - 命令行：`--settings` 打开设置，`--run ocr:capture` 触发某个动作（可绑到任意快捷键工具）。
 
 ## 写一个插件
@@ -106,7 +106,7 @@ UI           PopupWindow、PanelWindow、SettingsWindow、FrostedGlass、Icons
 App          组合根：托盘、单实例、热键
 ```
 
-扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；`LlmRequest.Thinking` / `Effort` 留空即跟随「服务」页的深度思考设置；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
+扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；「服务」页可配置多家服务商并指定默认，`LlmRequest.Provider` 选用其中一家、`Thinking` / `Effort` 留空即跟随该服务的深度思考设置，深度档位由 `ILlmProvider.EffortLevels` 按模型给出；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
 
 ## 已知边界
 

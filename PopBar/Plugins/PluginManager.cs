@@ -170,12 +170,30 @@ internal sealed class PluginManager : IDisposable
         return false;
     }
 
-    /// <summary>The fold group a plugin action belongs to, if its plugin declared one.</summary>
+    /// <summary>
+    /// The fold group a plugin action belongs to on the bar: the whole plugin when the user folded it on the "动作" page
+    /// (one button named after the plugin), else the group its plugin declared, else none.
+    /// </summary>
     public Core.BarGroup? GroupOf(ActionDefinition def)
+    {
+        if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out _)) return null;
+        if (_store.Current.IsPluginFolded(plugin.Id)) return new Core.BarGroup(plugin.Id + "/*", plugin.Name, PluginIcon(plugin.Id));
+        return DeclaredGroupOf(def);
+    }
+
+    /// <summary>The fold group a plugin action belongs to, if its plugin declared one (see <see cref="PluginAction.Group"/>).</summary>
+    public Core.BarGroup? DeclaredGroupOf(ActionDefinition def)
     {
         if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out var action) || string.IsNullOrWhiteSpace(action.Group)) return null;
         return new Core.BarGroup(plugin.Id + "/" + action.Group, action.Group, action.GroupIcon);
     }
+
+    /// <summary>Icon standing for a plugin as a whole (settings cards, folded bar button).</summary>
+    public static string PluginIcon(string id) => id switch
+    {
+        "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send",
+        "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle",
+    };
 
     /// <summary>Does this plugin action exist, is its plugin enabled, and does it apply to the selection?</summary>
     public bool IsApplicable(ActionDefinition def, SelectionContext ctx, AppConfig cfg)

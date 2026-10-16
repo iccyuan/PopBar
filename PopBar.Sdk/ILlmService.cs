@@ -3,24 +3,41 @@ using System.Net.Http;
 namespace PopBar.Sdk;
 
 /// <summary>
-/// Streaming access to the model service configured in PopBar settings, backed by a pluggable <see cref="ILlmProvider"/>.
-/// The model there is only the default: a plugin may name another one per request via <see cref="LlmRequest.Model"/>
-/// (same provider, endpoint and key).
+/// Streaming access to the model services configured on the settings "服务" page, backed by pluggable
+/// <see cref="ILlmProvider"/>s. The user configures any number of services (one per provider: Anthropic, DeepSeek,
+/// a local Ollama...) and marks one as the default. A request goes to the default unless it names another configured
+/// service via <see cref="LlmRequest.Provider"/>; the model there is only that service's default, and a plugin may
+/// name another one per request via <see cref="LlmRequest.Model"/>.
 /// </summary>
 public interface ILlmService
 {
+    /// <summary>Whether the default service is ready to use.</summary>
     bool IsConfigured { get; }
-    /// <summary>The default model from settings, for status lines, e.g. "claude-opus-5-5".</summary>
+    /// <summary>Whether the service for this provider id is configured (null / empty = the default service).</summary>
+    bool IsConfiguredFor(string? providerId);
+    /// <summary>The default service's model, for status lines, e.g. "claude-opus-5-5".</summary>
     string ModelName { get; }
-    /// <summary>What a request with this <see cref="LlmRequest.Model"/> override will run on: the override, or the default when empty.</summary>
-    string ModelNameFor(string? model) => string.IsNullOrWhiteSpace(model) ? ModelName : model.Trim();
-    /// <summary>Id of the provider currently selected in settings.</summary>
+    /// <summary>What a request with this <see cref="LlmRequest.Model"/> override will run on at the default service.</summary>
+    string ModelNameFor(string? model) => ModelNameFor(null, model);
+    /// <summary>What a request with these <see cref="LlmRequest.Provider"/> / <see cref="LlmRequest.Model"/> overrides will run on.</summary>
+    string ModelNameFor(string? providerId, string? model);
+    /// <summary>Id of the provider behind the default service.</summary>
     string ProviderId { get; }
+    /// <summary>Display name of the provider behind a service (null / empty = the default service), or the id when unknown.</summary>
+    string ProviderNameFor(string? providerId);
+    /// <summary>Provider ids of the services the user has set up on the "服务" page, the default first. Offer these as <see cref="LlmRequest.Provider"/> choices.</summary>
+    IReadOnlyList<string> ConfiguredProviderIds { get; }
 
     /// <summary>All registered providers (built-in + plugin-registered), in registration order.</summary>
     IReadOnlyList<ILlmProvider> Providers { get; }
-    /// <summary>Register a provider so it appears in the settings "协议" list. Call from <c>IPopBarPlugin.Initialize</c>.</summary>
+    /// <summary>Register a provider so it appears in the settings "服务商" list. Call from <c>IPopBarPlugin.Initialize</c>.</summary>
     void RegisterProvider(ILlmProvider provider);
+
+    /// <summary>
+    /// The <see cref="LlmEffort"/> levels a service accepts for a model (null = that service's default model), in
+    /// ascending order; empty when it has no adjustable depth. Build depth pickers from this instead of a fixed list.
+    /// </summary>
+    IReadOnlyList<string> EffortLevels(string? providerId, string? model);
 
     /// <summary>Stream the assistant reply as text chunks (the answer only; thinking is dropped).</summary>
     IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default);
@@ -28,8 +45,13 @@ public interface ILlmService
     /// <summary>Stream the reply with thinking and answer told apart (<see cref="LlmChunk.IsThinking"/>).</summary>
     IAsyncEnumerable<LlmChunk> StreamChunksAsync(LlmRequest request, CancellationToken ct = default);
 
-    /// <summary>Model ids the configured backend offers.</summary>
-    Task<IReadOnlyList<string>> ListModelsAsync(CancellationToken ct = default);
+    /// <summary>
+    /// Model ids a service returned the last time anyone fetched its list (kept in config), empty if never. Fill a picker
+    /// from this without a network round trip; <see cref="ListModelsAsync"/> refreshes it.
+    /// </summary>
+    IReadOnlyList<string> KnownModels(string? providerId = null);
+    /// <summary>Model ids a configured service offers (null / empty provider id = the default service); a success also refreshes <see cref="KnownModels"/>.</summary>
+    Task<IReadOnlyList<string>> ListModelsAsync(string? providerId = null, CancellationToken ct = default);
 
     /// <summary>Convenience: collect the whole reply.</summary>
     async Task<string> CompleteAsync(LlmRequest request, CancellationToken ct = default)
@@ -59,6 +81,18 @@ public interface ILlmProvider
     bool RequiresBaseUrl => DefaultBaseUrl == null;
     /// <summary>What this backend supports; shown on the settings "服务" page. Defaults to streaming + system prompt.</summary>
     LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt;
+    /// <summary>
+    /// The <see cref="LlmEffort"/> levels <paramref name="model"/> accepts, ascending. Default: low / medium / high when
+    /// <see cref="LlmFeatures.Effort"/> is declared, else none. Override when the backend takes other levels (DeepSeek:
+    /// low / high / max) or they differ per model. Requests arrive with the effort already snapped to one of these.
+    /// </summary>
+    IReadOnlyList<string> EffortLevels(string model) => Features.HasFlag(LlmFeatures.Effort) ? LlmEffort.Standard : Array.Empty<string>();
+    /// <summary>
+    /// Logo drawn in front of <see cref="Name"/> in the provider pickers: a name from PopBar's icon set (built-in brand logos
+    /// "openai", "anthropic", "claude", "deepseek", "ollama", or any Lucide icon such as "bot"), or raw SVG path data in a
+    /// 24x24 viewbox (filled, single colour). Null = a generic robot.
+    /// </summary>
+    string? Logo => null;
     /// <summary>One-line help shown next to the provider.</summary>
     string? Hint { get; }
 
@@ -86,7 +120,7 @@ public enum LlmFeatures
     Streaming = 1,
     /// <summary>Honours <see cref="LlmRequest.System"/>.</summary>
     SystemPrompt = 2,
-    /// <summary>Honours <see cref="LlmRequest.Effort"/> (reasoning depth; some backends only while thinking).</summary>
+    /// <summary>Honours <see cref="LlmRequest.Effort"/> (reasoning depth; some backends only while thinking). See <see cref="ILlmProvider.EffortLevels"/>.</summary>
     Effort = 4,
     /// <summary>Implements <see cref="ILlmProvider.ListModelsAsync"/>.</summary>
     ModelList = 8,
@@ -94,13 +128,49 @@ public enum LlmFeatures
     Thinking = 16,
 }
 
-/// <summary>Values of <see cref="LlmRequest.Effort"/>.</summary>
+/// <summary>Values of <see cref="LlmRequest.Effort"/>, lowest to highest.</summary>
 public static class LlmEffort
 {
     public const string Low = "low";
     public const string Medium = "medium";
     public const string High = "high";
     public const string Max = "max";
+
+    /// <summary>All levels, ascending.</summary>
+    public static readonly IReadOnlyList<string> All = [Low, Medium, High, Max];
+    /// <summary>What most chat-completions servers take.</summary>
+    public static readonly IReadOnlyList<string> Standard = [Low, Medium, High];
+
+    /// <summary>Position in <see cref="All"/>; unknown strings rank as <see cref="Low"/>.</summary>
+    public static int Rank(string level)
+    {
+        int i = All.ToList().FindIndex(l => string.Equals(l, level, StringComparison.OrdinalIgnoreCase));
+        return i < 0 ? 0 : i;
+    }
+
+    /// <summary>Chinese label for a depth picker, e.g. "中（medium）".</summary>
+    public static string Label(string level) => level.ToLowerInvariant() switch
+    {
+        Low => "浅（low）",
+        Medium => "中（medium）",
+        High => "深（high）",
+        Max => "最深（max）",
+        _ => level,
+    };
+
+    /// <summary>
+    /// <paramref name="wanted"/> snapped to what a backend accepts: the highest of <paramref name="levels"/> not above
+    /// it, else the lowest offered. Empty levels return <paramref name="wanted"/> unchanged.
+    /// </summary>
+    public static string Nearest(string wanted, IReadOnlyList<string> levels)
+    {
+        if (levels.Count == 0) return wanted;
+        int want = Rank(wanted);
+        string? best = null;
+        foreach (var l in levels)
+            if (Rank(l) <= want && (best == null || Rank(l) > Rank(best))) best = l;
+        return best ?? levels.OrderBy(Rank).First();
+    }
 }
 
 /// <summary>Resolved connection settings handed to a provider (base URL already defaulted).</summary>
@@ -110,17 +180,22 @@ public sealed record LlmRequest
 {
     public string? System { get; init; }
     public required string User { get; init; }
-    /// <summary>Model id to use instead of the default from settings; null / empty keeps the default.</summary>
+    /// <summary>
+    /// Provider id of the configured service to use (one of <see cref="ILlmService.ConfiguredProviderIds"/>); null / empty
+    /// = the default service from the "服务" page.
+    /// </summary>
+    public string? Provider { get; init; }
+    /// <summary>Model id to use instead of the service's default; null / empty keeps the default.</summary>
     public string? Model { get; init; }
     public int MaxTokens { get; init; } = 4096;
     /// <summary>
-    /// One of <see cref="LlmEffort"/>: reasoning effort where the backend supports it. Null = the "深度思考" level on
-    /// the settings "服务" page (low while thinking is off).
+    /// One of <see cref="LlmEffort"/>: reasoning effort where the backend supports it. Null = the "深度思考" level of the
+    /// service on the settings "服务" page (low while thinking is off). Snapped to <see cref="ILlmProvider.EffortLevels"/>.
     /// </summary>
     public string? Effort { get; init; }
     /// <summary>
     /// Ask the model to think before answering, where the backend can switch it on (reasoning models may think
-    /// regardless). Null = the "深度思考" switch on the settings "服务" page; false for quick jobs such as translation.
+    /// regardless). Null = the "深度思考" switch of the service on the settings "服务" page; false for quick jobs such as translation.
     /// </summary>
     public bool? Thinking { get; init; }
 

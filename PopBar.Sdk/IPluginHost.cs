@@ -47,8 +47,12 @@ public interface IPluginHost
     void PasteText(string text, IntPtr targetWindow);
     /// <summary>Bring a window to the foreground reliably, unhiding (tray) or restoring (minimised) it first if needed.</summary>
     void ActivateWindow(IntPtr window);
-    /// <summary>A visible top-level window of a process (by exe name, e.g. "notepad.exe"); failing that, its main window hidden in the tray; else IntPtr.Zero.</summary>
-    IntPtr FindWindowByProcess(string processName);
+    /// <summary>
+    /// A visible application window of a process (exe name or path, e.g. "notepad.exe"); failing that, its main window
+    /// hidden in the tray; else IntPtr.Zero. With <paramref name="windowClass"/> (as reported by <see cref="IHostUi.WindowPicker"/>)
+    /// a window of that class is preferred when the program has several.
+    /// </summary>
+    IntPtr FindWindowByProcess(string processName, string? windowClass = null);
 
     // ---- integration ----
     /// <summary>Register a global hotkey ("Ctrl+Alt+O"). Returns false if the combination is taken.</summary>

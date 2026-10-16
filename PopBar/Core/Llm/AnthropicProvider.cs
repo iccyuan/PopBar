@@ -12,8 +12,11 @@ namespace PopBar.Core.Llm;
 internal sealed class AnthropicProvider : ILlmProvider
 {
     public string Id => LlmProviderIds.Anthropic;
-    public string Name => "Anthropic（官方 SDK）";
+    public string Name => "Anthropic";
+    public string? Logo => "anthropic";
     public LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.Effort | LlmFeatures.ModelList | LlmFeatures.Thinking;
+    /// <summary>output_config.effort takes low / medium / high / max; models without it fall back through <see cref="StepDown"/>.</summary>
+    public IReadOnlyList<string> EffortLevels(string model) => LlmEffort.All;
     public string? DefaultBaseUrl => null;
     public string? DefaultModel => "claude-opus-5-5";
     public bool RequiresApiKey => true;

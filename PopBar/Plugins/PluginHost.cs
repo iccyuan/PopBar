@@ -245,19 +245,39 @@ internal sealed class PluginHost : IPluginHost
     public void PasteText(string text, IntPtr targetWindow) => InputSender.PasteText(text, targetWindow);
     public void ActivateWindow(IntPtr window) => ShowAndForeground(window);
 
-    /// <summary>A visible window of the process if it has one, else its main window hidden in the tray (see <see cref="Core.RunningApps"/>).</summary>
-    public IntPtr FindWindowByProcess(string processName)
+    /// <summary>
+    /// The window of the process to paste into, best first: a visible window of <paramref name="windowClass"/>, a visible
+    /// titled application window, any other visible top-level window, then its main window hidden in the tray (see
+    /// <see cref="Core.RunningApps"/>; an untitled one counts here, as WeChat's is until first shown). Tooltips, owned
+    /// popups and tool windows never count, so a stray popup of the program cannot be mistaken for it.
+    /// </summary>
+    public IntPtr FindWindowByProcess(string processName, string? windowClass = null)
     {
-        IntPtr visible = IntPtr.Zero, hidden = IntPtr.Zero;
+        var exe = System.IO.Path.GetFileName(processName);
+        if (exe.Length == 0) return IntPtr.Zero;
+        IntPtr byClass = IntPtr.Zero, app = IntPtr.Zero, plain = IntPtr.Zero, hidden = IntPtr.Zero, hiddenByClass = IntPtr.Zero;
         EnumWindows((h, _) =>
         {
-            bool isVisible = IsWindowVisible(h);
-            if (isVisible ? visible != IntPtr.Zero : (hidden != IntPtr.Zero || !Core.RunningApps.IsTrayMainWindow(h))) return true;
-            if (!string.Equals(GetWindowProcessName(h), processName, StringComparison.OrdinalIgnoreCase)) return true;
-            if (isVisible) visible = h; else hidden = h;
-            return visible == IntPtr.Zero;
+            bool visible = IsWindowVisible(h);
+            if (!visible && (hidden != IntPtr.Zero && windowClass == null || !Core.RunningApps.IsTrayMainWindow(h, allowUntitled: true))) return true;
+            if (!string.Equals(GetWindowProcessName(h), exe, StringComparison.OrdinalIgnoreCase)) return true;
+            bool classMatch = windowClass != null && GetWindowClass(h) == windowClass;
+            if (!visible)
+            {
+                if (hidden == IntPtr.Zero) hidden = h;
+                if (classMatch && hiddenByClass == IntPtr.Zero) hiddenByClass = h;
+                return true;
+            }
+            if (IsCloaked(h) || GetWindow(h, GW_OWNER) != IntPtr.Zero || (GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64() & WS_EX_TOOLWINDOW) != 0) return true;
+            if (classMatch && byClass == IntPtr.Zero) byClass = h;
+            if (app == IntPtr.Zero && GetWindowTitle(h).Length > 0) app = h;
+            else if (plain == IntPtr.Zero) plain = h;
+            return byClass == IntPtr.Zero && (windowClass != null || app == IntPtr.Zero);
         }, IntPtr.Zero);
-        return visible != IntPtr.Zero ? visible : hidden;
+        if (byClass != IntPtr.Zero) return byClass;
+        if (app != IntPtr.Zero) return app;
+        if (plain != IntPtr.Zero) return plain;
+        return hiddenByClass != IntPtr.Zero ? hiddenByClass : hidden;
     }
 
     public bool RegisterHotkey(string id, string gesture, Action callback) =>

@@ -20,17 +20,17 @@ internal static class BuiltinProviders
         new AnthropicProvider(),
         new OpenAiCompatibleProvider(new()
         {
-            Id = LlmProviderIds.OpenAi, Name = "OpenAI 兼容",
+            Id = LlmProviderIds.OpenAi, Name = "OpenAI", Logo = "openai",
             Hint = "填到 /v1 为止，如 http://localhost:4000/v1（LiteLLM）或 https://api.openai.com/v1",
         }, new OpenAiDialect()),
         new OpenAiCompatibleProvider(new()
         {
-            Id = LlmProviderIds.Ollama, Name = "Ollama（本地）", DefaultBaseUrl = "http://localhost:11434/v1", DefaultModel = "qwen2.5",
+            Id = LlmProviderIds.Ollama, Name = "Ollama", Logo = "ollama", DefaultBaseUrl = "http://localhost:11434/v1", DefaultModel = "qwen2.5",
             Hint = "本机 Ollama，无需密钥；模型名用「获取模型」拉取",
         }, new OllamaDialect()),
         new OpenAiCompatibleProvider(new()
         {
-            Id = LlmProviderIds.DeepSeek, Name = "DeepSeek", DefaultBaseUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-flash",
+            Id = LlmProviderIds.DeepSeek, Name = "DeepSeek", Logo = "deepseek", DefaultBaseUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-flash",
             RequiresApiKey = true, Hint = "需要 DeepSeek API Key",
         }, new DeepSeekDialect()),
     ];
@@ -77,5 +77,8 @@ internal sealed class DeepSeekDialect : ChatCompletionsDialect
         if (request.ThinkingOn) body[ChatCompletionsFields.ReasoningEffort] = Effort(request);
     }
 
-    protected override string Effort(LlmRequest request) => request.EffortLevel == LlmEffort.Max ? LlmEffort.Max : base.Effort(request);
+    private static readonly IReadOnlyList<string> Levels = [LlmEffort.Low, LlmEffort.High, LlmEffort.Max];
+
+    public override IReadOnlyList<string> EffortLevels(string model) => Levels;
+    protected override string Effort(LlmRequest request) => LlmEffort.Nearest(request.EffortLevel, Levels);
 }

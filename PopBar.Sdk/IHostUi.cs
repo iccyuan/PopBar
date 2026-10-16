@@ -19,6 +19,12 @@ public interface IHostUi
     /// <summary>Drop-down listing processes that currently own a visible window; calls back with the exe name.</summary>
     FrameworkElement AppPicker(Action<string> onPicked, double width = 300);
 
+    /// <summary>
+    /// Button that dims the screen and lets the user click on any window; calls back with that window's program and
+    /// class (Esc cancels). More precise than <see cref="AppPicker"/> when programs are hard to tell apart by name.
+    /// </summary>
+    FrameworkElement WindowPicker(Action<PickedWindow> onPicked, string label = "拾取窗口…");
+
     /// <summary>Button opening a file dialog; calls back with the chosen path.</summary>
     FrameworkElement FileBrowse(string label, string filter, Action<string> onPicked);
 
@@ -62,10 +68,22 @@ public interface IHostUi
     IReadOnlyList<string> IconNames { get; }
 
     /// <summary>
-    /// Editable drop-down for an <see cref="LlmRequest.Model"/> override: type an id, or open it to pick from the models the
-    /// configured service lists. The first entry (empty value) means "default from settings".
+    /// Editable drop-down for an <see cref="LlmRequest.Model"/> override at the default service: type an id, or open it
+    /// to pick from the models the service lists. Untouched it shows the service's own model; cleared it reports "".
     /// </summary>
-    FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240);
+    FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240) => ModelPicker(null, current, onChanged, width);
+
+    /// <summary>
+    /// <see cref="ModelPicker(string?, Action{string}, double)"/> for the service of <paramref name="providerId"/>
+    /// (an <see cref="LlmRequest.Provider"/> value; null / empty = the default service). Rebuild it when the provider changes.
+    /// </summary>
+    FrameworkElement ModelPicker(string? providerId, string? current, Action<string> onChanged, double width = 240);
+
+    /// <summary>
+    /// Drop-down for an <see cref="LlmRequest.Provider"/> override: the services configured on the "服务" page, with the
+    /// service-page default selected while <paramref name="current"/> is empty.
+    /// </summary>
+    FrameworkElement ProviderPicker(string? current, Action<string> onChanged, double width = 240);
 
     /// <summary>Programs the user would call running: one per exe with an application window on screen or hidden in the tray. Shell hosts and helper windows are filtered out; the label is the program's own description.</summary>
     IReadOnlyList<RunningApp> RunningApps();
@@ -78,3 +96,6 @@ public interface IHostUi
 }
 
 public sealed record RunningApp(string Exe, string Title);
+
+/// <summary>A window chosen with <see cref="IHostUi.WindowPicker"/>: its exe name, full path, title and Win32 window class.</summary>
+public sealed record PickedWindow(string Exe, string Path, string Title, string WindowClass);

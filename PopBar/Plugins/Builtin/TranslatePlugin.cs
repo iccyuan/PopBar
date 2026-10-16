@@ -2,6 +2,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using PopBar.Sdk;
 using PopBar.Sdk.Ui;
 
@@ -18,7 +19,9 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         public string AltLang { get; set; } = "en";
         /// <summary>AI mode: show the translation as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
-        /// <summary>AI mode: model override; empty = the default from the service settings.</summary>
+        /// <summary>AI mode: service to use (an <see cref="LlmRequest.Provider"/> id); empty = the default from the "服务" page.</summary>
+        public string LlmProvider { get; set; } = "";
+        /// <summary>AI mode: model override; empty = the service's default model.</summary>
         public string Model { get; set; } = "";
     }
 
@@ -45,7 +48,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         {
             var sb = new StringBuilder();
             await foreach (var chunk in _host.Llm.StreamAsync(LlmRequestFor(text, target), ct)) sb.Append(chunk);
-            return new TranslationResult(sb.ToString().Trim(), "auto", target, _host.Llm.ModelNameFor(_cfg.Model));
+            return new TranslationResult(sb.ToString().Trim(), "auto", target, _host.Llm.ModelNameFor(_cfg.LlmProvider, _cfg.Model));
         }
         var (result, detected) = await GoogleAsync(text, target, ct);
         return new TranslationResult(result, detected, target, "Google");
@@ -57,6 +60,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         User = $"Target language: {target}\n\n{text}",
         Effort = LlmEffort.Low,
         Thinking = false, // a translation should come back fast, whatever the service's 深度思考 setting
+        Provider = string.IsNullOrWhiteSpace(_cfg.LlmProvider) ? null : _cfg.LlmProvider,
         Model = _cfg.Model,
     };
 
@@ -77,7 +81,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
-            Badge = _cfg.Provider == "llm" ? _host.Llm.ModelNameFor(_cfg.Model) : "Google 翻译",
+            Badge = _cfg.Provider == "llm" ? _host.Llm.ModelNameFor(_cfg.LlmProvider, _cfg.Model) : "Google 翻译",
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
@@ -220,18 +224,23 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
             _cfg = SettingsDraft.Clone(d);
             _host.Storage.Set(_cfg);
         });
-        // Streaming only applies to the AI provider: grey it out otherwise.
-        var modelRow = Form.Row("模型", _host.Ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型");
+        // Service, model and streaming only apply to the AI provider: grey them out otherwise. The model picker follows the service.
+        var modelHost = new ContentControl();
+        void BuildModel() => modelHost.Content = _host.Ui.ModelPicker(d.LlmProvider, d.Model, v => { d.Model = v; Changed(); });
+        BuildModel();
+        var serviceRow = Form.Row("服务商", _host.Ui.ProviderPicker(d.LlmProvider, v => { d.LlmProvider = v; d.Model = ""; BuildModel(); Changed(); }), "「服务」页里配置的服务商");
+        var modelRow = Form.Row("模型", modelHost, "初始为该服务商在「服务」页的模型；可改，清空即恢复");
         var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示");
         void SyncStream()
         {
             bool llm = d.Provider == "llm";
-            foreach (var row in new[] { modelRow, streamRow }) { row.IsEnabled = llm; row.Opacity = llm ? 1 : 0.45; }
+            foreach (var row in new[] { serviceRow, modelRow, streamRow }) { row.IsEnabled = llm; row.Opacity = llm ? 1 : 0.45; }
         }
         SyncStream();
         return Form.Stack(
             Form.Card(
                 Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 需要代理"),
+                serviceRow,
                 modelRow,
                 streamRow,
                 Form.Row("目标语言", Form.Combo(LangItems(d.TargetLang), d.TargetLang, v => { d.TargetLang = v; Changed(); }, 180), "译成这种语言"),

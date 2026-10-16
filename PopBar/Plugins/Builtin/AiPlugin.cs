@@ -25,8 +25,17 @@ public sealed class AiPlugin : IPopBarPlugin
         public int MaxTokens { get; set; } = 2048;
         /// <summary>Show the answer as it is generated (off = show it once complete).</summary>
         public bool Stream { get; set; } = true;
-        /// <summary>Model override for this plugin; empty = the default from the service settings.</summary>
+        /// <summary>Service to use (an <see cref="LlmRequest.Provider"/> id); empty = the default from the "服务" page.</summary>
+        public string Provider { get; set; } = "";
+        /// <summary>Model override for this plugin; empty = the service's default model.</summary>
         public string Model { get; set; } = "";
+        /// <summary>
+        /// 深度思考 for this plugin: null = follow the "服务" page, true / false = override it. Named "override" so a
+        /// stale "effort" / "thinking" from v0.2.0 (then the plugin's own, absolute setting) is not read as one.
+        /// </summary>
+        public bool? ThinkingOverride { get; set; }
+        /// <summary>Thinking depth (<see cref="LlmEffort"/>) for this plugin; empty = follow the "服务" page.</summary>
+        public string EffortOverride { get; set; } = "";
     }
 
     private const string DefaultSystem = "你是一个嵌入在桌面工具里的助手。用户会选中一段文字，你的回答会显示在一个小面板里。请用中文、简洁直接地回答，不要寒暄，不要重复原文，必要时用短列表。";
@@ -77,15 +86,15 @@ public sealed class AiPlugin : IPopBarPlugin
         var panel = _host.ShowPanel(new PanelOptions
         {
             Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
-            Badge = _host.Llm.ModelNameFor(_cfg.Model),
+            Badge = _host.Llm.ModelNameFor(_cfg.Provider, _cfg.Model),
         });
         panel.AddButton("复制", t => _host.CopyToClipboard(t));
         if (ctx.HasSourceWindow) panel.AddButton("替换原文", t => _host.PasteText(t, ctx.SourceWindow));
 
-        if (!_host.Llm.IsConfigured)
+        if (!_host.Llm.IsConfiguredFor(_cfg.Provider))
         {
-            panel.SetText("尚未配置 AI 模型。");
-            panel.SetStatus("在 设置 → 插件 → AI 模型服务 中填写接口与密钥");
+            panel.SetText($"尚未配置 {_host.Llm.ProviderNameFor(_cfg.Provider)}。");
+            panel.SetStatus("在 设置 → 服务 中填写接口与密钥");
             panel.AddButton("打开设置", _ => _host.OpenSettings());
             return;
         }
@@ -100,8 +109,11 @@ public sealed class AiPlugin : IPopBarPlugin
                 System = string.IsNullOrWhiteSpace(prompt.System) ? DefaultSystem : prompt.System,
                 User = prompt.Template.Contains("{text}") ? prompt.Template.Replace("{text}", text) : prompt.Template + "\n\n" + text,
                 MaxTokens = _cfg.MaxTokens,
+                Provider = string.IsNullOrWhiteSpace(_cfg.Provider) ? null : _cfg.Provider,
                 Model = _cfg.Model,
-                // Thinking / Effort left unset: the 深度思考 setting of the service page; the reasoning shows above the answer.
+                // null = the 深度思考 setting of the service page; the reasoning shows above the answer.
+                Thinking = _cfg.ThinkingOverride,
+                Effort = string.IsNullOrWhiteSpace(_cfg.EffortOverride) ? null : _cfg.EffortOverride,
             };
             if (_cfg.Stream)
             {
@@ -185,16 +197,43 @@ public sealed class AiPlugin : IPopBarPlugin
             if (Edit(p, true)) { d.Prompts.Add(p); Changed(); Rebuild(); }
         }, accent: true);
 
+        // Service → model → depth: the model picker and the depth levels follow the chosen service, so they are rebuilt on change.
+        const string Follow = "", On = "on", Off = "off";
+        var modelHost = new ContentControl();
+        var effortHost = new ContentControl();
+        void SyncEffortEnabled() { if (effortHost.Content is ComboBox c) c.IsEnabled = d.ThinkingOverride != false && c.Items.Count > 1; } // depth only matters while thinking
+        void BuildEffort()
+        {
+            var levels = _host.Llm.EffortLevels(d.Provider, d.Model);
+            if (d.EffortOverride.Length > 0 && !levels.Contains(d.EffortOverride, StringComparer.OrdinalIgnoreCase)) d.EffortOverride = Follow; // the old pick means nothing here
+            var items = new List<(string, string)> { (Follow, "跟随「服务」页") };
+            foreach (var l in levels) items.Add((l, LlmEffort.Label(l)));
+            var combo = Form.Combo(items, d.EffortOverride, v => { d.EffortOverride = v; Changed(); }, 180);
+            if (levels.Count == 0) combo.ToolTip = "这家服务商的模型不支持调节思考深度";
+            effortHost.Content = combo;
+            SyncEffortEnabled();
+        }
+        void BuildModel() => modelHost.Content = ui.ModelPicker(d.Provider, d.Model, v => { d.Model = v; BuildEffort(); Changed(); });
+        BuildModel();
+        BuildEffort();
+        var provider = ui.ProviderPicker(d.Provider, v => { d.Provider = v; d.Model = ""; BuildModel(); BuildEffort(); Changed(); });
+        var thinking = Form.Combo(new[] { (Follow, "跟随「服务」页"), (On, "开启"), (Off, "关闭") },
+            d.ThinkingOverride switch { true => On, false => Off, null => Follow },
+            v => { d.ThinkingOverride = v switch { On => true, Off => false, _ => null }; SyncEffortEnabled(); Changed(); }, 180);
+
         return Form.Stack(
             Form.Card(
-                Form.Row("模型", ui.ModelPicker(d.Model, v => { d.Model = v; Changed(); }), "留空用「服务」页的默认模型"),
+                Form.Row("服务商", provider, "「服务」页里配置的服务商"),
+                Form.Row("模型", modelHost, "初始为该服务商在「服务」页的模型；可改，清空即恢复"),
+                Form.Row("深度思考", thinking, "先推理再回答，思考过程显示在答案上方，可收起；服务商不支持时无效"),
+                Form.Row("思考深度", effortHost, "开启深度思考时的推理深度，档位由服务商 / 模型决定"),
                 Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示"),
                 Form.Row("最大输出 tokens", Form.TextBox(d.MaxTokens.ToString(), 100, v => { if (int.TryParse(v, out var n) && n > 0) { d.MaxTokens = n; Changed(); } }))
             ),
             Form.Section("提示词按钮"),
             list,
             Form.Buttons(add),
-            Form.Hint("每个提示词是操作条上的一个按钮。深度思考在「服务」页设置，思考过程显示在答案上方，可收起。"));
+            Form.Hint("每个提示词是操作条上的一个按钮。"));
     }
 
     private static string Summary(Prompt p)

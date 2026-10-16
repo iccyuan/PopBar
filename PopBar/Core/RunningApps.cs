@@ -52,15 +52,23 @@ internal static class RunningApps
     /// A program's main window while it is hidden in the tray: a real frame (caption plus resize border or minimise box),
     /// not one of the helper windows every process keeps around.
     /// </summary>
-    public static bool IsTrayMainWindow(IntPtr h)
+    /// <remarks>
+    /// <paramref name="allowUntitled"/>: also accept a sized frame without a title. A main window that was never shown
+    /// (WeChat started straight into the tray) has no title yet, but some programs keep an untitled default-sized helper
+    /// frame too (OneDrive's ATL window), so this is only for looking up a program the user named, never for listing.
+    /// </remarks>
+    public static bool IsTrayMainWindow(IntPtr h, bool allowUntitled = false)
     {
-        if (IsWindowVisible(h) || !IsAppWindow(h)) return false;
+        if (IsWindowVisible(h) || GetWindow(h, GW_OWNER) != IntPtr.Zero) return false;
+        if ((GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64() & WS_EX_TOOLWINDOW) != 0) return false;
         long style = GetWindowLongPtr(h, GWL_STYLE).ToInt64();
         if ((style & WS_CAPTION) != WS_CAPTION || (style & (WS_THICKFRAME | WS_MINIMIZEBOX)) == 0) return false;
-        var title = GetWindowTitle(h);
         var cls = GetWindowClass(h);
+        if (Plumbing.IsMatch(cls)) return false;
+        var title = GetWindowTitle(h);
+        if (title.Length == 0) return allowUntitled && GetWindowRect(h, out var r) && r.Width >= 200 && r.Height >= 150;
         if (string.Equals(title, cls, StringComparison.OrdinalIgnoreCase)) return false; // named after its class: infrastructure
-        if (Plumbing.IsMatch(title) || Plumbing.IsMatch(cls)) return false;
+        if (Plumbing.IsMatch(title)) return false;
         if (Guid.TryParse(title, out _) || title.Contains('\\')) return false;            // GUIDs and paths are not app titles
         return true;
     }

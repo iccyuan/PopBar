@@ -47,7 +47,7 @@
         <!-- Spacing lives on the content, not the ScrollViewer: its padding would clip scrolled cards at a hard line. -->
         <!-- one tint over the whole right column, title strip included, so it reads as a single surface -->
         <Border Grid.Column="1" Background="{DynamicResource ContentBgBrush}"/>
-        <ScrollViewer Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0">
+        <ScrollViewer x:Name="ContentScroll" Grid.Column="1" FocusVisualStyle="{x:Null}" VerticalScrollBarVisibility="Auto" Margin="0,44,0,0">
             <Grid x:Name="ContentRoot" Margin="32,12,32,32">
                 <!-- ===== General ===== -->
                 <StackPanel x:Name="PanelGeneral">
@@ -273,7 +273,7 @@
                                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                                            <Button Style="{StaticResource IconButton}" ToolTip="编辑" Click="EditAction_Click" Visibility="{Binding EditVisibility}">
+                                            <Button Style="{StaticResource IconButton}" ToolTip="{Binding EditTip}" Click="EditAction_Click">
                                                 <ui:IconImage Icon="pencil" Size="14" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
                                             <Button Style="{StaticResource IconButton}" ToolTip="删除" Click="DeleteAction_Click">
@@ -296,6 +296,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Grid.Column="0" Width="24" Height="36" Background="Transparent" Cursor="SizeAll" ToolTip="拖动整组排序" VerticalAlignment="Center" Margin="0,0,6,0" PreviewMouseLeftButtonDown="DragHandle_MouseDown">
                                                 <ui:IconImage Icon="grip-vertical" Size="16" Brush="{DynamicResource MutedBrush}"/>
@@ -308,12 +309,19 @@
                                                 <TextBlock Text="{Binding Name}" FontSize="14"/>
                                                 <TextBlock Text="{Binding Note}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             </StackPanel>
+                                            <!-- count + expander sit where plain rows keep their edit / delete buttons... -->
                                             <Border Grid.Column="3" CornerRadius="10" Padding="9,2,9,3" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource AccentHoverBrush}"/>
                                             </Border>
-                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="收起 / 展开" Click="GroupToggle_Click">
+                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" Margin="6,0,14,0" VerticalAlignment="Center" ToolTip="收起 / 展开" Click="GroupToggle_Click">
                                                 <ui:IconImage Icon="{Binding ChevronIcon}" Size="16" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
+                                            <!-- ...and the fold switch lines up with the switches of the rows around it -->
+                                            <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center"
+                                                        ToolTip="开：操作条上只显示一个插件按钮，点开再选动作；关：每个动作各占一个按钮">
+                                                <TextBlock Text="收起为一个按钮" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding IsFolded, Mode=TwoWay}" VerticalAlignment="Center" Checked="GroupFold_Changed" Unchecked="GroupFold_Changed"/>
+                                            </StackPanel>
                                         </Grid>
                                         <!-- guide line under the plugin icon ties the members to it -->
                                         <Border Margin="47,6,0,0" BorderThickness="2,0,0,0" BorderBrush="{DynamicResource AccentSoftBrush}"
@@ -341,9 +349,14 @@
                                                                 <TextBlock Text="{Binding Label}"/>
                                                                 <TextBlock Text="{Binding Summary}" Style="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                                             </StackPanel>
-                                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" ToolTip="删除" Click="DeleteAction_Click" VerticalAlignment="Center" Margin="8,0">
-                                                                <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
-                                                            </Button>
+                                                            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                                                <Button Style="{StaticResource IconButton}" ToolTip="{Binding EditTip}" Click="EditAction_Click">
+                                                                    <ui:IconImage Icon="pencil" Size="14" Brush="{DynamicResource MutedBrush}"/>
+                                                                </Button>
+                                                                <Button Style="{StaticResource IconButton}" ToolTip="删除" Click="DeleteAction_Click">
+                                                                    <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
+                                                                </Button>
+                                                            </StackPanel>
                                                             <CheckBox Grid.Column="5" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                                                         </Grid>
                                                     </DataTemplate>
@@ -375,11 +388,32 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="协议" VerticalAlignment="Center"/>
-                                    <ui:InfoTip Text="OpenAI 兼容：任何 /chat/completions 接口都行"/>
+                                    <TextBlock Text="服务商" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="可以配置多家，各家的地址、密钥、模型分别保存；OpenAI：任何兼容 /chat/completions 的接口都行"/>
                                     </StackPanel>
-                                <ComboBox x:Name="LlmProtocolCombo" Grid.Column="1" Width="220" VerticalAlignment="Center"
-                                          DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Llm_Changed"/>
+                                <ComboBox x:Name="LlmProtocolCombo" Grid.Column="1" Width="240" VerticalAlignment="Center"
+                                          SelectedValuePath="Key" SelectionChanged="Llm_Changed">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <ui:IconImage Icon="{Binding Logo}" Size="16" Brush="{DynamicResource TextBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding Value}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <Rectangle Style="{StaticResource RowSep}"/>
+                            <Grid Style="{StaticResource Row}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                                    <TextBlock Text="设为默认" VerticalAlignment="Center"/>
+                                    <ui:InfoTip Text="AI 助手、翻译等插件没有另选服务商时用这一家"/>
+                                </StackPanel>
+                                <CheckBox x:Name="LlmDefaultSw" Grid.Column="1" Style="{StaticResource Switch}" VerticalAlignment="Center" Checked="LlmDefault_Changed" Unchecked="LlmDefault_Changed"/>
                             </Grid>
                             <Rectangle Style="{StaticResource RowSep}"/>
                             <Grid Style="{StaticResource Row}">
@@ -494,13 +528,26 @@
         </ScrollViewer>
 
         <!-- unsaved-changes bar: nothing is written until the user saves -->
-        <Border x:Name="SaveBar" Grid.Column="1" VerticalAlignment="Bottom" Margin="32,0,40,20" Padding="18,10,10,10" CornerRadius="14"
-                Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
-                RenderOptions.ClearTypeHint="Enabled" Visibility="Collapsed">
+        <Border x:Name="SaveBar" Grid.Column="1" VerticalAlignment="Bottom" Margin="32,0,40,20" CornerRadius="14"
+                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" Visibility="Collapsed" SizeChanged="SaveBar_SizeChanged">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="18" ShadowDepth="2" Direction="270" Opacity="0.1"/>
             </Border.Effect>
-            <DockPanel>
+            <Grid>
+                <!-- frosted glass: the page content under the bar, blurred live, under a translucent card tint -->
+                <Border x:Name="SaveBarGlass" CornerRadius="13">
+                    <Rectangle x:Name="SaveBarGlassImage" Margin="-40" IsHitTestVisible="False">
+                        <Rectangle.Fill>
+                            <!-- Fill with viewbox and rectangle of equal size = a 1:1 copy; Stretch=None would draw the whole visual instead -->
+                            <VisualBrush x:Name="SaveBarGlassBrush" ViewboxUnits="Absolute" Stretch="Fill" ViewportUnits="RelativeToBoundingBox" Viewport="0,0,1,1"/>
+                        </Rectangle.Fill>
+                        <Rectangle.Effect>
+                            <BlurEffect Radius="36" KernelType="Gaussian" RenderingBias="Performance"/>
+                        </Rectangle.Effect>
+                    </Rectangle>
+                </Border>
+                <Border CornerRadius="13" Background="{DynamicResource CardBrush}" Opacity="0.6"/>
+            <DockPanel Margin="18,10,10,10">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                     <Button Content="取消" Click="CancelChanges_Click" ToolTip="放弃改动，恢复到上次保存"/>
                     <Button Style="{StaticResource AccentButton}" Content="保存" Margin="8,0,0,0" Click="SaveChanges_Click" ToolTip="Ctrl+S"/>
@@ -510,6 +557,7 @@
                     <TextBlock Text="有未保存的更改" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </DockPanel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

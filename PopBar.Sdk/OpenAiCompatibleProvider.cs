@@ -36,6 +36,9 @@ public interface IChatCompletionsDialect
 
     /// <summary>Reasoning text carried by one streamed <c>choices[0].delta</c>, or null.</summary>
     string? ReadReasoning(JsonElement delta);
+
+    /// <summary>The reasoning_effort values the service takes for <paramref name="model"/>, ascending (see <see cref="ILlmProvider.EffortLevels"/>). Default low / medium / high.</summary>
+    IReadOnlyList<string> EffortLevels(string model) => LlmEffort.Standard;
 }
 
 /// <summary>
@@ -54,13 +57,10 @@ public class ChatCompletionsDialect : IChatCompletionsDialect
     /// <summary>DeepSeek / vLLM / SiliconFlow call it reasoning_content, Ollama / OpenRouter reasoning.</summary>
     public virtual string? ReadReasoning(JsonElement delta) => Str(delta, "reasoning_content") ?? Str(delta, "reasoning");
 
-    /// <summary><see cref="LlmRequest.Effort"/> limited to low / medium / high (max becomes high).</summary>
-    protected virtual string Effort(LlmRequest request) => request.EffortLevel switch
-    {
-        LlmEffort.Max => LlmEffort.High,
-        LlmEffort.Medium or LlmEffort.High => request.EffortLevel,
-        _ => LlmEffort.Low,
-    };
+    public virtual IReadOnlyList<string> EffortLevels(string model) => LlmEffort.Standard;
+
+    /// <summary><see cref="LlmRequest.Effort"/> snapped to the standard low / medium / high (max becomes high). Requests normally arrive already snapped to <see cref="EffortLevels"/>.</summary>
+    protected virtual string Effort(LlmRequest request) => LlmEffort.Nearest(request.EffortLevel, LlmEffort.Standard);
 
     protected static string? Str(JsonElement e, string name) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
@@ -77,6 +77,8 @@ public sealed record OpenAiCompatibleOptions
     public string? DefaultModel { get; init; }
     public bool RequiresApiKey { get; init; }
     public string? Hint { get; init; }
+    /// <summary>See <see cref="ILlmProvider.Logo"/>: icon name or SVG path data; null = generic.</summary>
+    public string? Logo { get; init; }
 }
 
 /// <summary>
@@ -97,12 +99,14 @@ public class OpenAiCompatibleProvider : ILlmProvider
 
     public string Id => _options.Id;
     public string Name => _options.Name;
+    public string? Logo => _options.Logo;
     public string? DefaultBaseUrl => _options.DefaultBaseUrl;
     public string? DefaultModel => _options.DefaultModel;
     public bool RequiresApiKey => _options.RequiresApiKey;
     public string? Hint => _options.Hint;
     // Effort applies together with thinking here, through the dialect (reasoning_effort).
     public virtual LlmFeatures Features => LlmFeatures.Streaming | LlmFeatures.SystemPrompt | LlmFeatures.ModelList | LlmFeatures.Thinking | LlmFeatures.Effort;
+    public virtual IReadOnlyList<string> EffortLevels(string model) => _dialect.EffortLevels(model);
 
     public async IAsyncEnumerable<string> StreamAsync(LlmConnection c, LlmRequest req, [EnumeratorCancellation] CancellationToken ct)
     {

@@ -31,7 +31,7 @@ public partial class PopupWindow : Window, IPopupPresenter
 
     // Layout of the current show, kept so the bar can re-size in place when a group expands / collapses.
     private IReadOnlyList<ActionDefinition> _actions = Array.Empty<ActionDefinition>();
-    private bool _showLabels, _above, _hasGroup;
+    private bool _showLabels, _above;
     /// <summary>DIP between the bar and the selected text.</summary>
     private const double TextGap = 6;
     /// <summary>Half a text line (DIP), for estimating the text around the mouse when the app does not report it.</summary>
@@ -42,10 +42,10 @@ public partial class PopupWindow : Window, IPopupPresenter
     private int _anchorX, _barBottom, _py, _m;
     private double _scale = 1;
     private RECT _work;
-    // Blurred strip of the whole work-area width at the bar's height: lets a wider (expanded) bar keep its glass
-    // without re-capturing the screen while the bar itself is on it.
-    private ImageSource? _strip;
-    private int _stripX, _stripY;
+    /// <summary>The bar button whose drop-down is open, if any.</summary>
+    private Button? _menuAnchor;
+    /// <summary>Whether the open drop-down hangs above the bar (only when there is no room below it).</summary>
+    private bool _menuAbove;
 
     public PopupWindow()
     {
@@ -93,6 +93,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         _actions = actions;
         _showLabels = cfg.ShowLabels;
         _maxItems = cfg.MaxBarItems;
+        _foldKey = FoldKey(cfg);
         BuildButtons();
 
         var (work, dpi) = GetMonitorAt(x, y);
@@ -110,16 +111,7 @@ public partial class PopupWindow : Window, IPopupPresenter
 
         // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
         if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
-        _strip = null;
-        if (ThemeManager.BlurOpacity >= 100) Glass.Background = null;
-        else if (_hasGroup)
-        {
-            // The bar may widen later: blur the full-width strip now, while nothing of ours is on screen.
-            _stripX = work.Left; _stripY = py + m;
-            _strip = FrostedGlass.Capture(_stripX, _stripY, work.Right - work.Left, h - 2 * m);
-            Glass.Background = StripBrush(px + m, py + m, w - 2 * m, h - 2 * m);
-        }
-        else Glass.Background = FrostedGlass.Brush(px + m, py + m, w - 2 * m, h - 2 * m);
+        Glass.Background = ThemeManager.BlurOpacity >= 100 ? null : FrostedGlass.Brush(px + m, py + m, w - 2 * m, h - 2 * m);
         ApplyTint(Glass.Background != null);
 
         Root.Opacity = 0;
@@ -138,7 +130,6 @@ public partial class PopupWindow : Window, IPopupPresenter
             {
                 int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
                 int py2 = above ? _barBottom - h2 + m : py;
-                if (_strip != null) Glass.Background = StripBrush(px2 + m, py2 + m, w2 - 2 * m, h2 - 2 * m);
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
             }
@@ -173,12 +164,13 @@ public partial class PopupWindow : Window, IPopupPresenter
         if (!_visible) { ShowFor(sel, actions, cfg); return; }
         _selection = sel;
         // Same buttons (the usual case): nothing on screen changes, the actions just act on the new text.
-        if (cfg.ShowLabels == _showLabels && cfg.MaxBarItems == _maxItems && actions.SequenceEqual(_actions)) return;
+        if (cfg.ShowLabels == _showLabels && cfg.MaxBarItems == _maxItems && FoldKey(cfg) == _foldKey && actions.SequenceEqual(_actions)) return;
         _actions = actions;
         _showLabels = cfg.ShowLabels;
         _maxItems = cfg.MaxBarItems;
+        _foldKey = FoldKey(cfg);
         BuildButtons();
-        Relayout();
+        Relayout(fadeBar: true);
     }
 
     private Size MeasureRoot()
@@ -204,6 +196,7 @@ public partial class PopupWindow : Window, IPopupPresenter
     {
         if (!_visible) return;
         _visible = false;
+        CloseMenu();
         Root.BeginAnimation(OpacityProperty, null);
         Slide.BeginAnimation(TranslateTransform.YProperty, null);
         Zoom.BeginAnimation(ScaleTransform.ScaleXProperty, null);
@@ -226,6 +219,10 @@ public partial class PopupWindow : Window, IPopupPresenter
         SetBrush("BarPressedBrush", light ? "#26000000" : "#45FFFFFF");
         SetBrush("BarSepBrush", light ? "#24000000" : "#30FFFFFF");
         Shadow.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(light ? "#FFFFFFFF" : "#FF1E232D"));
+        MenuShadow.Background = Shadow.Background;
+        var menu = new SolidColorBrush(ThemeManager.BlurTint(!light, blurActive: false)); // opaque card: the list lies over the text
+        menu.Freeze();
+        Resources["MenuBrush"] = menu;
     }
 
     /// <summary>Tint layer over the glass snapshot: translucent when a snapshot exists, opaque otherwise.</summary>
@@ -243,42 +240,50 @@ public partial class PopupWindow : Window, IPopupPresenter
         Resources[key] = b;
     }
 
-    private ImageBrush? StripBrush(int x, int y, int w, int h)
+    /// <summary>One bar button or drop-down row: an action, or a folded group (<see cref="Members"/>) that opens a list of them.</summary>
+    private sealed record Entry(string Icon, string Label, Action? Run, IReadOnlyList<ActionDefinition>? Members)
     {
-        if (_strip == null) return null;
-        var b = new ImageBrush(_strip)
-        {
-            Stretch = Stretch.Fill, ViewboxUnits = BrushMappingMode.Absolute,
-            Viewbox = new Rect(x - _stripX, y - _stripY, w, h),
-        };
-        b.Freeze();
-        return b;
+        public bool More => Members != null;
     }
 
-    /// <summary>One top-level bar button: an action, or a folded plugin group.</summary>
-    private sealed record Entry(string Icon, string Label, Action OnClick, bool More);
-
     private int _maxItems;
+    /// <summary>Which plugins are folded (from config): a change regroups the same actions differently.</summary>
+    private string _foldKey = "";
+    private static string FoldKey(AppConfig cfg) => string.Join(",", cfg.FoldedPlugins);
 
     /// <summary>
-    /// The main page: every action, with each plugin group of two or more members folded into one button, and
-    /// everything past <see cref="AppConfig.MaxBarItems"/> folded behind a "更多" button so the bar stays short.
+    /// The bar: every action, with each plugin group of two or more members folded into one button, and everything
+    /// past <see cref="AppConfig.MaxBarItems"/> folded behind a "更多" button so the bar stays short. Folded buttons
+    /// open a drop-down (<see cref="ToggleMenu"/>) instead of acting; the bar itself never changes shape.
     /// </summary>
     private void BuildButtons()
     {
+        CloseMenu();
         Buttons.Children.Clear();
         var entries = TopLevelEntries();
-        _hasGroup = entries.Any(e => e.More);
         int limit = _maxItems;
         if (limit > 0 && entries.Count > limit)
         {
             var rest = entries.Skip(limit - 1).ToList();
-            foreach (var e in entries.Take(limit - 1)) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
-            AddButton("ellipsis", "更多", false, () => Overflow(rest), compact: true);
-            _hasGroup = true; // the bar can widen later: keep the full-width glass strip
+            foreach (var e in entries.Take(limit - 1)) AddEntry(e);
+            Button more = null!;
+            more = AddButton("ellipsis", "更多", false, () => ToggleMenu(more, rest), more: true, compact: true);
         }
-        else foreach (var e in entries) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
+        else foreach (var e in entries) AddEntry(e);
     }
+
+    private void AddEntry(Entry e)
+    {
+        if (e.Members is { } members)
+        {
+            Button btn = null!;
+            btn = AddButton(e.Icon, e.Label, _showLabels, () => ToggleMenu(btn, MemberEntries(members)), more: true);
+        }
+        else AddButton(e.Icon, e.Label, _showLabels, e.Run!);
+    }
+
+    private List<Entry> MemberEntries(IReadOnlyList<ActionDefinition> list) =>
+        list.Select(a => new Entry(a.Icon, a.Label, () => Run(a), null)).ToList();
 
     private List<Entry> TopLevelEntries()
     {
@@ -301,56 +306,128 @@ public partial class PopupWindow : Window, IPopupPresenter
                 // The folded button sits where the group's first member would be.
                 if (!placed.Add(g.Key)) continue;
                 var list = members[g.Key];
-                entries.Add(new Entry(g.Icon, g.Label, () => Expand(list), true));
+                entries.Add(new Entry(g.Icon, g.Label, null, list));
             }
-            else entries.Add(new Entry(a.Icon, a.Label, () => Run(a), false));
+            else entries.Add(new Entry(a.Icon, a.Label, () => Run(a), null));
         }
         return entries;
     }
 
-    /// <summary>The buttons that did not fit, with a back button; groups among them still open their own list.</summary>
-    private void Overflow(IReadOnlyList<Entry> rest)
+    // ------------------------------------------------------------------ drop-down
+
+    /// <summary>Open the drop-down with these rows at <paramref name="anchor"/>, or close it when it is that button's already.</summary>
+    private void ToggleMenu(Button anchor, IReadOnlyList<Entry> entries)
     {
-        Buttons.Children.Clear();
-        AddButton("chevron-left", "返回", false, Collapse, compact: true);
-        foreach (var e in rest) AddButton(e.Icon, e.Label, _showLabels, e.OnClick, e.More);
+        if (_menuAnchor == anchor) { CloseMenu(); Relayout(); return; }
+        _menuAnchor = anchor;
+        FillMenu(entries);
+        MenuBox.Margin = new Thickness(0); // measure the card alone: a stale margin from the last open would widen it
+        MenuBox.Visibility = Visibility.Visible;
+        MenuBox.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double menuW = MenuBox.DesiredSize.Width, menuH = MenuBox.DesiredSize.Height + MenuGap;
+
+        // Below the bar by default; above only when the screen ends before the list would (and there is room above).
+        int barH = (int)Math.Ceiling(BarBox.DesiredSize.Height * _scale), barTop = BarTopPx(barH);
+        int menuHpx = (int)Math.Ceiling(menuH * _scale);
+        _menuAbove = barTop + barH + menuHpx > _work.Bottom && barTop - menuHpx >= _work.Top;
+        Grid.SetRow(MenuBox, _menuAbove ? 0 : 2);
+
+        // Left edge on the button that opened it, kept within the bar's width rather than sticking out of its side.
+        double left = anchor.TranslatePoint(new Point(0, 0), BarBox).X;
+        double barW = BarBox.ActualWidth;
+        if (left + menuW > barW) left = Math.Max(0, barW - menuW);
+        MenuBox.Margin = _menuAbove ? new Thickness(left, 0, 0, MenuGap) : new Thickness(left, MenuGap, 0, 0);
         Relayout();
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        MenuBox.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(100)) { EasingFunction = ease });
+        MenuSlide.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(_menuAbove ? 4 : -4, 0, TimeSpan.FromMilliseconds(120)) { EasingFunction = ease });
     }
 
-    /// <summary>Swap the bar to a group's members, with a back button. Labels always show: this is a chooser.</summary>
-    private void Expand(IReadOnlyList<ActionDefinition> list)
+    /// <summary>DIP between the bar and its drop-down.</summary>
+    private const double MenuGap = 6;
+
+    /// <summary>Top edge (px) of the bar itself for a bar <paramref name="barH"/> px tall: it never moves while a list opens.</summary>
+    private int BarTopPx(int barH) => _above ? _barBottom - barH : _py + _m;
+
+    private void CloseMenu()
     {
-        Buttons.Children.Clear();
-        AddButton("chevron-left", "返回", false, Collapse, compact: true);
-        foreach (var a in list) AddButton(a.Icon, a.Label, true, () => Run(a));
-        Relayout();
+        _menuAnchor = null;
+        _menuAbove = false;
+        MenuBox.BeginAnimation(OpacityProperty, null);
+        MenuSlide.BeginAnimation(TranslateTransform.YProperty, null);
+        MenuBox.Opacity = 0;
+        MenuBox.Visibility = Visibility.Collapsed;
+        MenuItems.Children.Clear();
     }
 
-    private void Collapse()
+    /// <summary>The drop-down's rows. A group row (inside "更多") swaps in its members behind a back row.</summary>
+    private void FillMenu(IReadOnlyList<Entry> entries)
     {
-        BuildButtons();
-        Relayout();
+        MenuItems.Children.Clear();
+        foreach (var e in entries)
+        {
+            var entry = e;
+            AddMenuItem(entry.Icon, entry.Label, entry.More, () =>
+            {
+                if (entry.Members is { } members)
+                {
+                    var page = new List<Entry> { new("chevron-left", "返回", () => { FillMenu(entries); Relayout(); }, null) };
+                    page.AddRange(MemberEntries(members));
+                    FillMenu(page);
+                    Relayout();
+                }
+                else entry.Run?.Invoke();
+            });
+        }
     }
 
-    /// <summary>Re-size the visible bar to its new content, staying centred on the original anchor.</summary>
-    private void Relayout()
+    private void AddMenuItem(string iconName, string label, bool more, Action onClick)
+    {
+        var fg = (Brush)Resources["BarFgBrush"];
+        var content = new DockPanel { LastChildFill = true };
+        var icon = new IconImage { Icon = iconName, Size = 16, Brush = fg, Thickness = 1.9, VerticalAlignment = VerticalAlignment.Center };
+        DockPanel.SetDock(icon, Dock.Left);
+        content.Children.Add(icon);
+        if (more)
+        {
+            var caret = new IconImage { Icon = "chevron-right", Size = 10, Brush = fg, Thickness = 2, Opacity = 0.65, Margin = new Thickness(12, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(caret, Dock.Right);
+            content.Children.Add(caret);
+        }
+        content.Children.Add(new TextBlock
+        {
+            Text = label, Foreground = fg, FontSize = 13,
+            FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI"),
+            Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+        });
+        var btn = new Button { Style = (Style)Resources["MenuButton"], Content = content };
+        btn.Click += (_, _) => onClick();
+        MenuItems.Children.Add(btn);
+    }
+
+    /// <summary>Re-size the window to its content (bar plus any drop-down), the bar itself staying centred on the anchor.</summary>
+    private void Relayout(bool fadeBar = false)
     {
         if (!_visible) return;
         var size = MeasureRoot();
         int m = _m;
         int w = (int)Math.Ceiling(size.Width * _scale);
         int h = (int)Math.Ceiling(size.Height * _scale);
-        int px = Math.Clamp(_anchorX - w / 2, _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
-        int py = _above ? _barBottom - h + m : _py;
-        if (_strip != null) Glass.Background = StripBrush(px + m, py + m, w - 2 * m, h - 2 * m);
+        int barW = (int)Math.Ceiling(BarBox.DesiredSize.Width * _scale) + 2 * m;
+        int barH = (int)Math.Ceiling(BarBox.DesiredSize.Height * _scale);
+        int px = Math.Clamp(_anchorX - barW / 2, _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
+        // The bar stays where it was shown; the window grows downwards for a list below it, upwards for one above.
+        int barTop = BarTopPx(barH);
+        int py = _menuAbove ? barTop + barH - h + m : barTop - m;
         SetWindowPos(_hwnd, HWND_TOPMOST, px, py, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         Shown?.Invoke(new RECT { Left = px + m, Top = py + m, Right = px + w - m, Bottom = py + h - m });
 
+        if (!fadeBar) return;
         var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(120)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
         Buttons.BeginAnimation(OpacityProperty, fade);
     }
 
-    private void AddButton(string iconName, string label, bool showLabel, Action onClick, bool more = false, bool compact = false)
+    private Button AddButton(string iconName, string label, bool showLabel, Action onClick, bool more = false, bool compact = false)
     {
         var fg = (Brush)Resources["BarFgBrush"];
         if (Buttons.Children.Count > 0)
@@ -401,6 +478,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         btn.MouseEnter += (_, _) => FadeNeighbourSeparators(btn, 0);
         btn.MouseLeave += (_, _) => FadeNeighbourSeparators(btn, 1);
         Buttons.Children.Add(btn);
+        return btn;
     }
 
     private void FadeNeighbourSeparators(Button btn, double to)

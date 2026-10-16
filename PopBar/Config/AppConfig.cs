@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 6;
+    public int ConfigVersion { get; set; } = 7;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
@@ -63,11 +63,31 @@ public sealed class AppConfig
 
     /// <summary>Plugin ids the user switched off.</summary>
     public List<string> DisabledPlugins { get; set; } = new();
+    /// <summary>Plugins whose actions fold into one bar button (the plugin's name) that expands in place; set on the "动作" page.</summary>
+    public List<string> FoldedPlugins { get; set; } = new();
 
-    /// <summary>Model backend shared by AI-powered plugins.</summary>
-    public LlmConfig Llm { get; set; } = new();
+    /// <summary>Model services shared by AI-powered plugins, one per provider (<see cref="LlmConfig.Protocol"/> is the key).</summary>
+    public List<LlmConfig> LlmServices { get; set; } = new();
+    /// <summary>Provider id of the service plugins use unless they pick another; empty = the first of <see cref="LlmServices"/>.</summary>
+    public string LlmDefault { get; set; } = "";
+    /// <summary>Pre-v7 single service; moved into <see cref="LlmServices"/> on load and left null.</summary>
+    public LlmConfig? Llm { get; set; }
+
+    /// <summary>The service for a provider id (null / empty = the default one), or null when it is not set up.</summary>
+    public LlmConfig? LlmServiceFor(string? providerId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) providerId = LlmDefaultId;
+        return LlmServices.FirstOrDefault(s => string.Equals(s.Protocol, providerId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Provider id of the default service: <see cref="LlmDefault"/> when it names a set-up service, else the first one, else anthropic.</summary>
+    [JsonIgnore]
+    public string LlmDefaultId =>
+        LlmServices.Any(s => string.Equals(s.Protocol, LlmDefault, StringComparison.OrdinalIgnoreCase)) ? LlmDefault
+        : LlmServices.FirstOrDefault()?.Protocol ?? Core.Llm.LlmProviderIds.Anthropic;
 
     public bool IsPluginEnabled(string id) => !DisabledPlugins.Contains(id, StringComparer.OrdinalIgnoreCase);
+    public bool IsPluginFolded(string id) => FoldedPlugins.Contains(id, StringComparer.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public bool ClipboardFallbackOff => string.Equals(ClipboardFallback, "off", StringComparison.OrdinalIgnoreCase);
@@ -75,16 +95,20 @@ public sealed class AppConfig
     public bool ClipboardFallbackAlways => string.Equals(ClipboardFallback, "always", StringComparison.OrdinalIgnoreCase);
 }
 
-/// <summary>Model backend settings. Protocol "anthropic" uses the official SDK, "openai" any /chat/completions endpoint.</summary>
+/// <summary>One model service: a provider ("anthropic" = the official SDK, "openai" = any /chat/completions endpoint, ...) and its connection.</summary>
 public sealed class LlmConfig
 {
+    /// <summary>Provider id (<see cref="Sdk.ILlmProvider.Id"/>); unique within <see cref="AppConfig.LlmServices"/>.</summary>
     public string Protocol { get; set; } = Core.Llm.LlmProviderIds.Anthropic;
     /// <summary>Optional for anthropic (defaults to api.anthropic.com); required for openai (e.g. http://localhost:4000/v1).</summary>
     public string BaseUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";
-    public string Model { get; set; } = "claude-opus-5-5";
+    /// <summary>Default model; empty = the provider's suggestion.</summary>
+    public string Model { get; set; } = "";
     /// <summary>"深度思考": think before answering, for requests that leave <see cref="Sdk.LlmRequest.Thinking"/> unset.</summary>
     public bool Thinking { get; set; }
     /// <summary>Thinking depth (<see cref="Sdk.LlmEffort"/>) used while <see cref="Thinking"/> is on.</summary>
     public string Effort { get; set; } = Sdk.LlmEffort.Medium;
+    /// <summary>Model ids the service returned the last time its list was fetched; shown in the model pickers until the next fetch.</summary>
+    public List<string> Models { get; set; } = new();
 }

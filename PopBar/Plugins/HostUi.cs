@@ -45,6 +45,19 @@ internal sealed class HostUi : IHostUi
         return combo;
     }
 
+    public FrameworkElement WindowPicker(Action<PickedWindow> onPicked, string label = "拾取窗口…")
+    {
+        var btn = new Button { Content = label, ToolTip = "点击后在屏幕上点选目标窗口" };
+        btn.Click += async (_, _) =>
+        {
+            var w = new WindowPickWindow();
+            w.Show();
+            var r = await w.Result;
+            if (r != null) onPicked(r);
+        };
+        return btn;
+    }
+
     public FrameworkElement FileBrowse(string label, string filter, Action<string> onPicked)
     {
         var btn = new Button { Content = label };
@@ -144,14 +157,32 @@ internal sealed class HostUi : IHostUi
 
     public IReadOnlyList<string> IconNames => Icons.Names.ToList();
 
-    public FrameworkElement ModelPicker(string? current, Action<string> onChanged, double width = 240)
+    public FrameworkElement ProviderPicker(string? current, Action<string> onChanged, double width = 240)
     {
-        // The "default" entry names the model it stands for, so an untouched picker never looks blank.
-        string DefaultLabel() => string.IsNullOrWhiteSpace(_llm.ModelName) ? "默认（服务页里的模型）" : $"默认（{_llm.ModelName}）";
-        var defaultLabel = DefaultLabel();
-        var combo = new ComboBox { Width = width, IsEditable = true, ToolTip = "选「默认」或留空 = 跟随服务页里配置的模型" };
-        combo.ItemsSource = new List<string> { defaultLabel };
-        if (string.IsNullOrWhiteSpace(current)) combo.SelectedIndex = 0; else combo.Text = current;
+        // The configured services only, no separate "default" entry: an untouched picker shows the service-page default selected.
+        ProviderItem Item(string id, string suffix = "") => new(id, _llm.ProviderNameFor(id) + suffix, ProviderItem.LogoOf(_llm.Providers.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase))));
+        var items = _llm.ConfiguredProviderIds.Select(id => Item(id)).ToList();
+        var cur = (current ?? "").Trim();
+        if (cur.Length > 0 && !items.Any(i => string.Equals(i.Key, cur, StringComparison.OrdinalIgnoreCase)))
+            items.Add(Item(cur, "（未配置）")); // keep a stale choice visible rather than silently dropping it
+        if (items.Count == 0) items.Add(new ProviderItem("", "「服务」页尚未配置", ProviderItem.DefaultLogo));
+        var combo = new ComboBox { Width = width, SelectedValuePath = nameof(ProviderItem.Key), ItemTemplate = ProviderItem.Template(), ItemsSource = items, ToolTip = "「服务」页里配置的服务商" };
+        combo.SelectedValue = cur.Length > 0 ? cur : _llm.ProviderId;
+        if (combo.SelectedIndex < 0) combo.SelectedIndex = 0;
+        combo.SelectionChanged += (_, _) => { if (combo.SelectedValue is string v && v != cur) onChanged(v); };
+        return combo;
+    }
+
+    public FrameworkElement ModelPicker(string? providerId, string? current, Action<string> onChanged, double width = 240)
+    {
+        // No separate "default" entry: an untouched picker shows the service's own model; clearing the box goes back to it.
+        var defaultModel = _llm.ModelNameFor(providerId, null);
+        var combo = new ComboBox { Width = width, IsEditable = true, ToolTip = "输入模型名，或打开列表从服务商拉取；清空 = 该服务商在「服务」页的模型" };
+        // Starts with the list fetched last time (plus the service's own model); opening the list asks the server again.
+        var known = _llm.KnownModels(providerId).ToList();
+        if (!string.IsNullOrWhiteSpace(defaultModel) && !known.Contains(defaultModel)) known.Insert(0, defaultModel);
+        combo.ItemsSource = known;
+        combo.Text = string.IsNullOrWhiteSpace(current) ? defaultModel : current;
         bool loaded = false;
         // Models come from the configured service the first time the list is opened; failures just leave the typed value.
         combo.DropDownOpened += async (_, _) =>
@@ -160,21 +191,21 @@ internal sealed class HostUi : IHostUi
             loaded = true;
             try
             {
-                var models = await _llm.ListModelsAsync();
+                var models = await _llm.ListModelsAsync(providerId);
                 var typed = combo.Text;
-                combo.ItemsSource = new[] { defaultLabel }.Concat(models.Where(m => m != defaultLabel)).ToList();
+                combo.ItemsSource = models.ToList();
                 combo.Text = typed;
             }
             catch (Exception ex) { Log.Warn("model list: " + ex.Message); loaded = false; }
         };
-        string Value() { var t = combo.Text?.Trim() ?? ""; return t == defaultLabel ? "" : t; }
-        // Selecting the default entry at creation, or re-setting the same text, must not count as an edit.
-        var last = (current ?? "").Trim();
+        string Value() => combo.Text?.Trim() ?? "";
+        // Showing the default at creation, or re-setting the same text, must not count as an edit.
+        var last = string.IsNullOrWhiteSpace(current) ? defaultModel : current.Trim();
         void Emit() { var v = Value(); if (v == last) return; last = v; onChanged(v); }
         combo.SelectionChanged += (_, _) => combo.Dispatcher.InvokeAsync(Emit);
         combo.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => { if (!combo.IsDropDownOpen) Emit(); }));
-        // Cleared by hand = default; show it as such once the box loses focus.
-        combo.LostKeyboardFocus += (_, _) => { if (Value().Length == 0 && combo.Text != defaultLabel) combo.SelectedIndex = 0; };
+        // Cleared by hand = the service's model again, both on screen and in the stored value.
+        combo.LostKeyboardFocus += (_, _) => { if (Value().Length == 0) { combo.Text = defaultModel; last = defaultModel; onChanged(""); } };
         return combo;
     }
 

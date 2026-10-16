@@ -89,6 +89,18 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 6;
                         migrated = true;
                     }
+                    if (cfg.ConfigVersion < 7)
+                    {
+                        // v0.4: several model services (one per provider) with a default, instead of a single "llm" block.
+                        if (cfg.Llm != null && cfg.LlmServices.Count == 0)
+                        {
+                            cfg.LlmServices.Add(cfg.Llm);
+                            cfg.LlmDefault = cfg.Llm.Protocol;
+                        }
+                        cfg.Llm = null;
+                        cfg.ConfigVersion = 7;
+                        migrated = true;
+                    }
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();

@@ -16,6 +16,7 @@
         TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType" TextOptions.TextHintingMode="Animated">
     <Window.Resources>
         <SolidColorBrush x:Key="BarBrush" Color="#E0FFFFFF"/>
+        <SolidColorBrush x:Key="MenuBrush" Color="#FFFFFFFF"/>
         <SolidColorBrush x:Key="BarFgBrush" Color="#1F2937"/>
         <SolidColorBrush x:Key="BarHoverBrush" Color="#18000000"/>
         <SolidColorBrush x:Key="BarPressedBrush" Color="#26000000"/>
@@ -68,6 +69,44 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- rows of the drop-down under a group / "更多" button: full width, label always on, left aligned -->
+        <Style x:Key="MenuButton" TargetType="Button" BasedOn="{StaticResource BarButton}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="9,0,12,0"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <SolidColorBrush Color="#00FFFFFF"/>
+                            </Border.Background>
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Stretch"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="Background.Color" To="#287C8799" Duration="0:0:0.12"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <ColorAnimation Storyboard.TargetName="Bd" Storyboard.TargetProperty="Background.Color" To="#00FFFFFF" Duration="0:0:0.18"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <!-- 16px margin reserves room for the soft shadow (layered window: we draw our own). -->
@@ -78,17 +117,41 @@
                 <TranslateTransform x:Name="Slide"/>
             </TransformGroup>
         </Grid.RenderTransform>
-        <!-- shadow caster: its opaque body is fully covered by the (opaque) glass snapshot, only the shadow shows -->
-        <Border x:Name="Shadow" CornerRadius="14" Background="#FF1E232D">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Opacity="0.2" Color="#000000"/>
-            </Border.Effect>
-        </Border>
-        <!-- blurred screenshot of what is underneath (set from code) -->
-        <Border x:Name="Glass" CornerRadius="14"/>
-        <!-- translucent tint on top of the glass, then the buttons -->
-        <Border x:Name="Bar" Background="{DynamicResource BarBrush}" CornerRadius="14" Padding="5,4">
-            <StackPanel x:Name="Buttons" Orientation="Horizontal"/>
-        </Border>
+        <!-- the bar in the middle row; the drop-down takes the row below it, or the row above when the bar sits above the text -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid x:Name="BarBox" Grid.Row="1" HorizontalAlignment="Left">
+                <!-- shadow caster: its opaque body is fully covered by the (opaque) glass snapshot, only the shadow shows -->
+                <Border x:Name="Shadow" CornerRadius="14" Background="#FF1E232D">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="20" ShadowDepth="3" Direction="270" Opacity="0.2" Color="#000000"/>
+                    </Border.Effect>
+                </Border>
+                <!-- blurred screenshot of what is underneath (set from code) -->
+                <Border x:Name="Glass" CornerRadius="14"/>
+                <!-- translucent tint on top of the glass, then the buttons -->
+                <Border x:Name="Bar" Background="{DynamicResource BarBrush}" CornerRadius="14" Padding="5,4">
+                    <StackPanel x:Name="Buttons" Orientation="Horizontal"/>
+                </Border>
+            </Grid>
+            <!-- drop-down of a folded group / the overflow: opaque card aligned with its button, no glass (it lies over the text) -->
+            <Grid x:Name="MenuBox" Grid.Row="2" HorizontalAlignment="Left" Visibility="Collapsed" Opacity="0">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="MenuSlide"/>
+                </Grid.RenderTransform>
+                <Border x:Name="MenuShadow" CornerRadius="12" Background="#FF1E232D">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.22" Color="#000000"/>
+                    </Border.Effect>
+                </Border>
+                <Border x:Name="Menu" Background="{DynamicResource MenuBrush}" CornerRadius="12" Padding="5" MinWidth="150">
+                    <StackPanel x:Name="MenuItems"/>
+                </Border>
+            </Grid>
+        </Grid>
     </Grid>
 </Window>

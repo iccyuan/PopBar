@@ -34,12 +34,13 @@ public static class Form
         {
             // Long explanations live in a tooltip behind a small "i" so rows stay compact.
             var muted = (Brush?)Res("MutedBrush") ?? Brushes.Gray;
+            // Same footprint as the host's own InfoTip (a 14px glyph) so plugin pages do not look heavier than built-in ones.
             var i = new Border
             {
-                Width = 18, Height = 18, CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1.2), BorderBrush = muted,
-                Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
+                Width = 14, Height = 14, CornerRadius = new CornerRadius(7), BorderThickness = new Thickness(1), BorderBrush = muted,
+                Margin = new Thickness(6, 1, 0, 0), VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent,
                 ToolTip = hint, Cursor = System.Windows.Input.Cursors.Help,
-                Child = new TextBlock { Text = "i", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -1, 0, 0) },
+                Child = new TextBlock { Text = "i", FontSize = 9, FontWeight = FontWeights.Bold, Foreground = muted, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, -1, 0, 0) },
             };
             ToolTipService.SetInitialShowDelay(i, 150);
             ToolTipService.SetShowDuration(i, 20000);

@@ -48,6 +48,12 @@ public sealed class PluginAction
     public Func<SelectionContext, bool>? IsApplicable { get; init; }
     /// <summary>Runs on a worker thread. Use <see cref="IPluginHost"/> for anything UI related.</summary>
     public required Func<SelectionContext, CancellationToken, Task> Execute { get; init; }
+    /// <summary>
+    /// Opens this action's own editor when the user clicks "编辑" on it in the actions list (UI thread). Return true
+    /// after saving a change and call <see cref="IPluginHost.RefreshActions"/> so the list picks up the new label.
+    /// Without it, "编辑" takes the user to the plugin's settings page instead.
+    /// </summary>
+    public Func<bool>? Configure { get; init; }
 }
 
 /// <summary>What the user selected and where.</summary>

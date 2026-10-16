@@ -17,7 +17,11 @@ public sealed class ActionGroupRow : INotifyPropertyChanged
     public required string Owner { get; init; }
     public required string Name { get; init; }
     public required string Icon { get; init; }
-    public string Note { get; set; } = "";
+    private string _note = "";
+    public string Note { get => _note; set { _note = value; Notify(nameof(Note)); } }
+    /// <summary>On the bar: one button named after the plugin that expands to its actions (config FoldedPlugins), instead of one button per action.</summary>
+    private bool _isFolded;
+    public bool IsFolded { get => _isFolded; set { _isFolded = value; Notify(nameof(IsFolded)); } }
     public ObservableCollection<ActionRow> Members { get; } = new();
     /// <summary>Expanded: how many actions; collapsed: how many of them are on, since the switches are hidden.</summary>
     public string CountText => IsExpanded ? $"{Members.Count} 个动作" : $"已开启 {Members.Count(m => m.Enabled)}/{Members.Count}";
@@ -60,11 +64,14 @@ public sealed class ActionRow : INotifyPropertyChanged
 
     /// <summary>Resolves a plugin action ref ("sendto:notepad") to the plugin's own description, if any.</summary>
     internal static Func<string, string?>? PluginDescription;
+    /// <summary>Resolves a plugin action ref to the editor the plugin offers for it (<see cref="PluginAction.Configure"/>), if any.</summary>
+    internal static Func<string, Func<bool>?>? PluginConfigure;
 
     public string Label => string.IsNullOrWhiteSpace(Def.Label) ? "(未命名)" : Def.Label;
     public Geometry IconGeometry => Icons.Get(Def.Icon);
-    /// <summary>Plugin actions are configured inside their plugin; the generic editor does not apply.</summary>
-    public Visibility EditVisibility => Def.IsPlugin ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>Plugin actions open their plugin's own editor (or page) instead of the generic one; every row is editable.</summary>
+    public Visibility EditVisibility => Visibility.Visible;
+    public string EditTip => Def.IsPlugin && PluginConfigure?.Invoke(Def.Ref ?? "") == null ? "在插件设置里编辑" : "编辑";
     public bool Enabled
     {
         get => Def.Enabled;
@@ -120,6 +127,11 @@ public partial class SettingsWindow : Window
     private readonly ConfigStore _store;
     private readonly Plugins.PluginManager _plugins;
     private readonly Sdk.ILlmService _llm;
+    /// <summary>One draft per provider the user looked at on the "服务" page (keyed by provider id); the form shows <see cref="_llmShown"/>.</summary>
+    private readonly Dictionary<string, LlmConfig> _llmDrafts = new(StringComparer.OrdinalIgnoreCase);
+    private string _llmDefault = "";
+    private string? _llmShown;
+    private bool _llmRefreshing;
     /// <summary>Flat action order, as saved to config.</summary>
     private readonly ObservableCollection<ActionRow> _rows = new();
     /// <summary>What the list shows: stand-alone rows and plugin groups (rebuilt from <see cref="_rows"/>).</summary>
@@ -128,6 +140,7 @@ public partial class SettingsWindow : Window
     /// <summary>Form state as last loaded / saved (serialized); the form is dirty when it differs.</summary>
     private string _baseline = "";
     private readonly HashSet<string> _disabledPlugins = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _foldedPlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _excluded = new();
     private readonly List<string> _noClip = new();
     /// <summary>Draft of <see cref="AppConfig.TrayMenuItems"/>; null = never customised.</summary>
@@ -142,17 +155,11 @@ public partial class SettingsWindow : Window
         _plugins = plugins;
         _llm = llm;
         ActionRow.PluginDescription = id => _plugins.TryGet(id, out _, out var a) ? a.Description : null;
+        ActionRow.PluginConfigure = id => _plugins.TryGet(id, out _, out var a) ? a.Configure : null;
         _rows.CollectionChanged += (_, _) => { if (!_flattening) Regroup(); };
         InitializeComponent();
 
-        LlmProtocolCombo.ItemsSource = _llm.Providers.Select(p => new KeyValuePair<string, string>(p.Id, p.Name)).ToList();
-        LlmEffortCombo.ItemsSource = new List<KeyValuePair<string, string>>
-        {
-            new(Sdk.LlmEffort.Low, "浅（low）"),
-            new(Sdk.LlmEffort.Medium, "中（medium）"),
-            new(Sdk.LlmEffort.High, "深（high）"),
-            new(Sdk.LlmEffort.Max, "最深（max）"),
-        };
+        RefreshLlmProviderItems();
         PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir;
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
@@ -182,6 +189,8 @@ public partial class SettingsWindow : Window
         };
         MaxItemsCombo.ItemsSource = new[] { 4, 5, 6, 7, 8, 10, 12 }.Select(n => new KeyValuePair<string, string>(n.ToString(), $"{n} 个")).Append(new("0", "不限制")).ToList();
         SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Acrylic, ThemeManager.IsDark, roundCorners: true);
+        ContentScroll.SizeChanged += (_, _) => UpdateSaveBarGlass();   // the bar's place inside the page moves with the window height...
+        ContentScroll.ScrollChanged += (_, _) => UpdateSaveBarGlass(); // ...and with scrolling
         ThemeManager.Changed += OnThemeChanged;
         Closed += (_, _) => ThemeManager.Changed -= OnThemeChanged;
         ActionsList.ItemsSource = _items;
@@ -281,18 +290,18 @@ public partial class SettingsWindow : Window
             _trayMenu = c.TrayMenuItems?.ToList();
             UpdateTrayMenuSummary();
 
-            LlmProtocolCombo.SelectedValue = c.Llm.Protocol;
+            _llmDrafts.Clear();
+            foreach (var s in c.LlmServices) _llmDrafts[s.Protocol] = Sdk.SettingsDraft.Clone(s);
+            _llmDefault = c.LlmDefaultId;
+            _llmShown = null;
+            RefreshLlmProviderItems();
+            LlmProtocolCombo.SelectedValue = _llmDefault;
             if (LlmProtocolCombo.SelectedIndex < 0) LlmProtocolCombo.SelectedIndex = 0;
-            LlmBaseUrlBox.Text = c.Llm.BaseUrl;
-            LlmKeyBox.Password = c.Llm.ApiKey;
-            if (LlmKeyPlain.Visibility == Visibility.Visible) LlmKeyPlain.Text = c.Llm.ApiKey;
-            LlmModelBox.Text = c.Llm.Model;
-            LlmThinkingSw.IsChecked = c.Llm.Thinking;
-            LlmEffortCombo.SelectedValue = c.Llm.Effort;
-            if (LlmEffortCombo.SelectedIndex < 0) LlmEffortCombo.SelectedValue = Sdk.LlmEffort.Medium;
-            UpdateThinkingRow();
+            ShowLlmProvider(LlmProtocolCombo.SelectedValue as string); // SelectionChanged does not fire when the value did not move
             _disabledPlugins.Clear();
             foreach (var id in c.DisabledPlugins) _disabledPlugins.Add(id);
+            _foldedPlugins.Clear();
+            foreach (var id in c.FoldedPlugins) _foldedPlugins.Add(id);
 
             _rows.Clear();
             foreach (var a in c.Actions) _rows.Add(new ActionRow(a.Clone()));
@@ -326,17 +335,93 @@ public partial class SettingsWindow : Window
             TrayMenuItems = _trayMenu?.ToList(),
             Actions = _rows.Select(r => r.Def.Clone()).ToList(),
             DisabledPlugins = _disabledPlugins.ToList(),
-            Llm = new LlmConfig
-            {
-                Protocol = LlmProtocolCombo.SelectedValue as string ?? Core.Llm.LlmProviderIds.Anthropic,
-                BaseUrl = LlmBaseUrlBox.Text.Trim(),
-                ApiKey = LlmKeyBox.Password.Trim(),
-                Model = (LlmModelBox.Text ?? "").Trim(),
-                Thinking = LlmThinkingSw.IsChecked == true,
-                Effort = LlmEffortCombo.SelectedValue as string ?? Sdk.LlmEffort.Medium,
-            },
+            FoldedPlugins = _foldedPlugins.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList(),
+            LlmServices = LlmServicesFromDrafts(),
+            LlmDefault = _llmDefault,
         };
         return c;
+    }
+
+    // ---- "服务" page: one draft per provider; a draft counts once something is typed into it, it is the default, or it is on screen ----
+
+    private static bool LlmTouched(LlmConfig d) =>
+        !string.IsNullOrWhiteSpace(d.BaseUrl) || !string.IsNullOrWhiteSpace(d.ApiKey) || !string.IsNullOrWhiteSpace(d.Model) || d.Thinking || d.Models.Count > 0;
+
+    private bool IsLlmDefault(string? id) => string.Equals(id, _llmDefault, StringComparison.OrdinalIgnoreCase);
+
+    private List<LlmConfig> LlmServicesFromDrafts()
+    {
+        StoreLlmFields();
+        var list = new List<LlmConfig>();
+        foreach (var p in _llm.Providers) // registration order, so the snapshot is stable
+            if (_llmDrafts.TryGetValue(p.Id, out var d) && (LlmTouched(d) || IsLlmDefault(p.Id) || string.Equals(p.Id, _llmShown, StringComparison.OrdinalIgnoreCase)))
+                list.Add(Sdk.SettingsDraft.Clone(d));
+        return list;
+    }
+
+    /// <summary>The form → the draft of the provider it shows.</summary>
+    private void StoreLlmFields()
+    {
+        if (_llmShown == null || LlmBaseUrlBox == null || !_llmDrafts.TryGetValue(_llmShown, out var d)) return;
+        d.BaseUrl = LlmBaseUrlBox.Text.Trim();
+        d.ApiKey = LlmKeyBox.Password.Trim();
+        d.Model = (LlmModelBox.Text ?? "").Trim();
+        d.Thinking = LlmThinkingSw.IsChecked == true;
+        if (LlmEffortCombo.SelectedValue is string effort) d.Effort = effort;
+    }
+
+    /// <summary>Switch the form to a provider's draft (creating an empty one the first time).</summary>
+    private void ShowLlmProvider(string? id)
+    {
+        if (id == null || LlmBaseUrlBox == null) return;
+        StoreLlmFields();
+        if (!_llmDrafts.TryGetValue(id, out var d)) _llmDrafts[id] = d = new LlmConfig { Protocol = id };
+        bool was = _loading;
+        _loading = true;
+        try
+        {
+            _llmShown = id;
+            LlmBaseUrlBox.Text = d.BaseUrl;
+            LlmKeyBox.Password = d.ApiKey;
+            if (LlmKeyPlain.Visibility == Visibility.Visible) LlmKeyPlain.Text = d.ApiKey;
+            LlmModelBox.ItemsSource = d.Models.Count > 0 ? d.Models.ToList() : null; // the list fetched last time, if any
+            LlmModelBox.Text = d.Model;
+            LlmThinkingSw.IsChecked = d.Thinking;
+            LlmDefaultSw.IsChecked = IsLlmDefault(id);
+            LlmDefaultSw.IsEnabled = !IsLlmDefault(id); // the default cannot be switched off, only moved to another provider
+            ShowLlmResult("");
+            BuildLlmFeatures();
+            UpdateThinkingRow(d.Effort);
+        }
+        finally { _loading = was; }
+        RefreshLlmProviderItems();
+    }
+
+    /// <summary>The provider list; keeps the selection.</summary>
+    private void RefreshLlmProviderItems()
+    {
+        if (LlmProtocolCombo == null) return;
+        // Name + logo only; whether a service is the default or already filled in is shown by the rows below, not in the list.
+        var items = _llm.Providers.Select(p => new ProviderItem(p.Id, p.Name, ProviderItem.LogoOf(p))).ToList();
+        if (LlmProtocolCombo.ItemsSource is List<ProviderItem> old && old.SequenceEqual(items)) return;
+        var selected = LlmProtocolCombo.SelectedValue as string;
+        _llmRefreshing = true;
+        try
+        {
+            LlmProtocolCombo.ItemsSource = items;
+            if (selected != null) LlmProtocolCombo.SelectedValue = selected;
+        }
+        finally { _llmRefreshing = false; }
+    }
+
+    private void LlmDefault_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_loading || _llmShown == null) return;
+        if (LlmDefaultSw.IsChecked != true) return;
+        _llmDefault = _llmShown;
+        LlmDefaultSw.IsEnabled = false;
+        RefreshLlmProviderItems();
+        Changed(sender, e);
     }
 
     private static int ParseInt(string s, int def, int min, int max) =>
@@ -364,6 +449,24 @@ public partial class SettingsWindow : Window
         SaveBar.Visibility = dirty ? Visibility.Visible : Visibility.Collapsed;
         // Room under the last card only while the bar floats over it.
         ContentRoot.Margin = new Thickness(32, 12, 32, dirty ? 96 : 32);
+        if (dirty) Dispatcher.InvokeAsync(UpdateSaveBarGlass, DispatcherPriority.Loaded);
+    }
+
+    private void SaveBar_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSaveBarGlass();
+
+    /// <summary>
+    /// The bar's frosted glass is a live, blurred copy of the page under it: point the VisualBrush at the bar's own
+    /// rect inside the scroll viewer (padded, so the blur has material to sample at the rim) and clip the rounded corners.
+    /// </summary>
+    private void UpdateSaveBarGlass()
+    {
+        if (SaveBar.Visibility != Visibility.Visible || SaveBarGlass.ActualWidth <= 0 || SaveBarGlass.ActualHeight <= 0) return;
+        const double pad = 40; // = the glass rectangle's negative margin
+        // The page panel itself, not the ScrollViewer: TransformToVisual then already includes the scroll offset.
+        SaveBarGlassBrush.Visual ??= ContentRoot;
+        var rect = SaveBarGlass.TransformToVisual(ContentRoot).TransformBounds(new Rect(0, 0, SaveBarGlass.ActualWidth, SaveBarGlass.ActualHeight));
+        SaveBarGlassBrush.Viewbox = new Rect(rect.X - pad, rect.Y - pad, rect.Width + 2 * pad, rect.Height + 2 * pad);
+        SaveBarGlass.Clip = new RectangleGeometry(new Rect(0, 0, SaveBarGlass.ActualWidth, SaveBarGlass.ActualHeight), 13, 13);
     }
 
     private void SaveNow()
@@ -448,7 +551,7 @@ public partial class SettingsWindow : Window
         {
             (Sdk.LlmFeatures.Streaming, "流式输出", "zap", "回答边生成边显示"),
             (Sdk.LlmFeatures.Thinking, "思考过程", "sparkles", "可开关思考，并显示模型的推理过程"),
-            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "可调思考深度（low / medium / high）"),
+            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "可调思考深度，档位由服务商 / 模型决定"),
         })
         {
             bool on = provider.Features.HasFlag(flag);
@@ -466,20 +569,42 @@ public partial class SettingsWindow : Window
         UpdateThinkingRow();
     }
 
-    /// <summary>The 深度思考 row: only for protocols that can switch thinking; the depth only while it is on and adjustable.</summary>
-    private void UpdateThinkingRow()
+    /// <summary>
+    /// The 深度思考 row: only for providers that can switch thinking; the depth only while it is on, with the levels the
+    /// provider takes for the model in the box (<paramref name="wanted"/>, else the current pick, snapped to them).
+    /// </summary>
+    private void UpdateThinkingRow(string? wanted = null)
     {
         if (LlmThinkingRow == null) return;
         var provider = _llm.Providers.FirstOrDefault(p => p.Id == LlmProtocolCombo.SelectedValue as string);
         bool can = provider?.Features.HasFlag(Sdk.LlmFeatures.Thinking) == true;
         LlmThinkingRow.Visibility = LlmThinkingSep.Visibility = can ? Visibility.Visible : Visibility.Collapsed;
-        LlmEffortCombo.Visibility = provider?.Features.HasFlag(Sdk.LlmFeatures.Effort) == true ? Visibility.Visible : Visibility.Collapsed;
+        var model = (LlmModelBox.Text ?? "").Trim();
+        if (model.Length == 0) model = provider?.DefaultModel ?? "";
+        IReadOnlyList<string> levels = Array.Empty<string>();
+        if (provider != null) { try { levels = provider.EffortLevels(model); } catch (Exception ex) { Log.Warn($"effort levels of {provider.Id}: {ex.Message}"); } }
+        LlmEffortCombo.Visibility = levels.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        wanted ??= LlmEffortCombo.SelectedValue as string ?? Sdk.LlmEffort.Medium;
+        var items = levels.Select(l => new KeyValuePair<string, string>(l, Sdk.LlmEffort.Label(l))).ToList();
+        if (LlmEffortCombo.ItemsSource is not List<KeyValuePair<string, string>> old || !old.SequenceEqual(items))
+        {
+            bool was = _loading;
+            _loading = true; // the list swap itself is not an edit
+            try { LlmEffortCombo.ItemsSource = items; }
+            finally { _loading = was; }
+        }
+        if (levels.Count > 0) LlmEffortCombo.SelectedValue = Sdk.LlmEffort.Nearest(wanted, levels);
         LlmEffortCombo.IsEnabled = LlmThinkingSw.IsChecked == true;
     }
+
+    /// <summary>Opens the plugin card's settings area, scrolled into view.</summary>
+    private readonly Dictionary<string, Action> _openPluginSettings = new(StringComparer.OrdinalIgnoreCase);
 
     public void ShowPluginsPage(string? pluginId = null)
     {
         NavPlugins.IsChecked = true;
+        if (pluginId != null && _openPluginSettings.TryGetValue(pluginId, out var open))
+            Dispatcher.InvokeAsync(open, System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void BuildPluginList()
@@ -539,13 +664,14 @@ public partial class SettingsWindow : Window
                 body.Children.Add(view);
                 stack.Children.Add(body);
 
-                gear.Click += (_, _) =>
+                void SetOpen(bool open)
                 {
-                    bool open = body.Visibility != Visibility.Visible;
                     body.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
                     gearIcon.Brush = open ? accent : muted;
                     gear.Background = open ? (Brush)FindResource("AccentSoftBrush") : Brushes.Transparent;
-                };
+                }
+                gear.Click += (_, _) => SetOpen(body.Visibility != Visibility.Visible);
+                _openPluginSettings[plugin.Id] = () => { SetOpen(true); card.BringIntoView(); };
             }
             PluginList.Children.Add(card);
         }
@@ -802,8 +928,10 @@ public partial class SettingsWindow : Window
 
     private void Llm_Changed(object sender, RoutedEventArgs e)
     {
-        if (sender == LlmProtocolCombo) BuildLlmFeatures();
+        if (_llmRefreshing) return;
+        if (sender == LlmProtocolCombo) ShowLlmProvider(LlmProtocolCombo.SelectedValue as string);
         else if (sender == LlmThinkingSw) UpdateThinkingRow();
+        else if (sender == LlmModelBox || (sender is TextBox tb && tb.TemplatedParent == LlmModelBox)) UpdateThinkingRow(); // the levels may differ per model
         Changed(sender, e);
     }
 
@@ -813,10 +941,12 @@ public partial class SettingsWindow : Window
     /// </summary>
     private void ApplyLlmOnly()
     {
-        var llm = BuildConfig().Llm;
-        _store.Update(c => c.Llm = llm);
+        var services = LlmServicesFromDrafts();
+        var def = _llmDefault;
+        _store.Update(c => { c.LlmServices = services; c.LlmDefault = def; });
         var baseline = System.Text.Json.JsonSerializer.Deserialize<AppConfig>(_baseline)!;
-        baseline.Llm = llm;
+        baseline.LlmServices = services;
+        baseline.LlmDefault = def;
         _baseline = System.Text.Json.JsonSerializer.Serialize(baseline);
         UpdateSaveBar();
     }
@@ -880,7 +1010,9 @@ public partial class SettingsWindow : Window
         ShowLlmResult("获取模型列表…");
         try
         {
-            var models = await _llm.ListModelsAsync();
+            var models = await _llm.ListModelsAsync(_llmShown);
+            // Keep the list with the service (the draft, and config right away) so it is there next time without fetching.
+            if (models.Count > 0 && _llmShown != null && _llmDrafts.TryGetValue(_llmShown, out var draft)) { draft.Models = models.ToList(); ApplyLlmOnly(); }
             _loading = true;
             LlmModelBox.ItemsSource = models;
             LlmModelBox.Text = current;
@@ -901,7 +1033,7 @@ public partial class SettingsWindow : Window
         ShowLlmResult("连接中…");
         try
         {
-            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = Sdk.LlmEffort.Low, Thinking = false }); // room for reasoning models that think before answering
+            var reply = await _llm.CompleteAsync(new Sdk.LlmRequest { Provider = _llmShown, User = "回复“OK”两个字母即可。", MaxTokens = 512, Effort = Sdk.LlmEffort.Low, Thinking = false }); // room for reasoning models that think before answering
             var text = reply.Trim().Replace("\n", " ");
             ShowLlmResult(text.Length > 0 ? "连接成功：" + text : "连接成功，但模型没有返回文字（可能是思考型模型输出被截断）", ok: true);
         }
@@ -915,11 +1047,7 @@ public partial class SettingsWindow : Window
 
     private ActionRow? RowOf(object sender) => (sender as FrameworkElement)?.DataContext as ActionRow;
 
-    private static string PluginIcon(string id) => id switch
-    {
-        "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send",
-        "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle",
-    };
+    private static string PluginIcon(string id) => Plugins.PluginManager.PluginIcon(id);
 
     private static string? OwnerOf(ActionRow r) =>
         r.Def.IsPlugin && r.Def.Ref is { } id && id.IndexOf(':') is var i and > 0 ? id[..i] : null;
@@ -940,15 +1068,31 @@ public partial class SettingsWindow : Window
             if (!groups.TryGetValue(owner, out var g))
             {
                 var plugin = _plugins.Plugins.FirstOrDefault(l => string.Equals(l.Plugin.Id, owner, StringComparison.OrdinalIgnoreCase))?.Plugin;
-                groups[owner] = g = new ActionGroupRow { Owner = owner, Name = plugin?.Name ?? owner, Icon = PluginIcon(owner) };
-                // Folded groups say how they look on the bar; others fall back to what the plugin does.
-                g.Note = _plugins.GroupOf(r.Def) is { } bar
-                    ? $"操作条上合并为一个「{bar.Label}」按钮，点击后展开选择"
-                    : plugin?.Description ?? "";
+                groups[owner] = g = new ActionGroupRow { Owner = owner, Name = plugin?.Name ?? owner, Icon = PluginIcon(owner), IsFolded = _foldedPlugins.Contains(owner) };
                 _items.Add(g);
             }
             g.Add(r);
+            g.Note = GroupNote(g);
         }
+    }
+
+    /// <summary>How the group looks on the bar: folded by the user, folded by the plugin itself, or one button per action.</summary>
+    private string GroupNote(ActionGroupRow g)
+    {
+        if (g.IsFolded) return $"操作条上只有一个「{g.Name}」按钮，点开再选动作";
+        var first = g.Members.FirstOrDefault()?.Def;
+        if (first != null && _plugins.DeclaredGroupOf(first) is { } bar) return $"操作条上合并为一个「{bar.Label}」按钮，点击后展开选择";
+        return "操作条上每个动作各占一个按钮";
+    }
+
+    private void GroupFold_Changed(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ActionGroupRow g) return;
+        bool on = (sender as CheckBox)?.IsChecked == true;
+        if (on == _foldedPlugins.Contains(g.Owner)) return; // the binding echoing what we already know
+        if (on) _foldedPlugins.Add(g.Owner); else _foldedPlugins.Remove(g.Owner);
+        g.Note = GroupNote(g);
+        Changed(sender, e);
     }
 
     /// <summary>Write the displayed order back into the flat list.</summary>
@@ -1042,6 +1186,18 @@ public partial class SettingsWindow : Window
     private void EditAction_Click(object sender, RoutedEventArgs e)
     {
         var r = RowOf(sender); if (r == null) return;
+        if (r.Def.IsPlugin)
+        {
+            // The plugin owns the action's settings: its own editor when it has one, else its settings page.
+            var configure = ActionRow.PluginConfigure?.Invoke(r.Def.Ref ?? "");
+            if (configure == null) { ShowPluginsPage(OwnerOf(r)); return; }
+            bool changed;
+            try { changed = configure(); }
+            catch (Exception ex) { Log.Error($"plugin action {r.Def.Ref} configure", ex); return; }
+            // The plugin resynced its label / description; rebuild the row once that has landed.
+            if (changed) Dispatcher.InvokeAsync(() => { int i = _rows.IndexOf(r); if (i >= 0) _rows[i] = new ActionRow(_rows[i].Def); }, System.Windows.Threading.DispatcherPriority.Background);
+            return;
+        }
         var dlg = new ActionEditWindow(r.Def.Clone()) { Owner = this };
         if (dlg.ShowDialog() == true && dlg.Result != null)
         {
