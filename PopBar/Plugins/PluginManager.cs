@@ -43,7 +43,7 @@ internal sealed class PluginManager : IDisposable
     public void Load(IEnumerable<IPopBarPlugin> builtIns, bool external = true)
     {
         foreach (var p in builtIns) Register(p, builtIn: true);
-        if (external) foreach (var (p, dll) in DiscoverExternal()) Register(p, builtIn: false, dll);
+        if (external) foreach (var (p, dll) in DiscoverExternal()) if (IsNewId(p, dll)) Register(p, builtIn: false, dll);
         RefreshActions();
         SyncConfig();
         Log.Info($"plugins loaded: {string.Join(", ", _plugins.Select(p => p.Plugin.Id + (p.Error != null ? "(error)" : p.Stopped ? "(off)" : "")))}");
@@ -140,15 +140,7 @@ internal sealed class PluginManager : IDisposable
     {
         int before = _plugins.Count;
         foreach (var (p, dll) in DiscoverIn(folder))
-        {
-            if (_plugins.Any(l => string.Equals(l.Plugin.Id, p.Id, StringComparison.OrdinalIgnoreCase)))
-            {
-                Log.Warn($"plugin id {p.Id} from {dll} is already loaded; skipped");
-                _failures.Add(new LoadFailure(dll, $"插件 id「{p.Id}」与已加载的插件重复"));
-                continue;
-            }
-            Register(p, builtIn: false, dll);
-        }
+            if (IsNewId(p, dll)) Register(p, builtIn: false, dll);
         RefreshActions();
         List<Loaded> added;
         lock (_gate) added = _plugins.Skip(before).ToList();
@@ -159,6 +151,28 @@ internal sealed class PluginManager : IDisposable
         ActionsSynced?.Invoke();
         return added;
     }
+
+    /// <summary>Build folders loaded with <see cref="LoadDev"/> (full paths).</summary>
+    private readonly HashSet<string> _devFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// <c>PopBar.exe --dev-plugin &lt;folder&gt;</c>: load a plugin straight from its build output, or reload it when it
+    /// is already loaded from there - run it after each build and the new code is live, no install. Nothing is copied
+    /// or remembered: the next start loads it only if asked again. UI thread.
+    /// </summary>
+    public IReadOnlyList<Loaded> LoadDev(string folder)
+    {
+        var full = Path.GetFullPath(folder).TrimEnd('\\');
+        if (!Directory.Exists(full)) throw new DirectoryNotFoundException("找不到插件目录：" + full);
+        if (_devFolders.Contains(full)) Unload(full, dropActions: false);
+        _devFolders.Add(full);
+        var loaded = LoadInstalled(full);
+        Log.Info($"dev plugin folder {full}: {(loaded.Count == 0 ? "no plugin" : string.Join(", ", loaded.Select(l => l.Plugin.Id + (l.Error != null ? "(error)" : ""))))}");
+        return loaded;
+    }
+
+    /// <summary>Loaded from a <see cref="LoadDev"/> build folder (not installed: never uninstall it, that would delete the build).</summary>
+    public bool IsDev(Loaded l) => l.Source != null && _devFolders.Contains(Path.GetDirectoryName(Path.GetFullPath(l.Source))!.TrimEnd('\\'));
 
     /// <summary>
     /// Stop and drop the plugins loaded from <paramref name="folder"/>: dispose them and undo what they registered
@@ -187,10 +201,31 @@ internal sealed class PluginManager : IDisposable
         return ids;
     }
 
+    /// <summary>
+    /// Ids are unique: a third-party plugin whose id is taken (by a built-in, or another folder) is not loaded - its
+    /// actions, settings and data would be mixed up with the other's. Noted as a failure for the plugin page.
+    /// </summary>
+    private bool IsNewId(IPopBarPlugin p, string dll)
+    {
+        bool taken;
+        lock (_gate) taken = _plugins.Any(l => string.Equals(l.Plugin.Id, p.Id, StringComparison.OrdinalIgnoreCase));
+        if (!taken) return true;
+        Log.Warn($"plugin id {p.Id} from {dll} is already loaded; skipped");
+        _failures.Add(new LoadFailure(dll, $"插件 id「{p.Id}」与已加载的插件重复"));
+        return false;
+    }
+
     private IEnumerable<(IPopBarPlugin Plugin, string Dll)> DiscoverIn(string sub)
     {
         foreach (var dll in Directory.GetFiles(sub, "*.dll"))
         {
+            // built for a newer (or older, incompatible) SDK: say so instead of a loader error or a later MissingMethodException
+            if (PluginCompat.Problem(dll) is { } problem)
+            {
+                Log.Warn($"plugin dll {dll}: {problem}");
+                _failures.Add(new LoadFailure(dll, problem));
+                continue;
+            }
             IPopBarPlugin[] found;
             try { found = LoadFrom(dll).ToArray(); }
             catch (BadImageFormatException) { continue; } // a native dependency shipped next to the plugin, not an assembly
@@ -359,12 +394,22 @@ internal sealed class PluginManager : IDisposable
         catch (Exception ex) { Log.Warn($"{def.Ref} IsApplicable threw: {ex.Message}"); return false; }
     }
 
+    /// <summary>
+    /// An action threw instead of handling its error (any thread). Without a word from the app the user would only
+    /// see the click do nothing.
+    /// </summary>
+    public event Action<PluginAction, SelectionContext, Exception>? ActionFailed;
+
     public async Task ExecuteAsync(string actionId, SelectionContext ctx, CancellationToken ct = default)
     {
         if (!TryGet(actionId, out var plugin, out var action)) { Log.Warn("unknown plugin action " + actionId); return; }
         try { await action.Execute(ctx, ct); }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { Log.Error($"plugin action {actionId} failed", ex); }
+        catch (Exception ex)
+        {
+            Log.Error($"plugin action {actionId} failed", ex);
+            ActionFailed?.Invoke(action, ctx, ex);
+        }
     }
 
     public void Dispose()

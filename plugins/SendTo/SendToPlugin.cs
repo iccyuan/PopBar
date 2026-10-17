@@ -278,7 +278,7 @@ public sealed class SendToPlugin : IPopBarPlugin
         var d = SettingsDraft.Clone(_cfg);
         _draft = d;
         void Changed() => _host.Settings.Changed();
-        _host.Settings.OnApply(() =>
+        _host.Settings.OnApply(d, () =>
         {
             _cfg = SettingsDraft.Clone(d);
             _host.Storage.Set(_cfg);

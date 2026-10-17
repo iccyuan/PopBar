@@ -31,6 +31,11 @@ public interface IPluginHost
     /// <summary>"dark" or "light" - current bar theme.</summary>
     string Theme { get; }
     /// <summary>
+    /// The theme switched (new value as in <see cref="Theme"/>; UI thread): restyle what you keep open, such as an
+    /// overlay or a pinned window. Panels from <see cref="ShowPanel"/> keep the theme they opened with.
+    /// </summary>
+    event Action<string>? ThemeChanged;
+    /// <summary>
     /// Directory for plugin data files (%AppData%\PopBar\plugins\.data\{id}\; may not exist yet). It survives updates
     /// of the plugin: unlike the folder the plugin is installed in, which an update replaces.
     /// </summary>

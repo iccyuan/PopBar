@@ -84,14 +84,14 @@ internal partial class PluginsPage : SettingsPage
         Grid.SetColumn(info, 1);
         var title = new TextBlock { FontSize = 14 }; // YaHei UI has no semibold: SemiBold would render as heavy Bold
         title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
-        title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方，来源未验证")) { Foreground = Res<Brush>("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
+        title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : Ctx.Plugins.IsDev(l) ? "  · 开发中，从构建目录加载" : "  · 第三方，来源未验证")) { Foreground = Res<Brush>("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
         if (l.Source != null) title.ToolTip = l.Source;
         info.Children.Add(title);
         // Under the name only what needs attention: a load error.
         if (l.Error != null)
             info.Children.Add(new TextBlock { Text = "加载失败：" + l.Error + (l.BuiltIn ? "" : "（修好后重新安装即可）"), Style = Res<Style>("Muted"), Foreground = Res<Brush>("DangerBrush"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
         head.Children.Add(info);
-        if (!l.BuiltIn && l.Source != null)
+        if (!l.BuiltIn && l.Source != null && !Ctx.Plugins.IsDev(l))
         {
             var uninstall = new Button { Style = Res<Style>("IconButton"), Width = 32, Height = 32, ToolTip = "卸载", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0), Content = new IconImage { Icon = "trash", Size = 15, Brush = Res<Brush>("DangerBrush") } };
             uninstall.Click += (_, _) => Uninstall(l);

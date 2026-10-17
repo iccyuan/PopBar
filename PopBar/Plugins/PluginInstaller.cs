@@ -1,8 +1,6 @@
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
-using System.Reflection.Metadata;
-using System.Reflection.PortableExecutable;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -94,8 +92,12 @@ internal static partial class PluginInstaller
 
             // The host's own SDK is always used; a packaged copy would only be loaded and scanned for nothing.
             foreach (var sdk in Directory.GetFiles(work, "PopBar.Sdk.*")) File.Delete(sdk);
-            if (!Directory.GetFiles(work, "*.dll").Any(ReferencesSdk))
+            var plugins = Directory.GetFiles(work, "*.dll").Where(ReferencesSdk).ToList();
+            if (plugins.Count == 0)
                 throw new InvalidOperationException("里面没有 PopBar 插件（没有引用 PopBar.Sdk 的 DLL）。");
+            // refuse before anything is replaced: an update this PopBar cannot run must not remove the working version
+            if (plugins.Select(PluginCompat.Problem).FirstOrDefault(m => m != null) is { } problem)
+                throw new InvalidOperationException(problem + "。");
 
             return new Prepared(FolderName(suggestedName), work, source, root);
         }
@@ -159,18 +161,7 @@ internal static partial class PluginInstaller
     }
 
     /// <summary>Is this a managed assembly that references PopBar.Sdk? Read from metadata only, nothing is loaded.</summary>
-    internal static bool ReferencesSdk(string dll)
-    {
-        try
-        {
-            using var fs = File.OpenRead(dll);
-            using var pe = new PEReader(fs);
-            if (!pe.HasMetadata) return false;
-            var md = pe.GetMetadataReader();
-            return md.AssemblyReferences.Any(h => md.GetString(md.GetAssemblyReference(h).Name) == "PopBar.Sdk");
-        }
-        catch { return false; } // not a PE file / corrupt: not a plugin
-    }
+    internal static bool ReferencesSdk(string dll) => PluginCompat.SdkOf(dll) != null;
 
     private static void TryDelete(string file)
     {

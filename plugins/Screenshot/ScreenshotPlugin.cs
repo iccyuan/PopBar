@@ -210,7 +210,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
         var d = SettingsDraft.Clone(_cfg);
         var origDir = d.SaveDir;
         void Changed() => _host.Settings.Changed();
-        _host.Settings.OnApply(() =>
+        _host.Settings.OnApply(d, () =>
         {
             // The capture overlay remembers the last save folder at runtime; keep it unless the draft changed the folder.
             var folder = d.SaveDir == origDir ? _cfg.SaveDir : d.SaveDir;

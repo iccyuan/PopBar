@@ -60,14 +60,34 @@ internal sealed class ServiceRegistry : IServiceRegistry
 internal sealed class SettingsHub
 {
     private readonly Dictionary<string, Action> _apply = new();
+    /// <summary>For drafts registered with their object: how the draft reads now, and how it read when unchanged.</summary>
+    private readonly Dictionary<string, (Func<string> Snapshot, string Baseline)> _tracked = new();
     private readonly HashSet<string> _pending = new();
 
     /// <summary>Some plugin draft changed (UI thread).</summary>
     public event Action? Changed;
     public bool AnyPending => _pending.Count > 0;
 
-    public void Register(string plugin, Action apply) => _apply[plugin] = apply;
-    public void MarkChanged(string plugin) { _pending.Add(plugin); Changed?.Invoke(); }
+    public void Register(string plugin, Action apply, Func<string>? snapshot = null)
+    {
+        _apply[plugin] = apply;
+        if (snapshot != null) _tracked[plugin] = (snapshot, snapshot());
+        else _tracked.Remove(plugin);
+    }
+
+    /// <summary>A draft was edited; a tracked one that is back to where it started is no longer pending.</summary>
+    public void MarkChanged(string plugin)
+    {
+        if (_tracked.TryGetValue(plugin, out var t) && Same(t.Snapshot, t.Baseline)) _pending.Remove(plugin);
+        else _pending.Add(plugin);
+        Changed?.Invoke();
+    }
+
+    private static bool Same(Func<string> snapshot, string baseline)
+    {
+        try { return snapshot() == baseline; }
+        catch { return false; }
+    }
 
     public void ApplyAll()
     {
@@ -75,21 +95,29 @@ internal sealed class SettingsHub
         {
             try { if (_apply.TryGetValue(id, out var a)) a(); }
             catch (Exception ex) { PopBar.Log.Error($"plugin {id} apply settings", ex); }
+            // saved: what the draft holds now is the new unchanged state
+            if (_tracked.TryGetValue(id, out var t))
+                try { _tracked[id] = (t.Snapshot, t.Snapshot()); } catch { }
         }
         _pending.Clear();
     }
 
     /// <summary>Forget an unloaded plugin's draft.</summary>
-    public void Remove(string plugin) { _pending.Remove(plugin); _apply.Remove(plugin); Changed?.Invoke(); }
+    public void Remove(string plugin) { _pending.Remove(plugin); _apply.Remove(plugin); _tracked.Remove(plugin); Changed?.Invoke(); }
 
     /// <summary>Drop all drafts; the window rebuilds the views (which register again).</summary>
-    public void DiscardAll() { _pending.Clear(); _apply.Clear(); }
+    public void DiscardAll() { _pending.Clear(); _apply.Clear(); _tracked.Clear(); }
 }
 
 internal sealed class SettingsSession(SettingsHub hub, string plugin) : ISettingsSession
 {
     public void Changed() => hub.MarkChanged(plugin);
     public void OnApply(Action apply) => hub.Register(plugin, apply);
+    public void OnApply(object draft, Action apply)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        hub.Register(plugin, apply, () => System.Text.Json.JsonSerializer.Serialize(draft, draft.GetType()));
+    }
 }
 
 /// <summary>Tracks open panels so outside clicks can close the unpinned ones.</summary>
@@ -158,6 +186,36 @@ internal sealed class PluginHost : IPluginHost
     public Dispatcher Dispatcher => _s.Dispatcher;
     public IHostUi Ui { get; }
     public string Theme => ThemeManager.Effective;
+
+    private Action<string>? _themeChanged;
+    private readonly object _themeGate = new();
+
+    /// <summary>Hooked to <see cref="ThemeManager.Changed"/> only while the plugin listens, so a dropped host is not kept alive.</summary>
+    public event Action<string>? ThemeChanged
+    {
+        add
+        {
+            lock (_themeGate)
+            {
+                if (_themeChanged == null) ThemeManager.Changed += OnThemeChanged;
+                _themeChanged += value;
+            }
+        }
+        remove
+        {
+            lock (_themeGate)
+            {
+                _themeChanged -= value;
+                if (_themeChanged == null) ThemeManager.Changed -= OnThemeChanged;
+            }
+        }
+    }
+
+    private void OnThemeChanged(string theme)
+    {
+        try { _themeChanged?.Invoke(theme); }
+        catch (Exception ex) { _log.Error("ThemeChanged handler", ex); }
+    }
     public string DataDir { get; }
     public IServiceRegistry Services => _s.Services;
     public ISettingsSession Settings { get; }
@@ -261,8 +319,8 @@ internal sealed class PluginHost : IPluginHost
     private readonly HashSet<string> _hotkeys = new();
 
     /// <summary>
-    /// Undo what the plugin registered through this host, after it was disposed on unload: hotkeys, tray entries,
-    /// settings drafts, and services / model providers implemented in its assembly. UI thread.
+    /// Undo what the plugin registered through this host, after it was disposed (unload, or switched off): hotkeys,
+    /// tray entries, settings drafts, theme listeners, and services / model providers implemented in its assembly. UI thread.
     /// </summary>
     public void Release(System.Reflection.Assembly pluginAssembly)
     {
@@ -272,6 +330,11 @@ internal sealed class PluginHost : IPluginHost
         _s.RemoveTrayItems(_pluginId);
         _s.SettingsHub.Remove(_pluginId);
         _s.Services.RemoveFrom(pluginAssembly);
+        lock (_themeGate)
+        {
+            if (_themeChanged != null) ThemeManager.Changed -= OnThemeChanged;
+            _themeChanged = null;
+        }
         if (_s.Llm is Core.LlmService llm) llm.RemoveProvidersFrom(pluginAssembly);
     }
 

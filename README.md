@@ -64,13 +64,27 @@ AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `open
 
 - 改动需点保存（Ctrl+S）才生效，取消恢复；主题、按钮文字、按钮数、毛玻璃不透明度即时生效。
 - 「动作」页拖动排序，同插件的动作成组；「插件」页每个插件一张卡片，齿轮展开其设置。
-- 命令行：`--settings` 打开设置，`--run ocr:capture` 触发某个动作（可绑到任意快捷键工具），`--install <插件 .zip / .dll 或 GitHub 仓库地址>` 安装插件。
+- 命令行：`--settings` 打开设置，`--run ocr:capture` 触发某个动作（可绑到任意快捷键工具），`--install <插件 .zip / .dll 或 GitHub 仓库地址>` 安装插件，`--dev-plugin <构建目录>` 直接加载开发中的插件（见下）。
 
 ## 写一个插件
 
 新建类库引用 `PopBar.Sdk`，实现 `IPopBarPlugin`，完整示例见 `plugins/Hello`（不随程序发布，按第三方插件安装）。
 
-安装：设置 →「插件」→「安装插件」，填 GitHub 仓库地址（安装最新 Release 里的 `.zip` 或 `.dll`），或选本地 `.zip`（插件和依赖）/ `.dll`；也可以 `PopBar.exe --install <路径或仓库地址>`。安装、更新、卸载都即时生效，不用重启（插件程序集从内存加载，文件不被占用）。插件装在 `%AppData%\PopBar\plugins\<目录>\`。
+安装：设置 →「插件」→「安装插件」，填 GitHub 仓库地址（安装最新 Release 里的 `.zip` 或 `.dll`），或选本地 `.zip`（插件和依赖）/ `.dll`；也可以 `PopBar.exe --install <路径或仓库地址>`。安装、更新、卸载都即时生效，不用重启（插件程序集从内存加载，文件不被占用）。插件装在 `%AppData%\PopBar\plugins\<目录>\`，更新时整个目录会被替换；插件自己的数据放 `host.DataDir`（`plugins\.data\<id>\`），更新不受影响。在「插件」页关掉的插件会真正停止：热键、托盘入口、共享服务、AI 服务商都撤掉，再打开时重新初始化一个新实例。
+
+开发调试：`PopBar.exe --dev-plugin <构建目录>` 从构建输出直接加载插件，不复制、不安装；PopBar 已在运行时再执行一次就是重新加载。把它加进插件项目的生成后事件，每次编译完新代码立即生效：
+
+```xml
+<PropertyGroup>
+  <PopBarExe>D:\Tools\PopBar\PopBar.exe</PopBarExe> <!-- 换成你的 PopBar.exe -->
+</PropertyGroup>
+<!-- start 不等待：PopBar 没在运行时会被启动，构建不会卡住；路径末尾的 "." 避免 \" 把引号转义掉 -->
+<Target Name="ReloadInPopBar" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug' And Exists('$(PopBarExe)')">
+  <Exec Command="start &quot;&quot; &quot;$(PopBarExe)&quot; --dev-plugin &quot;$(TargetDir).&quot;" ContinueOnError="true" />
+</Target>
+```
+
+SDK 版本：`PopBar.Sdk` 的程序集版本就是插件 API 版本（现为 1.0，与程序版本无关）。新增接口时次版本 +1，破坏性改动时主版本 +1。插件记录了编译时引用的 SDK 版本，PopBar 在安装和加载时比对：主版本相同、且次版本不高于当前 PopBar 的才加载，否则在「插件」页说明原因（例如需要更新 PopBar），不会等到调用新接口时才莫名失败。
 
 插件决定自己的按钮怎么上操作条：`IPopBarPlugin.Bar`（`BarOptions`）里 `MergeAs` 让多个动作同时出现时合并成一个按钮（如「发送到」「编码」），`ShowByDefault` 决定装好后动作是否默认显示在操作条上；单个动作还可用 `PluginAction.EnabledByDefault` 默认关闭、`PlaceAfter` 指定首次出现的位置。
 
@@ -105,9 +119,9 @@ public sealed class HelloPlugin : IPopBarPlugin
 }
 ```
 
-`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、网络（`Http` 跟随主程序；`HttpFor(ProxyRoute)` 可选直连或走「代理」页设置的代理，`Ui.ProxyPicker` 是现成的选择下拉）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`，按用途分为 `IHostDialogs` 对话框、`IHostInputs` 按键 / 程序 / 窗口 / 文件选择、`IHostVisuals` 图标、`ILlmUi` 服务商与模型下拉，代码里只依赖用得到的那一个）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、网络（`Http` 跟随主程序；`HttpFor(ProxyRoute)` 可选直连或走「代理」页设置的代理，`Ui.ProxyPicker` 是现成的选择下拉）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效；用 `OnApply(draft, apply)` 登记草稿对象，改回原值时「未保存」提示会自动消失）、主题切换通知（`ThemeChanged`）、设置页同款控件与对话框（`Ui`，按用途分为 `IHostDialogs` 对话框、`IHostInputs` 按键 / 程序 / 窗口 / 文件选择、`IHostVisuals` 图标、`ILlmUi` 服务商与模型下拉，代码里只依赖用得到的那一个）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
 
-线程：`IPluginHost` 的成员都能在任意线程调用。`ShowPanel`、`RegisterHotkey` 会等 UI 线程执行完再返回，所以不要在持有锁、或 UI 线程正等着你的时候从工作线程调用它们；异步代码里用 `ShowPanelAsync`。`Execute` 在线程池上运行，`IHostUi` 只能在 UI 线程用。
+线程：`IPluginHost` 的成员都能在任意线程调用。`ShowPanel`、`RegisterHotkey` 会等 UI 线程执行完再返回，所以不要在持有锁、或 UI 线程正等着你的时候从工作线程调用它们；异步代码里用 `ShowPanelAsync`。`Execute` 在线程池上运行，`IHostUi` 只能在 UI 线程用。`Execute` 里没有处理的异常，PopBar 会记日志并在选区旁弹一个出错提示，不会让用户以为点了没反应；插件自己能说清楚的错误最好用 `IPanel.SetError` 显示。
 
 ## 分层
 

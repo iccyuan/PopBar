@@ -11,6 +11,13 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>CS1591</NoWarn>
     <Description>Plugin SDK for PopBar. Reference this assembly to build a PopBar plugin.</Description>
+    <!--
+      The plugin API version, apart from the app version (which a release passes in as -p:Version): a plugin records
+      the SDK assembly version it was built against, and PopBar compares it with its own (PluginCompat). Minor + 1 for
+      added API (older plugins keep working, newer ones need this PopBar); major + 1 for a breaking change.
+    -->
+    <SdkApiVersion>1.0</SdkApiVersion>
+    <AssemblyVersion>$(SdkApiVersion).0.0</AssemblyVersion>
   </PropertyGroup>
 
 </Project>

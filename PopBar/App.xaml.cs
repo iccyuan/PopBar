@@ -61,7 +61,9 @@ public partial class App : Application
             // Another instance is running: hand it the request ("--run <trayItemId>", "--install <source>", else open settings), then leave.
             int ri = Array.IndexOf(e.Args, "--run");
             int ii = Array.IndexOf(e.Args, "--install");
+            int di = Array.IndexOf(e.Args, "--dev-plugin");
             SendToRunningInstance(ii >= 0 && ii + 1 < e.Args.Length ? InstallCommand + e.Args[ii + 1]
+                : di >= 0 && di + 1 < e.Args.Length ? DevCommand + Path.GetFullPath(e.Args[di + 1])
                 : ri >= 0 && ri + 1 < e.Args.Length ? e.Args[ri + 1] : "");
             Shutdown();
             return;
@@ -106,6 +108,7 @@ public partial class App : Application
             ResyncActions = id => _plugins?.Resync(id),
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
+        _plugins.ActionFailed += (action, ctx, ex) => Dispatcher.InvokeAsync(() => ShowActionError(action, ctx, ex));
         _settingsHub = services.SettingsHub;
         _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new PopBar.Plugins.Builtin.Screenshot.ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
@@ -115,9 +118,46 @@ public partial class App : Application
         CreateTray();
 
         Log.Info($"PopBar started, config in {ConfigStore.Dir}");
+        int dev = Array.IndexOf(e.Args, "--dev-plugin");
+        if (dev >= 0 && dev + 1 < e.Args.Length) LoadDevPlugin(e.Args[dev + 1]);
         int install = Array.IndexOf(e.Args, "--install");
         if (install >= 0 && install + 1 < e.Args.Length) InstallPlugin(e.Args[install + 1]);
         else if (_store.IsFirstRun || e.Args.Contains("--settings")) ShowSettings();
+    }
+
+    /// <summary>Prefix of a forwarded "--dev-plugin" request.</summary>
+    private const string DevCommand = "--dev-plugin ";
+
+    /// <summary><c>PopBar.exe --dev-plugin &lt;build folder&gt;</c>: load (or reload) a plugin under development, see <see cref="PluginManager.LoadDev"/>.</summary>
+    private void LoadDevPlugin(string folder)
+    {
+        try
+        {
+            var loaded = _plugins!.LoadDev(folder);
+            var failed = _plugins.LoadFailures.Where(f => f.Path.StartsWith(Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase)).ToList();
+            _tray?.ShowBalloonTip(3000, "PopBar 开发插件",
+                loaded.Count > 0 ? "已加载：" + string.Join("、", loaded.Select(l => l.Plugin.Name + (l.Error != null ? "（初始化失败：" + l.Error + "）" : "")))
+                : failed.Count > 0 ? "没有加载：" + failed[0].Error
+                : "目录里没有插件：" + folder, WinForms.ToolTipIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("--dev-plugin " + folder, ex);
+            _tray?.ShowBalloonTip(3000, "PopBar 开发插件", "加载失败：" + ex.Message, WinForms.ToolTipIcon.Error);
+        }
+    }
+
+    /// <summary>A plugin action failed without saying so itself: a small panel at the selection with the reason.</summary>
+    private void ShowActionError(PluginAction action, SelectionContext ctx, Exception ex)
+    {
+        try
+        {
+            var p = new PanelWindow(new PanelOptions { Title = action.Label, Icon = action.Icon, ShowTextArea = false, Width = 380 }, ThemeManager.Effective);
+            _panels.Add(p);
+            p.ShowAt(ctx.ScreenX, ctx.ScreenY);
+            p.SetError("执行失败：" + Errors.Describe(ex));
+        }
+        catch (Exception e) { Log.Error("action error panel", e); }
     }
 
     /// <summary>Prefix of a forwarded "--install" request; tray item ids ("plugin:item") never start with it.</summary>
@@ -352,6 +392,7 @@ public partial class App : Application
                 {
                     if (cmd.Length == 0) { ShowSettings(); return; }
                     if (cmd.StartsWith(InstallCommand, StringComparison.Ordinal)) { InstallPlugin(cmd[InstallCommand.Length..].Trim()); return; }
+                    if (cmd.StartsWith(DevCommand, StringComparison.Ordinal)) { LoadDevPlugin(cmd[DevCommand.Length..].Trim()); return; }
                     Log.Info("--run " + cmd);
                     RunTrayCommand(cmd);
                 });

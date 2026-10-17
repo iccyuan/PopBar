@@ -223,7 +223,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         // Edit a draft; it only takes effect when the settings window is saved.
         var d = SettingsDraft.Clone(_cfg);
         void Changed() => _host.Settings.Changed();
-        _host.Settings.OnApply(() =>
+        _host.Settings.OnApply(d, () =>
         {
             _cfg = SettingsDraft.Clone(d);
             _host.Storage.Set(_cfg);

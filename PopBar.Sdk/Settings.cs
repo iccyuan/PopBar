@@ -13,6 +13,12 @@ public interface ISettingsSession
     void Changed();
     /// <summary>What Save does for this plugin: copy the draft into the live settings, persist, re-register hotkeys... UI thread. Latest registration wins.</summary>
     void OnApply(Action apply);
+    /// <summary>
+    /// <see cref="OnApply(Action)"/> for a <paramref name="draft"/> object: PopBar remembers how it started (as JSON) and
+    /// compares on every <see cref="Changed"/>, so setting a value back clears "unsaved changes" again. Prefer this one;
+    /// pass the draft right after cloning it.
+    /// </summary>
+    void OnApply(object draft, Action apply);
 }
 
 public static class SettingsDraft
