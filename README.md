@@ -17,10 +17,11 @@ C# / WPF / .NET 10。弹窗不抢焦点，常驻约 35-75 MB。操作栏与面�
 
 ```powershell
 dotnet build PopBar.slnx -c Release          # 需要 .NET 10 SDK
+dotnet test PopBar.Tests                     # 单元测试：匹配规则、文字转换、快捷键解析、配置迁移、保存合并等
 dotnet publish PopBar\PopBar.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o publish
 ```
 
-推送 `v*` 标签即自动发版（`.github/workflows/release.yml`），版本号取自标签。
+推送 `v*` 标签即自动发版（`.github/workflows/release.yml`），版本号取自标签；本地构建的版本号在 `Directory.Build.props`。
 
 ## 工作原理
 

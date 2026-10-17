@@ -118,21 +118,25 @@ internal static class ClipboardBackup
         try
         {
             EmptyClipboard();
-            int bytes = (text.Length + 1) * 2;
-            IntPtr h = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)(ulong)bytes);
+            IntPtr h = AllocText(text);
             if (h == IntPtr.Zero) return false;
-            IntPtr p = GlobalLock(h);
-            if (p == IntPtr.Zero) { GlobalFree(h); return false; }
-            unsafe
-            {
-                fixed (char* src = text)
-                    Buffer.MemoryCopy(src, (void*)p, bytes, text.Length * 2);
-                ((char*)p)[text.Length] = '\0';
-            }
-            GlobalUnlock(h);
             if (SetClipboardData(CF_UNICODETEXT, h) == IntPtr.Zero) { GlobalFree(h); return false; }
             return true;
         }
         finally { CloseClipboard(); }
+    }
+
+    /// <summary>A movable HGLOBAL holding <paramref name="text"/> as CF_UNICODETEXT; IntPtr.Zero on failure.</summary>
+    public static IntPtr AllocText(string text) => AllocBytes(System.Text.Encoding.Unicode.GetBytes(text + "\0"));
+
+    public static IntPtr AllocBytes(byte[] data)
+    {
+        IntPtr h = GlobalAlloc(GMEM_MOVEABLE, (UIntPtr)(ulong)Math.Max(data.Length, 1));
+        if (h == IntPtr.Zero) return IntPtr.Zero;
+        IntPtr p = GlobalLock(h);
+        if (p == IntPtr.Zero) { GlobalFree(h); return IntPtr.Zero; }
+        Marshal.Copy(data, 0, p, data.Length);
+        GlobalUnlock(h);
+        return h;
     }
 }

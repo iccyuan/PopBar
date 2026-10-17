@@ -12,7 +12,6 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>PopBar</AssemblyName>
     <RootNamespace>PopBar</RootNamespace>
-    <Version>0.1.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\popbar.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -21,6 +20,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PopBar.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PopBar.Sdk\PopBar.Sdk.csproj" />

@@ -38,7 +38,7 @@ internal sealed class HostServices
             ConnectCallback = ConnectAsync,
         };
         var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("PopBar/0.2 (+https://github.com/iccyuan/PopBar)");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"PopBar/{typeof(PluginHost).Assembly.GetName().Version?.ToString(3)} (+https://github.com/iccyuan/PopBar)");
         return http;
     }
 

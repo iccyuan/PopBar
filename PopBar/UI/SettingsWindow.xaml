@@ -25,7 +25,7 @@
                     <Image Source="{x:Static ui:LogoArt.Image}" Width="34" Height="34" VerticalAlignment="Center"/>
                     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="PopBar" FontSize="17" FontWeight="Bold"/>
-                        <TextBlock x:Name="VersionText" Style="{StaticResource Muted}" Text="v0.2.0" Margin="0,-2,0,0"/>
+                        <TextBlock x:Name="VersionText" Style="{StaticResource Muted}" Margin="0,-2,0,0"/>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Top">
@@ -366,7 +366,7 @@
                 <!-- ===== Plugins ===== -->
                 <StackPanel x:Name="PanelPlugins" Visibility="Collapsed">
                     <TextBlock Style="{StaticResource H2}" Text="已安装的插件" Margin="4,0,0,8"/>
-                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" x:Name="PluginDirText"/>
+                    <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" TextWrapping="Wrap" x:Name="PluginDirText"/>
                     <StackPanel x:Name="PluginList"/>
                 </StackPanel>
 

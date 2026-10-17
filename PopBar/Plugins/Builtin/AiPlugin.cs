@@ -31,7 +31,7 @@ public sealed class AiPlugin : IPopBarPlugin
         public string Model { get; set; } = "";
         /// <summary>
         /// 深度思考 for this plugin: null = follow the "服务" page, true / false = override it. Named "override" so a
-        /// stale "effort" / "thinking" from v0.2.0 (then the plugin's own, absolute setting) is not read as one.
+        /// stale "effort" / "thinking" from older configs (then the plugin's own, absolute setting) is not read as one.
         /// </summary>
         public bool? ThinkingOverride { get; set; }
         /// <summary>Thinking depth (<see cref="LlmEffort"/>) for this plugin; empty = follow the "服务" page.</summary>

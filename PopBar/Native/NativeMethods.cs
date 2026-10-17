@@ -158,6 +158,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -327,6 +330,20 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern uint GetClipboardSequenceNumber();
 
+    // Delayed rendering: the owner window is asked for the data only when someone actually reads it.
+    public const int WM_RENDERFORMAT = 0x0305;
+    public const int WM_RENDERALLFORMATS = 0x0306;
+    public const int WM_DESTROYCLIPBOARD = 0x0307;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetClipboardOwner();
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetOpenClipboardWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern uint RegisterClipboardFormat(string lpszFormat);
+
     [DllImport("user32.dll")]
     public static extern bool IsClipboardFormatAvailable(uint format);
 
@@ -346,12 +363,6 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll")]
     public static extern IntPtr GlobalFree(IntPtr hMem);
-
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetCurrentProcess();
-
-    [DllImport("kernel32.dll")]
-    public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
 
     public const uint GW_OWNER = 4;
     public const int GWL_STYLE = -16;

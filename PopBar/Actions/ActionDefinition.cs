@@ -20,7 +20,7 @@ public sealed class ActionDefinition
     public string? Template { get; set; }
     /// <summary>For command: executable path.</summary>
     public string? Command { get; set; }
-    /// <summary>For command: argument string, {text} is substituted (quotes escaped).</summary>
+    /// <summary>For command: argument template, split into arguments first, then {text} substituted inside each.</summary>
     public string? Args { get; set; }
 
     /// <summary>any | url | email | regex — the button only appears when the selection matches.</summary>

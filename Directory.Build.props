@@ -1,0 +1,6 @@
+<Project>
+  <!-- The one version of PopBar: the app, the SDK, the About page and the HTTP User-Agent all read it from here. -->
+  <PropertyGroup>
+    <Version>0.2.0</Version>
+  </PropertyGroup>
+</Project>

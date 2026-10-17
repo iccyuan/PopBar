@@ -56,7 +56,8 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
             var region = await _host.CaptureScreenRegionAsync();
             if (region == null) { _host.Log.Info("capture cancelled"); return; }
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            try { Directory.CreateDirectory(_host.DataDir); File.WriteAllBytes(Path.Combine(_host.DataDir, "last-capture.png"), region.Png); } catch { }
+            try { Directory.CreateDirectory(_host.DataDir); File.WriteAllBytes(Path.Combine(_host.DataDir, "last-capture.png"), region.Png); }
+            catch (Exception ex) { _host.Log.Warn("keeping last capture failed: " + ex.Message); }
             var text = (await RecognizeAsync(region.Png)).Text;
             _host.Log.Info($"recognized {text.Length} chars from {region.Width}x{region.Height} in {sw.ElapsedMilliseconds}ms");
             if (string.IsNullOrWhiteSpace(text))
@@ -90,7 +91,8 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
         OcrEngine? engine = null;
         if (!string.IsNullOrWhiteSpace(_cfg.Language))
         {
-            try { engine = OcrEngine.TryCreateFromLanguage(new Language(_cfg.Language)); } catch { }
+            try { engine = OcrEngine.TryCreateFromLanguage(new Language(_cfg.Language)); }
+            catch (Exception ex) { _host.Log.Warn($"OCR language '{_cfg.Language}' unusable, using the profile languages: {ex.Message}"); }
         }
         engine ??= OcrEngine.TryCreateFromUserProfileLanguages();
         if (engine == null) throw new InvalidOperationException("系统没有可用的 OCR 语言包（设置 → 时间和语言 → 语言 → 添加语言并安装“光学字符识别”）。");
@@ -234,7 +236,8 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
         }, accent: true);
         var open = Form.Button("系统语言设置", () =>
         {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:regionlanguage") { UseShellExecute = true }); } catch { }
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:regionlanguage") { UseShellExecute = true }); }
+            catch (Exception ex) { _host.Log.Error("open language settings", ex); }
         });
         // The status line lives under the card: inside it, even collapsed, it would draw a separator.
         status.Margin = new Thickness(4, 0, 0, 8);

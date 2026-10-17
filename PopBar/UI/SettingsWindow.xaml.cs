@@ -164,7 +164,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         RebuildLlmServiceList();
-        PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir;
+        PluginDirText.Text = "第三方插件目录：" + Plugins.PluginStorage.PluginsDir + "\n第三方插件和 PopBar 拥有相同权限（读剪贴板、按键、联网），只安装信得过的来源。";
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
         BuildPluginList();
@@ -200,7 +200,7 @@ public partial class SettingsWindow : Window
         ActionsList.ItemsSource = _items;
 
         var ver = typeof(SettingsWindow).Assembly.GetName().Version;
-        var vs = "v" + (ver == null ? "0.1.0" : $"{ver.Major}.{ver.Minor}.{ver.Build}");
+        var vs = "v" + ver?.ToString(3);
         VersionText.Text = vs;
         AboutVersion.Text = vs + "  ·  .NET " + Environment.Version;
         ConfigPathRun.Text = ConfigStore.FilePath;
@@ -735,9 +735,10 @@ public partial class SettingsWindow : Window
             Grid.SetColumn(info, 1);
             var title = new TextBlock { FontSize = 14 }; // YaHei UI has no semibold: SemiBold would render as heavy Bold
             title.Inlines.Add(new System.Windows.Documents.Run(plugin.Name));
-            title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
+            title.Inlines.Add(new System.Windows.Documents.Run($"  v{plugin.Version}" + (l.BuiltIn ? "  · 内置" : "  · 第三方，来源未验证")) { Foreground = (Brush)FindResource("MutedBrush"), FontWeight = FontWeights.Normal, FontSize = 12 });
+            if (l.Source != null) title.ToolTip = l.Source;
             info.Children.Add(title);
-            var desc = new TextBlock { Text = l.Error != null ? "加载失败：" + l.Error : plugin.Description, Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap };
+            var desc = new TextBlock { Text = l.Error != null ? "加载失败：" + l.Error + (l.BuiltIn ? "" : "（修好后重启 PopBar 生效）") : plugin.Description, Style = (Style)FindResource("Muted"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap };
             if (l.Error != null) desc.Foreground = (Brush)FindResource("DangerBrush");
             info.Children.Add(desc);
             head.Children.Add(info);
@@ -779,6 +780,17 @@ public partial class SettingsWindow : Window
                 _openPluginSettings[plugin.Id] = () => { SetOpen(true); card.BringIntoView(); };
             }
             PluginList.Children.Add(card);
+        }
+        // DLLs that never produced a plugin object: still worth a card, or the only trace is the log.
+        foreach (var f in _plugins.LoadFailures)
+        {
+            var info = new StackPanel { ToolTip = f.Path };
+            var title = new TextBlock { FontSize = 14 };
+            title.Inlines.Add(new System.Windows.Documents.Run(System.IO.Path.GetFileName(f.Path)));
+            title.Inlines.Add(new System.Windows.Documents.Run("  · 第三方，来源未验证") { Foreground = (Brush)FindResource("MutedBrush"), FontSize = 12 });
+            info.Children.Add(title);
+            info.Children.Add(new TextBlock { Text = "无法加载：" + f.Error + "（修好后重启 PopBar 生效）", Style = (Style)FindResource("Muted"), Foreground = (Brush)FindResource("DangerBrush"), Margin = new Thickness(0, 2, 0, 0), TextWrapping = TextWrapping.Wrap });
+            PluginList.Children.Add(new Border { Style = (Style)FindResource("Card"), Padding = new Thickness(16, 10, 16, 10), Margin = new Thickness(0, 0, 0, 10), Child = info });
         }
     }
 

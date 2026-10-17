@@ -10,7 +10,11 @@ namespace PopBar.Plugins;
 /// <summary>Loads built-in and external plugins, keeps their actions in sync with the config, and executes them.</summary>
 internal sealed class PluginManager : IDisposable
 {
-    public sealed record Loaded(IPopBarPlugin Plugin, PluginHost Host, bool BuiltIn, string? Error);
+    /// <param name="Source">The DLL a third-party plugin came from; null for built-ins.</param>
+    public sealed record Loaded(IPopBarPlugin Plugin, PluginHost Host, bool BuiltIn, string? Error, string? Source = null);
+
+    /// <summary>A third-party DLL that could not be loaded at all (no plugin object to show), with the reason.</summary>
+    public sealed record LoadFailure(string Path, string Error);
 
     private readonly ConfigStore _store;
     private readonly Func<string, PluginHost> _hostFactory;
@@ -19,6 +23,10 @@ internal sealed class PluginManager : IDisposable
     private readonly object _gate = new();
 
     public IReadOnlyList<Loaded> Plugins => _plugins;
+
+    /// <summary>Third-party DLLs that failed to load; shown on the plugin page so the reason is not only in the log.</summary>
+    public IReadOnlyList<LoadFailure> LoadFailures => _failures;
+    private readonly List<LoadFailure> _failures = new();
 
     public PluginManager(ConfigStore store, Func<string, PluginHost> hostFactory)
     {
@@ -29,24 +37,24 @@ internal sealed class PluginManager : IDisposable
     public void Load(IEnumerable<IPopBarPlugin> builtIns)
     {
         foreach (var p in builtIns) Register(p, builtIn: true);
-        foreach (var p in DiscoverExternal()) Register(p, builtIn: false);
+        foreach (var (p, dll) in DiscoverExternal()) Register(p, builtIn: false, dll);
         RefreshActions();
         SyncConfig();
         Log.Info($"plugins loaded: {string.Join(", ", _plugins.Select(p => p.Plugin.Id + (p.Error != null ? "(error)" : "")))}");
     }
 
-    private void Register(IPopBarPlugin plugin, bool builtIn)
+    private void Register(IPopBarPlugin plugin, bool builtIn, string? source = null)
     {
         var host = _hostFactory(plugin.Id);
         string? error = null;
         try { plugin.Initialize(host); }
         catch (Exception ex) { error = ex.Message; Log.Error($"plugin {plugin.Id} init failed", ex); }
-        _plugins.Add(new Loaded(plugin, host, builtIn, error));
+        _plugins.Add(new Loaded(plugin, host, builtIn, error, source));
     }
 
     // ------------------------------------------------------------------ discovery
 
-    private static IEnumerable<IPopBarPlugin> DiscoverExternal()
+    private IEnumerable<(IPopBarPlugin Plugin, string Dll)> DiscoverExternal()
     {
         var dir = PluginStorage.PluginsDir;
         if (!Directory.Exists(dir)) yield break;
@@ -56,8 +64,16 @@ internal sealed class PluginManager : IDisposable
             {
                 IPopBarPlugin[] found;
                 try { found = LoadFrom(dll).ToArray(); }
-                catch (Exception ex) { Log.Warn($"plugin dll {dll}: {ex.Message}"); continue; }
-                foreach (var p in found) yield return p;
+                catch (BadImageFormatException) { continue; } // a native dependency shipped next to the plugin, not an assembly
+                catch (Exception ex)
+                {
+                    // GetTypes' own message only says "see LoaderExceptions": surface the first real cause.
+                    var cause = ex is ReflectionTypeLoadException rtl ? rtl.LoaderExceptions.FirstOrDefault(e => e != null) ?? ex : ex;
+                    Log.Warn($"plugin dll {dll}: {cause.Message}");
+                    _failures.Add(new LoadFailure(dll, cause.Message));
+                    continue;
+                }
+                foreach (var p in found) yield return (p, dll);
             }
         }
     }
@@ -73,7 +89,11 @@ internal sealed class PluginManager : IDisposable
         }
     }
 
-    /// <summary>Isolates plugin dependencies but shares PopBar.Sdk (and WPF) with the host.</summary>
+    /// <summary>
+    /// Isolates plugin dependencies but shares PopBar.Sdk (and WPF) with the host. Not collectible: WPF keeps
+    /// references into plugin assemblies (styles, templates, dispatcher callbacks), so unloading would not free them;
+    /// a fixed plugin is picked up on the next start.
+    /// </summary>
     private sealed class PluginLoadContext : AssemblyLoadContext
     {
         private readonly AssemblyDependencyResolver _resolver;
@@ -216,7 +236,8 @@ internal sealed class PluginManager : IDisposable
     {
         foreach (var l in _plugins)
         {
-            try { l.Plugin.Dispose(); } catch { }
+            try { l.Plugin.Dispose(); }
+            catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} dispose", ex); }
         }
     }
 }

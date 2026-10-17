@@ -72,7 +72,7 @@
         <StackPanel x:Name="CommandPanel">
             <TextBlock Style="{StaticResource FieldLabel}" Text="命令（可执行文件路径，支持 %环境变量%）"/>
             <TextBox x:Name="CommandBox"/>
-            <TextBlock Style="{StaticResource FieldLabel}" Text="参数（{text} = 选中内容，引号已转义）"/>
+            <TextBlock Style="{StaticResource FieldLabel}" Text="参数（{text} = 选中内容，按一个完整参数传入；脚本里也可读环境变量 POPBAR_TEXT）"/>
             <TextBox x:Name="ArgsBox"/>
         </StackPanel>
 

@@ -1,4 +1,5 @@
 using System.IO;
+using System.IO.Pipes;
 using System.Net.Http;
 using System.Windows;
 using Microsoft.Win32;
@@ -17,10 +18,10 @@ namespace PopBar;
 public partial class App : Application
 {
     private const string MutexName = @"Local\PopBar.SingleInstance";
-    private const string ShowEventName = @"Local\PopBar.ShowSettings";
+    /// <summary>Second instances pass their request here. Pipes are machine-wide, so the name carries the user and session.</summary>
+    private static readonly string PipeName = $"PopBar.Command.{System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value}.{System.Diagnostics.Process.GetCurrentProcess().SessionId}";
 
     private Mutex? _mutex;
-    private EventWaitHandle? _showEvent;
     private WinForms.NotifyIcon? _tray;
     /// <summary>Invisible, activatable window: a WPF ContextMenu opened from the tray only closes on outside clicks when our process is foreground.</summary>
     private Window? _trayAnchor;
@@ -57,18 +58,14 @@ public partial class App : Application
         _mutex = new Mutex(true, MutexName, out bool createdNew);
         if (!createdNew)
         {
-            // Another instance is running: hand it the request (open settings, or "--run <trayItemId>"), then leave.
-            try
-            {
-                int ri = Array.IndexOf(e.Args, "--run");
-                if (ri >= 0 && ri + 1 < e.Args.Length)
-                    File.WriteAllText(CommandFile, e.Args[ri + 1]);
-                EventWaitHandle.OpenExisting(ShowEventName).Set();
-            }
-            catch { }
+            // Another instance is running: hand it the request ("--run <trayItemId>", else open settings), then leave.
+            int ri = Array.IndexOf(e.Args, "--run");
+            SendToRunningInstance(ri >= 0 && ri + 1 < e.Args.Length ? e.Args[ri + 1] : "");
             Shutdown();
             return;
         }
+        // Listen right away: a request arriving during startup is queued on the dispatcher and runs once startup is done.
+        ListenForCommands();
 
         AppDomain.CurrentDomain.UnhandledException += (_, ex) => Log.Error("unhandled", ex.ExceptionObject as Exception);
         DispatcherUnhandledException += (_, ex) => { Log.Error("dispatcher", ex.Exception); ex.Handled = true; };
@@ -111,17 +108,9 @@ public partial class App : Application
         _engine.Start();
 
         CreateTray();
-        ListenForShowRequests();
 
         Log.Info($"PopBar started, config={ConfigStore.FilePath}");
         if (_store.IsFirstRun || e.Args.Contains("--settings")) ShowSettings();
-        else Dispatcher.InvokeAsync(TrimWorkingSet, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-    }
-
-    private static void TrimWorkingSet()
-    {
-        try { Native.NativeMethods.SetProcessWorkingSetSize(Native.NativeMethods.GetCurrentProcess(), new IntPtr(-1), new IntPtr(-1)); }
-        catch { }
     }
 
     // ------------------------------------------------------------------ tray
@@ -311,10 +300,6 @@ public partial class App : Application
                 _settings = null;
                 _plugins?.RefreshActions();
                 _plugins?.SyncConfig();
-                // The settings UI is the only heavy part; give the memory back once it is gone.
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                TrimWorkingSet();
             };
             _settings.Show();
         }
@@ -327,32 +312,44 @@ public partial class App : Application
         _settings.Activate();
     }
 
-    private void ListenForShowRequests()
+    /// <summary>One line per connection: a tray-item id to run (PopBar.exe --run ocr:capture), or empty to open settings.</summary>
+    private void ListenForCommands()
     {
-        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
         var t = new Thread(() =>
         {
-            while (_showEvent.WaitOne())
+            while (true)
             {
-                string? cmd = null;
+                string cmd;
                 try
                 {
-                    if (File.Exists(CommandFile)) { cmd = File.ReadAllText(CommandFile).Trim(); File.Delete(CommandFile); }
+                    using var server = new NamedPipeServerStream(PipeName, PipeDirection.In, 1, PipeTransmissionMode.Byte, PipeOptions.CurrentUserOnly);
+                    server.WaitForConnection();
+                    using var reader = new StreamReader(server);
+                    cmd = (reader.ReadLine() ?? "").Trim();
                 }
-                catch { }
+                catch (Exception ex) { Log.Error("command pipe", ex); Thread.Sleep(1000); continue; }
                 Dispatcher.InvokeAsync(() =>
                 {
-                    if (string.IsNullOrEmpty(cmd)) { ShowSettings(); return; }
+                    if (cmd.Length == 0) { ShowSettings(); return; }
                     Log.Info("--run " + cmd);
                     RunTrayCommand(cmd);
                 });
             }
-        }) { IsBackground = true, Name = "PopBar.ShowSignal" };
+        }) { IsBackground = true, Name = "PopBar.Commands" };
         t.Start();
     }
 
-    /// <summary>Second instances drop a tray-item id here before signalling (PopBar.exe --run ocr:capture).</summary>
-    private static string CommandFile => Path.Combine(ConfigStore.Dir, "command.txt");
+    private static void SendToRunningInstance(string cmd)
+    {
+        try
+        {
+            using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
+            client.Connect(5000); // the first instance may still be starting
+            using var writer = new StreamWriter(client);
+            writer.WriteLine(cmd);
+        }
+        catch (Exception ex) { Log.Warn("could not reach the running instance: " + ex.Message); }
+    }
 
     // ------------------------------------------------------------------ autostart
 

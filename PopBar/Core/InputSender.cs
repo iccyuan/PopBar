@@ -78,18 +78,31 @@ internal static class InputSender
         }
     }
 
+    /// <summary>How long a paste may take before the user's clipboard is put back regardless.</summary>
+    private const int PasteReadTimeoutMs = 1500;
+
+    /// <summary>Without delayed rendering we cannot tell when the paste happened; wait this long.</summary>
+    private const int PasteFallbackMs = 300;
+
     /// <summary>Replace the selection in the source window with <paramref name="text"/> (clipboard restored afterwards).</summary>
     public static void PasteText(string text, IntPtr sourceHwnd)
     {
         lock (ClipboardBackup.Gate)
         {
             var snap = ClipboardBackup.Snapshot();
-            if (!ClipboardBackup.SetText(text)) return;
+            // Delayed rendering tells us when the target reads the text; plain SetText is the fallback.
+            bool offered = ClipboardOffer.Offer(text, sourceHwnd, out var read);
+            if (!offered && !ClipboardBackup.SetText(text)) return;
             ForceForeground(sourceHwnd);
             Thread.Sleep(40);
             WaitModifiersReleased(600);
+            if (offered) ClipboardOffer.PasteSent();
             SendCtrlCombo(VK_V);
-            Thread.Sleep(300);
+            if (!offered) Thread.Sleep(PasteFallbackMs);
+            else if (read.Wait(PasteReadTimeoutMs)) Thread.Sleep(30); // let the reader finish and close the clipboard
+            else Log.Warn($"paste: target did not read the clipboard within {PasteReadTimeoutMs} ms; restoring anyway");
+            ClipboardOffer.Withdraw();
+            read.Dispose();
             ClipboardBackup.Restore(snap);
         }
     }

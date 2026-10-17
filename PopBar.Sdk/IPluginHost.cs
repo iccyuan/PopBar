@@ -9,7 +9,7 @@ public interface IPluginHost
     IPluginLogger Log { get; }
     /// <summary>Per-plugin JSON settings (%AppData%\PopBar\plugins\{id}.json).</summary>
     IPluginStorage Storage { get; }
-    /// <summary>Shared HttpClient (proxy-aware, 30s default timeout).</summary>
+    /// <summary>Shared HttpClient (proxy-aware, 60 s default timeout).</summary>
     HttpClient Http { get; }
     /// <summary>Access to the LLM configured in PopBar settings (may be unconfigured: check <see cref="ILlmService.IsConfigured"/>).</summary>
     ILlmService Llm { get; }

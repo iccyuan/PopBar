@@ -4,4 +4,5 @@
   </Folder>
   <Project Path="PopBar.Sdk/PopBar.Sdk.csproj" />
   <Project Path="PopBar/PopBar.csproj" />
+  <Project Path="PopBar.Tests/PopBar.Tests.csproj" />
 </Solution>

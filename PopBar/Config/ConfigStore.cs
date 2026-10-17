@@ -45,68 +45,7 @@ public sealed class ConfigStore
             {
                 if (File.Exists(FilePath))
                 {
-                    var json = File.ReadAllText(FilePath);
-                    // Files written before ConfigVersion existed deserialize as 0 and get migrated below.
-                    var cfg = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
-                    if (!json.Contains("\"configVersion\"", StringComparison.OrdinalIgnoreCase)) cfg.ConfigVersion = 0;
-                    if (cfg.Actions.Count == 0) cfg.Actions = Actions.DefaultActions.Create();
-                    bool migrated = false;
-                    if (cfg.ConfigVersion < 2)
-                    {
-                        // v0.2: theme follows the system by default; the stock upper/lower buttons were dropped.
-                        if (cfg.Theme == "dark") cfg.Theme = "system";
-                        cfg.Actions.RemoveAll(a => a.Type == Actions.ActionTypes.Transform && a.Id is "upper" or "lower");
-                        cfg.ConfigVersion = 2;
-                        migrated = true;
-                    }
-                    if (cfg.ConfigVersion < 3)
-                    {
-                        // v0.3: the translate plugin's panel replaces the stock "open Google Translate" URL action.
-                        cfg.Actions.RemoveAll(a => a.Id == "translate" && a.Type == Actions.ActionTypes.Url
-                            && (a.Url ?? "").Contains("translate.google.", StringComparison.OrdinalIgnoreCase));
-                        cfg.ConfigVersion = 3;
-                        migrated = true;
-                    }
-                    if (cfg.ConfigVersion < 4)
-                    {
-                        // v0.3: the stock send-to target is a generic "发送到" (Notepad by default), not "记事本".
-                        foreach (var a in cfg.Actions.Where(a => a.Ref == "sendto:notepad" && a.Label == "记事本"))
-                        {
-                            a.Label = "发送到";
-                            if (a.Icon == "type") a.Icon = "send";
-                        }
-                        cfg.ConfigVersion = 4;
-                        migrated = true;
-                    }
-                    if (cfg.ConfigVersion < 5)
-                    {
-                        // v0.3: QR and sticky-note buttons start switched off (they briefly shipped on).
-                        foreach (var a in cfg.Actions.Where(a => a.Ref is "qr:make" or "notes:pin")) a.Enabled = false;
-                        cfg.ConfigVersion = 5;
-                        migrated = true;
-                    }
-                    if (cfg.ConfigVersion < 6)
-                    {
-                        // v0.4: the bar waits for the reveal key by default, and the theme follows the system again.
-                        cfg.ShowMode = "key";
-                        cfg.Theme = "system";
-                        cfg.ConfigVersion = 6;
-                        migrated = true;
-                    }
-                    if (cfg.ConfigVersion < 7)
-                    {
-                        // v0.4: several model services (one per provider) with a default, instead of a single "llm" block.
-                        if (cfg.Llm != null && cfg.LlmServices.Count == 0)
-                        {
-                            cfg.LlmServices.Add(cfg.Llm);
-                            cfg.LlmDefault = cfg.Llm.Protocol;
-                        }
-                        cfg.Llm = null;
-                        cfg.ConfigVersion = 7;
-                        migrated = true;
-                    }
-                    // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
-                    if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
+                    var cfg = Parse(File.ReadAllText(FilePath), out bool migrated);
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();
@@ -121,6 +60,73 @@ public sealed class ConfigStore
             IsFirstRun = true;
             SaveLocked();
         }
+    }
+
+    /// <summary>Read a config file's text and bring it up to the current schema; <paramref name="migrated"/> = it should be re-saved.</summary>
+    internal static AppConfig Parse(string json, out bool migrated)
+    {
+        // Files written before ConfigVersion existed deserialize as 0 and get migrated below.
+        var cfg = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+        if (!json.Contains("\"configVersion\"", StringComparison.OrdinalIgnoreCase)) cfg.ConfigVersion = 0;
+        if (cfg.Actions.Count == 0) cfg.Actions = Actions.DefaultActions.Create();
+        migrated = false;
+        if (cfg.ConfigVersion < 2)
+        {
+            // config v2: theme follows the system by default; the stock upper/lower buttons were dropped.
+            if (cfg.Theme == "dark") cfg.Theme = "system";
+            cfg.Actions.RemoveAll(a => a.Type == Actions.ActionTypes.Transform && a.Id is "upper" or "lower");
+            cfg.ConfigVersion = 2;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 3)
+        {
+            // config v3: the translate plugin's panel replaces the stock "open Google Translate" URL action.
+            cfg.Actions.RemoveAll(a => a.Id == "translate" && a.Type == Actions.ActionTypes.Url
+                && (a.Url ?? "").Contains("translate.google.", StringComparison.OrdinalIgnoreCase));
+            cfg.ConfigVersion = 3;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 4)
+        {
+            // config v4: the stock send-to target is a generic "发送到" (Notepad by default), not "记事本".
+            foreach (var a in cfg.Actions.Where(a => a.Ref == "sendto:notepad" && a.Label == "记事本"))
+            {
+                a.Label = "发送到";
+                if (a.Icon == "type") a.Icon = "send";
+            }
+            cfg.ConfigVersion = 4;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 5)
+        {
+            // config v5: QR and sticky-note buttons start switched off (they briefly shipped on).
+            foreach (var a in cfg.Actions.Where(a => a.Ref is "qr:make" or "notes:pin")) a.Enabled = false;
+            cfg.ConfigVersion = 5;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 6)
+        {
+            // config v6: the bar waits for the reveal key by default, and the theme follows the system again.
+            cfg.ShowMode = "key";
+            cfg.Theme = "system";
+            cfg.ConfigVersion = 6;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 7)
+        {
+            // config v7: several model services (one per provider) with a default, instead of a single "llm" block.
+            if (cfg.Llm != null && cfg.LlmServices.Count == 0)
+            {
+                cfg.LlmServices.Add(cfg.Llm);
+                cfg.LlmDefault = cfg.Llm.Protocol;
+            }
+            cfg.Llm = null;
+            cfg.ConfigVersion = 7;
+            migrated = true;
+        }
+        // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
+        if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
+        return cfg;
     }
 
     /// <summary>
