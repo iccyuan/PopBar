@@ -93,11 +93,19 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                        <TextBlock Text="剪贴板回退" VerticalAlignment="Center"/>
-                        <ui:InfoTip Text="读不到选区时用 Ctrl+C 取词，随后恢复剪贴板"/>
+                        <TextBlock Text="读不出文字时模拟 Ctrl+C" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="大多数程序里 PopBar 能直接读出选中的文字。少数读不出的（自绘界面、部分 Electron 应用），PopBar 会替你按一下 Ctrl+C 把文字复制出来，再把剪贴板还原成原来的内容。"/>
                         </StackPanel>
-                    <ComboBox x:Name="FallbackCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
+                    <ComboBox x:Name="FallbackCombo" Grid.Column="1" Width="250" VerticalAlignment="Center"
                               DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Java 程序直接取词" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="启用 Java Access Bridge（同 jabswitch -enable），IntelliJ IDEA 等 Java 程序不用 Ctrl+C 也能取词。对之后启动的 Java 程序生效，已打开的需重启。"/>
+                    </StackPanel>
+                    <CheckBox x:Name="JavaBridgeSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">

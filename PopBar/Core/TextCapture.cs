@@ -4,45 +4,100 @@ using static PopBar.Native.NativeMethods;
 
 namespace PopBar.Core;
 
-internal enum CaptureMethod { None, Uia, Clipboard }
+internal enum CaptureMethod { None, Native, Uia, JavaAccessBridge, IAccessible2, Clipboard }
 
 /// <summary>Everything a capture strategy may need to decide and act.</summary>
-internal sealed record CaptureContext(int X, int Y, IntPtr ForegroundWindow, string ForegroundProcess, bool AllowClipboard, IReadOnlyCollection<string> NoClipboardApps);
+internal sealed record CaptureContext(int X, int Y, IntPtr ForegroundWindow, string ForegroundProcess, bool AllowClipboard, IReadOnlyCollection<string> NoClipboardApps)
+{
+    /// <summary>The control with keyboard focus inside the foreground window (the window itself when unknown).</summary>
+    public IntPtr FocusWindow { get; init; } = ForegroundWindow;
+}
 
 /// <summary>A read selection; <paramref name="Bounds"/> is the selected text's on-screen rectangle (physical pixels) when known.</summary>
 internal sealed record CapturedText(string Text, RECT? Bounds = null);
 
-/// <summary>One way of reading the current selection. Strategies run in order until one returns text.</summary>
+/// <summary>
+/// What a strategy found. <see cref="Settled"/>: it can read the focused control and its answer is final, so an empty
+/// one means "nothing selected" and the chain stops there instead of falling through to Ctrl+C.
+/// </summary>
+internal readonly record struct CaptureAttempt(CapturedText? Text, bool Settled)
+{
+    /// <summary>This strategy cannot read the control; try the next one.</summary>
+    public static CaptureAttempt Unsupported => default;
+    /// <summary>The control was read and has no selection (or must not be read, e.g. a password box).</summary>
+    public static CaptureAttempt NoSelection => new(null, true);
+    public static CaptureAttempt Got(CapturedText text) => new(text, true);
+    /// <summary>Text when there is some; otherwise settled or not as given.</summary>
+    public static CaptureAttempt From(string? text, RECT? bounds, bool settled) =>
+        string.IsNullOrEmpty(text) ? new(null, settled) : Got(new CapturedText(text, bounds));
+}
+
+/// <summary>One way of reading the current selection. Strategies run in order until one returns text or settles.</summary>
 internal interface ITextCaptureStrategy
 {
     CaptureMethod Method { get; }
     /// <summary>Cheap pre-check (e.g. clipboard fallback is disabled for terminals).</summary>
     bool CanRun(CaptureContext ctx);
-    CapturedText? Capture(CaptureContext ctx);
+    CaptureAttempt Capture(CaptureContext ctx);
 }
 
-/// <summary>Reads the selection of the foreground app by running the strategy chain (UIA first, Ctrl+C fallback second).</summary>
+/// <summary>
+/// Reads the selection of the foreground app by running the strategy chain: the control's own messages (Scintilla,
+/// Edit, RichEdit), UI Automation, Java Access Bridge, IAccessible2, and only when none of them can read the control,
+/// Ctrl+C through the clipboard.
+/// </summary>
 internal sealed class TextCapture
 {
     private readonly List<ITextCaptureStrategy> _strategies;
 
-    public TextCapture() : this(new ITextCaptureStrategy[] { new UiaCaptureStrategy(), new ClipboardCaptureStrategy() }) { }
+    public TextCapture() : this(new ITextCaptureStrategy[]
+    {
+        new NativeControlCaptureStrategy(), new UiaCaptureStrategy(), new JabCaptureStrategy(), new Ia2CaptureStrategy(), new ClipboardCaptureStrategy(),
+    }) { }
     public TextCapture(IEnumerable<ITextCaptureStrategy> strategies) => _strategies = strategies.ToList();
 
     public CapturedText? Capture(int x, int y, bool allowClipboard, IReadOnlyCollection<string> noClipboardApps, out CaptureMethod method)
     {
         method = CaptureMethod.None;
         IntPtr fg = GetForegroundWindow();
-        var ctx = new CaptureContext(x, y, fg, fg == IntPtr.Zero ? "" : GetWindowProcessName(fg), allowClipboard, noClipboardApps);
+        var ctx = new CaptureContext(x, y, fg, fg == IntPtr.Zero ? "" : GetWindowProcessName(fg), allowClipboard, noClipboardApps) { FocusWindow = GetFocusedControl(fg) };
         foreach (var s in _strategies)
         {
             if (!s.CanRun(ctx)) continue;
-            CapturedText? got = null;
+            CaptureAttempt got = default;
             try { got = s.Capture(ctx); }
             catch (Exception ex) { Log.Warn($"{s.Method} capture failed: {ex.Message}"); }
-            if (!string.IsNullOrWhiteSpace(got?.Text)) { method = s.Method; return got; }
+            if (!string.IsNullOrWhiteSpace(got.Text?.Text)) { method = s.Method; return got.Text; }
+            if (got.Settled) { method = s.Method; return null; }
         }
         return null;
+    }
+}
+
+/// <summary>Rectangle helpers shared by the strategies that know where the selected text is.</summary>
+internal static class TextBounds
+{
+    /// <summary>
+    /// How far (px) the mouse-up point may be above or below the reported text: a drag may end past the last line, but a
+    /// provider reporting client instead of screen coordinates lands far off and is ignored.
+    /// </summary>
+    private const int MaxMouseDistance = 240;
+
+    public static RECT? Union(RECT? a, RECT? b) => a is not { } x ? b : b is not { } y ? x : new RECT
+    {
+        Left = Math.Min(x.Left, y.Left), Top = Math.Min(x.Top, y.Top),
+        Right = Math.Max(x.Right, y.Right), Bottom = Math.Max(x.Bottom, y.Bottom),
+    };
+
+    /// <summary>The bounds clipped to the source window, or null when they cannot be where the user just selected.</summary>
+    public static RECT? Plausible(RECT? bounds, CaptureContext ctx)
+    {
+        if (bounds is not { } b) return null;
+        if (ctx.ForegroundWindow != IntPtr.Zero && GetWindowRect(ctx.ForegroundWindow, out var w))
+            b = new RECT { Left = Math.Max(b.Left, w.Left), Top = Math.Max(b.Top, w.Top), Right = Math.Min(b.Right, w.Right), Bottom = Math.Min(b.Bottom, w.Bottom) };
+        if (b.Width <= 0 || b.Height <= 0) return null;
+        if (ctx.Y < b.Top - MaxMouseDistance || ctx.Y > b.Bottom + MaxMouseDistance) return null;
+        return b;
     }
 }
 
@@ -53,10 +108,12 @@ internal sealed class TextCapture
 internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
 {
     /// <summary>
-    /// How far (px) the mouse-up point may be above or below the reported text: a drag may end past the last line, but a
-    /// provider reporting client instead of screen coordinates lands far off and is ignored.
+    /// UIA frameworks whose TextPattern reports the selection faithfully, so "no selection" there is final. Chromium
+    /// counts only for web documents: an Edit inside it may be a stand-in (Monaco's hidden textarea) that lags the editor.
     /// </summary>
-    private const int MaxMouseDistance = 240;
+    private static readonly HashSet<string> TrustedFrameworks = new(StringComparer.OrdinalIgnoreCase) { "Win32", "WPF", "WinForm", "XAML", "DirectUI" };
+    /// <summary>How many parents to climb looking for a TextPattern (a click lands on a text run, the pattern sits on its document).</summary>
+    private const int MaxAncestors = 6;
     /// <summary>
     /// Chromium answers the first query after it switches its accessibility on with text but no geometry yet; one retry
     /// after this many ms gets the rectangles.
@@ -89,15 +146,15 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         }
     }
 
-    public CapturedText? Capture(CaptureContext ctx)
+    public CaptureAttempt Capture(CaptureContext ctx)
     {
         try
         {
-            var focused = Uia.GetFocusedElement();
-            var t = SelectionOf(focused, ctx);
-            if (!string.IsNullOrEmpty(t?.Text)) return t;
-            var under = Uia.ElementFromPoint(new tagPOINT { x = ctx.X, y = ctx.Y });
-            return SelectionOf(under, ctx);
+            var focused = SelectionOf(Uia.GetFocusedElement(), ctx);
+            if (!string.IsNullOrEmpty(focused.Text?.Text)) return focused;
+            var under = SelectionOf(Uia.ElementFromPoint(new tagPOINT { x = ctx.X, y = ctx.Y }), ctx);
+            if (!string.IsNullOrEmpty(under.Text?.Text)) return under;
+            return focused.Settled || under.Settled ? CaptureAttempt.NoSelection : CaptureAttempt.Unsupported;
         }
         catch
         {
@@ -106,15 +163,17 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         }
     }
 
-    private static CapturedText? SelectionOf(IUIAutomationElement? el, CaptureContext ctx)
+    private CaptureAttempt SelectionOf(IUIAutomationElement? el, CaptureContext ctx)
     {
-        if (el == null) return null;
-        if (el.CurrentIsPassword != 0) return null;
-        if (el.GetCurrentPattern(UIA_PatternIds.UIA_TextPatternId) is not IUIAutomationTextPattern pat) return null;
+        if (el == null) return CaptureAttempt.Unsupported;
+        if (el.CurrentIsPassword != 0) return CaptureAttempt.NoSelection;
+        var pat = TextPatternOf(ref el);
+        if (pat == null || el == null) return CaptureAttempt.Unsupported;
+        bool settled = IsTrusted(el);
         var ranges = pat.GetSelection();
-        if (ranges == null) return null;
+        if (ranges == null) return new(null, settled);
         int n = ranges.Length;
-        if (n == 0) return null;
+        if (n == 0) return new(null, settled);
         var sb = new StringBuilder();
         var list = new List<IUIAutomationTextRange>(n);
         for (int i = 0; i < n; i++)
@@ -125,16 +184,35 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
             var s = range.GetText(-1);
             if (!string.IsNullOrEmpty(s)) sb.Append(s);
         }
-        if (sb.Length == 0) return null;
+        if (sb.Length == 0) return new(null, settled);
         var bounds = BoundsOf(list);
         if (bounds == null) { Thread.Sleep(GeometryRetryMs); bounds = BoundsOf(list); }
-        return new CapturedText(sb.ToString(), Plausible(bounds, ctx));
+        return CaptureAttempt.Got(new CapturedText(sb.ToString(), TextBounds.Plausible(bounds, ctx)));
+    }
+
+    /// <summary>The TextPattern of <paramref name="el"/> or of its nearest ancestor that has one (which <paramref name="el"/> then becomes).</summary>
+    private IUIAutomationTextPattern? TextPatternOf(ref IUIAutomationElement? el)
+    {
+        var walker = Uia.ControlViewWalker;
+        for (int i = 0; el != null && i <= MaxAncestors; i++)
+        {
+            if (el.GetCurrentPattern(UIA_PatternIds.UIA_TextPatternId) is IUIAutomationTextPattern pat) return pat;
+            el = walker.GetParentElement(el);
+        }
+        return null;
+    }
+
+    private static bool IsTrusted(IUIAutomationElement el)
+    {
+        string fw = el.CurrentFrameworkId ?? "";
+        return TrustedFrameworks.Contains(fw)
+            || (string.Equals(fw, "Chrome", StringComparison.OrdinalIgnoreCase) && el.CurrentControlType == UIA_ControlTypeIds.UIA_DocumentControlTypeId);
     }
 
     private static RECT? BoundsOf(List<IUIAutomationTextRange> ranges)
     {
         RECT? u = null;
-        foreach (var r in ranges) u = Union(u, BoundsOf(r));
+        foreach (var r in ranges) u = TextBounds.Union(u, BoundsOf(r));
         return u;
     }
 
@@ -149,30 +227,13 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         for (int i = 0; i + 3 < r.Length; i += 4)
         {
             if (r[i + 2] <= 0 || r[i + 3] <= 0) continue;
-            u = Union(u, new RECT
+            u = TextBounds.Union(u, new RECT
             {
                 Left = (int)Math.Floor(r[i]), Top = (int)Math.Floor(r[i + 1]),
                 Right = (int)Math.Ceiling(r[i] + r[i + 2]), Bottom = (int)Math.Ceiling(r[i + 1] + r[i + 3]),
             });
         }
         return u;
-    }
-
-    private static RECT? Union(RECT? a, RECT? b) => a is not { } x ? b : b is not { } y ? x : new RECT
-    {
-        Left = Math.Min(x.Left, y.Left), Top = Math.Min(x.Top, y.Top),
-        Right = Math.Max(x.Right, y.Right), Bottom = Math.Max(x.Bottom, y.Bottom),
-    };
-
-    /// <summary>The bounds clipped to the source window, or null when they cannot be where the user just selected.</summary>
-    private static RECT? Plausible(RECT? bounds, CaptureContext ctx)
-    {
-        if (bounds is not { } b) return null;
-        if (ctx.ForegroundWindow != IntPtr.Zero && GetWindowRect(ctx.ForegroundWindow, out var w))
-            b = new RECT { Left = Math.Max(b.Left, w.Left), Top = Math.Max(b.Top, w.Top), Right = Math.Min(b.Right, w.Right), Bottom = Math.Min(b.Bottom, w.Bottom) };
-        if (b.Width <= 0 || b.Height <= 0) return null;
-        if (ctx.Y < b.Top - MaxMouseDistance || ctx.Y > b.Bottom + MaxMouseDistance) return null;
-        return b;
     }
 }
 
@@ -219,7 +280,7 @@ internal sealed class ClipboardCaptureStrategy : ITextCaptureStrategy
 
     public bool CanRun(CaptureContext ctx) => ctx.AllowClipboard && !IsTerminal(ctx.ForegroundWindow, ctx.ForegroundProcess, ctx.NoClipboardApps);
 
-    public CapturedText? Capture(CaptureContext ctx) => InputSender.CopySelection() is { } t ? new CapturedText(t) : null;
+    public CaptureAttempt Capture(CaptureContext ctx) => CaptureAttempt.From(InputSender.CopySelection(), null, settled: false);
 
     public static bool IsTerminal(IntPtr hwnd, string proc, IReadOnlyCollection<string> noClipboardApps)
     {

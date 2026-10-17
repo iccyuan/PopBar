@@ -265,7 +265,7 @@ internal sealed class SelectionEngine : IDisposable
         };
         var actions = ResolveActions(sel, cfg);
         if (actions.Count == 0) return false;
-        Log.Info($"captured {text.Length} chars via {method} in {sw.ElapsedMilliseconds}ms"
+        Log.Info($"captured {text.Length} chars via {method} from {GetWindowProcessName(source)} in {sw.ElapsedMilliseconds}ms"
             + (sel.Bounds is { } b ? $", text at {b.Left},{b.Top} {b.Width}x{b.Height}" : sel.LineHeight is { } lh ? $", line {lh}px" : ""));
 
         if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))

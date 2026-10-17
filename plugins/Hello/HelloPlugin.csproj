@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Minimal third-party PopBar plugin. Not shipped with the app: install it like any third-party plugin.
+    Build:   dotnet build -c Release
+    Install: 设置 → 插件 → 安装插件 → 从本地文件, pick bin\Release\net10.0-windows10.0.19041.0\HelloPlugin.dll
+    Here plugins/Directory.Build.props supplies the target framework and the PopBar.Sdk reference. Outside this repo,
+    set TargetFramework (net10.0-windows), UseWPF and EnableDynamicLoading yourself and reference PopBar.Sdk with
+    <Private>false</Private>: only PopBar.Sdk is shared with the host; any other dependency must ship next to your DLL.
+  -->
+  <PropertyGroup>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>HelloPlugin</RootNamespace>
+  </PropertyGroup>
+
+</Project>

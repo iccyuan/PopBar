@@ -37,6 +37,9 @@ public sealed class AppConfig
     /// <summary>"ibeam" = only when the cursor is an I-beam or on double click, "always", "off".</summary>
     public string ClipboardFallback { get; set; } = "ibeam";
 
+    /// <summary>Keep the Java Access Bridge switched on for Java apps (~/.accessibility.properties), so their selection is read without Ctrl+C.</summary>
+    public bool JavaAccessBridge { get; set; } = true;
+
     /// <summary>Delay between mouse-up and reading the selection (lets the app finish selecting).</summary>
     public int ShowDelayMs { get; set; } = 60;
     public int MaxTextLength { get; set; } = 10000;

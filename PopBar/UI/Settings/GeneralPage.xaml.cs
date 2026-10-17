@@ -12,6 +12,9 @@ namespace PopBar.UI;
 /// </summary>
 internal partial class GeneralPage : SettingsPage
 {
+    /// <summary>A choice of <see cref="AppConfig.ClipboardFallback"/>; Key / Value as in the other combos.</summary>
+    private sealed record FallbackOption(string Key, string Value, string Tip);
+
     private string _showKey = "ctrl";
     /// <summary>Draft of <see cref="AppConfig.TrayMenuItems"/>; null = never customised.</summary>
     private List<string>? _trayMenu;
@@ -20,12 +23,17 @@ internal partial class GeneralPage : SettingsPage
     public GeneralPage()
     {
         InitializeComponent();
-        FallbackCombo.ItemsSource = new List<KeyValuePair<string, string>>
+        FallbackCombo.ItemsSource = new List<FallbackOption>
         {
-            new("ibeam", "文本光标 / 双击时（推荐）"),
-            new("always", "总是"),
-            new("off", "关闭"),
+            new("ibeam", "只在选中的是文字时（推荐）", "鼠标是 I 形文本光标，或双击选中时才按 Ctrl+C；框选文件、图片时不会误复制"),
+            new("always", "每次拖选都试", "有些程序鼠标停在文字上仍是箭头，用这一项才能取词；但框选文件、图片时也会去复制"),
+            new("off", "从不", "读不出文字的程序里就不取词"),
         };
+        // each option explains itself on hover, the closed box shows the chosen one's explanation
+        var itemStyle = new Style(typeof(ComboBoxItem), (Style)FindResource(typeof(ComboBoxItem)));
+        itemStyle.Setters.Add(new Setter(ToolTipProperty, new System.Windows.Data.Binding(nameof(FallbackOption.Tip))));
+        FallbackCombo.ItemContainerStyle = itemStyle;
+        FallbackCombo.SelectionChanged += (_, _) => FallbackCombo.ToolTip = (FallbackCombo.SelectedItem as FallbackOption)?.Tip;
         ShowModeCombo.ItemsSource = new List<KeyValuePair<string, string>>
         {
             new("key", "按键后显示"),
@@ -65,6 +73,7 @@ internal partial class GeneralPage : SettingsPage
         ShiftSw.IsChecked = c.TriggerOnShiftClick;
         FallbackCombo.SelectedValue = c.ClipboardFallback;
         if (FallbackCombo.SelectedIndex < 0) FallbackCombo.SelectedIndex = 0;
+        JavaBridgeSw.IsChecked = c.JavaAccessBridge;
         DelayBox.Text = c.ShowDelayMs.ToString();
         MaxLenBox.Text = c.MaxTextLength.ToString();
         _trayMenu = c.TrayMenuItems?.ToList();
@@ -90,6 +99,7 @@ internal partial class GeneralPage : SettingsPage
         c.TriggerOnDoubleClick = DblSw.IsChecked == true;
         c.TriggerOnShiftClick = ShiftSw.IsChecked == true;
         c.ClipboardFallback = FallbackCombo.SelectedValue as string ?? "ibeam";
+        c.JavaAccessBridge = JavaBridgeSw.IsChecked == true;
         c.ShowDelayMs = ParseInt(DelayBox.Text, 60, 0, 2000);
         c.MaxTextLength = ParseInt(MaxLenBox.Text, 10000, 1, 1_000_000);
         c.TrayMenuItems = _trayMenu?.ToList();

@@ -26,7 +26,7 @@
                 <TextBlock Margin="0,3" Text="• 网址类动作用 {text} 代表 URL 编码后的选中内容，{raw} 为原文。"/>
                 <TextBlock Margin="0,3" Text="• 翻译 / AI 结果显示在浮动面板，点击面板外关闭，图钉可固定。"/>
                 <TextBlock Margin="0,3" Text="• Ctrl+Alt+O 框选屏幕任意区域做 OCR 取词（可在插件页改热键）。"/>
-                <TextBlock Margin="0,3" Text="• 某些程序（旧版 Win32 控件、部分 Electron 应用）需要剪贴板回退才能取词。"/>
+                <TextBlock Margin="0,3" Text="• 少数程序（自绘界面、部分 Electron 应用）读不出选中的文字，要靠模拟 Ctrl+C 取词，见「通用 → 读不出文字时模拟 Ctrl+C」。"/>
             </StackPanel>
         </Border>
     </StackPanel>

@@ -75,6 +75,7 @@ public partial class App : Application
         _store.Load();
         _store.Changed += OnConfigChanged;
         ApplyAutoStart(_store.Current.AutoStart);
+        Core.JavaAccessBridgeSetup.Apply(_store.Current.JavaAccessBridge);
         ThemeManager.BlurOpacity = _store.Current.BlurOpacity;
         ThemeManager.Apply(_store.Current.Theme);
         UI.Frost.Install();
@@ -294,6 +295,7 @@ public partial class App : Application
         {
             _settings?.RefreshFromStore();
             ApplyAutoStart(cfg.AutoStart);
+            Core.JavaAccessBridgeSetup.Apply(cfg.JavaAccessBridge);
             ThemeManager.BlurOpacity = cfg.BlurOpacity;
             ThemeManager.Apply(cfg.Theme);
         });

@@ -2,6 +2,7 @@
   <Folder Name="/plugins/">
     <Project Path="plugins/Ai/PopBar.Plugins.Ai.csproj" />
     <Project Path="plugins/Codec/PopBar.Plugins.Codec.csproj" />
+    <Project Path="plugins/Hello/HelloPlugin.csproj" />
     <Project Path="plugins/Notes/PopBar.Plugins.Notes.csproj" />
     <Project Path="plugins/Ocr/PopBar.Plugins.Ocr.csproj" />
     <Project Path="plugins/Qr/PopBar.Plugins.Qr.csproj" />
@@ -9,9 +10,6 @@
     <Project Path="plugins/ScreenTranslate/PopBar.Plugins.ScreenTranslate.csproj" />
     <Project Path="plugins/SendTo/PopBar.Plugins.SendTo.csproj" />
     <Project Path="plugins/Translate/PopBar.Plugins.Translate.csproj" />
-  </Folder>
-  <Folder Name="/samples/">
-    <Project Path="samples/HelloPlugin/HelloPlugin.csproj" />
   </Folder>
   <Project Path="PopBar.Sdk/PopBar.Sdk.csproj" />
   <Project Path="PopBar/PopBar.csproj" />

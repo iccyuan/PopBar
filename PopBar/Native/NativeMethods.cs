@@ -402,7 +402,95 @@ internal static class NativeMethods
         ForceForeground(hwnd);
     }
 
+    // ---------- reading other processes' controls (text capture without the clipboard) ----------
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
+    public const int WM_GETTEXT = 0x000D;
+    public const int WM_GETTEXTLENGTH = 0x000E;
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", SetLastError = true)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeoutMs, out IntPtr result);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr SendMessageTimeoutText(IntPtr hWnd, int msg, IntPtr wParam, [Out] char[] lParam, uint flags, uint timeoutMs, out IntPtr result);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowUnicode(IntPtr hWnd);
+
+    public const uint PROCESS_VM_OPERATION = 0x0008;
+    public const uint PROCESS_VM_READ = 0x0010;
+    public const uint PROCESS_VM_WRITE = 0x0020;
+    public const uint PROCESS_QUERY_INFORMATION = 0x0400;
+    public const uint MEM_COMMIT = 0x1000, MEM_RESERVE = 0x2000, MEM_RELEASE = 0x8000;
+    public const uint PAGE_READWRITE = 0x04;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress, UIntPtr dwSize, uint flAllocationType, uint flProtect);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, UIntPtr dwSize, uint dwFreeType);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, [Out] byte[] lpBuffer, UIntPtr nSize, out UIntPtr lpNumberOfBytesRead);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, UIntPtr nSize, out UIntPtr lpNumberOfBytesWritten);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool IsWow64Process(IntPtr hProcess, out bool wow64Process);
+
+    public const uint TH32CS_SNAPMODULE = 0x00000008, TH32CS_SNAPMODULE32 = 0x00000010;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct MODULEENTRY32W
+    {
+        public int dwSize;
+        public uint th32ModuleID, th32ProcessID, GlblcntUsage, ProccntUsage;
+        public IntPtr modBaseAddr;
+        public uint modBaseSize;
+        public IntPtr hModule;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string szModule;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)] public string szExePath;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool Module32FirstW(IntPtr hSnapshot, ref MODULEENTRY32W lpme);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool Module32NextW(IntPtr hSnapshot, ref MODULEENTRY32W lpme);
+
+    public static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr LoadLibraryW(string lpLibFileName);
+
+    public const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr LoadLibraryExW(string lpLibFileName, IntPtr hFile, uint dwFlags);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true)]
+    public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetACP();
+
+    public const int OBJID_CLIENT = unchecked((int)0xFFFFFFFC);
+
+    [DllImport("oleacc.dll")]
+    public static extern int AccessibleObjectFromWindow(IntPtr hwnd, int dwObjectID, ref Guid riid, [MarshalAs(UnmanagedType.Interface)] out object? ppvObject);
+
     // ---------- helpers ----------
+    /// <summary>The control with keyboard focus in <paramref name="window"/>'s thread (the window itself when there is none).</summary>
+    public static IntPtr GetFocusedControl(IntPtr window)
+    {
+        if (window == IntPtr.Zero) return IntPtr.Zero;
+        var info = new GUITHREADINFO { cbSize = Marshal.SizeOf<GUITHREADINFO>() };
+        return GetGUIThreadInfo(GetWindowThreadProcessId(window, out _), ref info) && info.hwndFocus != IntPtr.Zero ? info.hwndFocus : window;
+    }
+
     public static string GetWindowClass(IntPtr hwnd)
     {
         var buf = new char[256];

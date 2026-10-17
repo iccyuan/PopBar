@@ -27,8 +27,13 @@ dotnet publish PopBar\PopBar.csproj -c Release -r win-x64 --self-contained false
 
 ```
 鼠标/键盘低级钩子 ──► 拖选 / 多击 / Shift+点击 ──► 工作线程取词
-                                                  1. UIA TextPattern（无副作用）
-                                                  2. 剪贴板回退：备份 → Ctrl+C → 读取 → 还原（仅 I 型光标或双击时）
+                                                  直接读控件，无副作用、不碰剪贴板：
+                                                  1. 控件消息：Scintilla（Notepad++ 等）、Edit、RichEdit
+                                                  2. UIA TextPattern
+                                                  3. Java Access Bridge（JetBrains IDE 等 Java 程序）
+                                                  4. IAccessible2（Firefox、LibreOffice、Qt 5 等）
+                                                  能读的一步说「没选中」就到此为止；都读不了才
+                                                  5. 剪贴板兜底：备份 → Ctrl+C → 读取 → 还原（仅 I 型光标或双击时）
                                                        ▼
                                       操作栏（WS_EX_NOACTIVATE，多屏多 DPI 钳位）──► 点按钮 ──► 浮动面板
 ```
@@ -63,7 +68,7 @@ AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `open
 
 ## 写一个插件
 
-新建类库引用 `PopBar.Sdk`，实现 `IPopBarPlugin`，完整示例见 `samples/HelloPlugin`。
+新建类库引用 `PopBar.Sdk`，实现 `IPopBarPlugin`，完整示例见 `plugins/Hello`（不随程序发布，按第三方插件安装）。
 
 安装：设置 →「插件」→「安装插件」，填 GitHub 仓库地址（安装最新 Release 里的 `.zip` 或 `.dll`），或选本地 `.zip`（插件和依赖）/ `.dll`；也可以 `PopBar.exe --install <路径或仓库地址>`。安装、更新、卸载都即时生效，不用重启（插件程序集从内存加载，文件不被占用）。插件装在 `%AppData%\PopBar\plugins\<目录>\`。
 
@@ -109,12 +114,12 @@ public sealed class HelloPlugin : IPopBarPlugin
 ```
 PopBar.Sdk          插件契约：IPopBarPlugin / IPluginHost / IPanel / ILlmService / IHostUi（IHostDialogs / IHostInputs / IHostVisuals / ILlmUi）/ Ui.Form / Ui.ScreenWindows
 PopBar/             核心程序，不含任何具体插件
-  Core              SelectionEngine、TextCapture（UIA → 剪贴板策略链）、LlmService、ThemeManager、InputHook
+  Core              SelectionEngine、TextCapture（控件消息 → UIA → Java Access Bridge → IAccessible2 → 剪贴板兜底的策略链）、LlmService、ThemeManager、InputHook
   Plugins           插件宿主：PluginManager（加载 / 热卸载）、PluginHost、PluginInstaller
   UI                PopupWindow、PanelWindow、FrostedGlass、Icons；SettingsWindow 只管导航与保存，各页在 UI/Settings
   App               组合根：托盘、单实例、热键、注册内置插件
-plugins/            内置插件，每个一个项目（Translate、Ai、Ocr、Screenshot、SendTo、Qr、Codec、Notes、ScreenTranslate）
-samples/            第三方插件示例
+plugins/            插件，每个一个项目：内置的 Translate、Ai、Ocr、Screenshot、SendTo、Qr、Codec、Notes、ScreenTranslate，
+                    以及第三方插件示例 Hello（不随程序发布）
 ```
 
 内置插件和第三方插件走同一套契约：每个插件项目只引用 `PopBar.Sdk`（`plugins/Directory.Build.props`），编译器保证它碰不到核心代码；插件之间也互不引用，要共享能力就用 `host.Services`（如屏幕翻译用 OCR 和翻译插件提供的 `IOcrEngine`、`ITextTranslator`）。主程序只在组合根里把它们作为内置插件注册、随程序一起发布。
@@ -123,6 +128,7 @@ samples/            第三方插件示例
 
 ## 已知边界
 
-- 旧式 Win32 控件、部分 Electron / 游戏窗口不暴露 UIA 选区，需剪贴板回退。
+- 以上几种都读不到的窗口（自绘界面、游戏、部分 Electron 应用）才走剪贴板兜底；日志里 `via Clipboard from xxx.exe` 列出这些程序。
+- Java 程序靠 Access Bridge：「设置 → 通用 → Java 程序直接取词」（默认开启，等同 `jabswitch -enable`）写入 `~/.accessibility.properties`，对之后启动的 Java 程序生效。
 - 密码框不取词；管理员权限的程序收不到非管理员 PopBar 的按键。
 - Windows OCR 质量取决于已装语言包；Google 翻译在国内需要代理。
