@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 10;
+    public int ConfigVersion { get; set; } = 11;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
@@ -74,7 +74,7 @@ public sealed class AppConfig
     public LlmConfig? Llm { get; set; }
 
     /// <summary>
-    /// The proxy (<see cref="ProxyConfig.Address"/>) plugins and AI services can choose (<see cref="Sdk.ProxyRoute.Proxy"/>),
+    /// The proxy (host, port...) plugins and AI services can choose (<see cref="Sdk.ProxyRoute.Proxy"/>),
     /// and how PopBar itself connects (<see cref="ProxyConfig.Mode"/>), which <see cref="Sdk.ProxyRoute.Default"/> follows.
     /// </summary>
     public ProxyConfig Proxy { get; set; } = new();
@@ -161,11 +161,55 @@ public static class ProxyModes
     public const string Custom = "custom";
 }
 
-/// <summary>The proxy PopBar knows ("127.0.0.1:7890", "socks5://host:port"), and how PopBar itself connects.</summary>
+/// <summary>Values of <see cref="ProxyConfig.Scheme"/>.</summary>
+public static class ProxySchemes
+{
+    public const string Http = "http";
+    public const string Socks5 = "socks5";
+}
+
+/// <summary>The proxy PopBar knows (type, host, port, optional login), and how PopBar itself connects.</summary>
 public sealed class ProxyConfig
 {
     public string Mode { get; set; } = ProxyModes.System;
-    public string Address { get; set; } = "";
+    /// <summary><see cref="ProxySchemes.Http"/> or <see cref="ProxySchemes.Socks5"/>.</summary>
+    public string Scheme { get; set; } = ProxySchemes.Http;
+    public string Host { get; set; } = "127.0.0.1";
+    /// <summary>0 = not set yet, the proxy is not usable.</summary>
+    public int Port { get; set; }
+    /// <summary>Login for a proxy that asks for one; empty = none.</summary>
+    public string User { get; set; } = "";
+    /// <summary>The password in plain text, in memory only; the file holds <see cref="PasswordStored"/>.</summary>
+    [JsonIgnore]
+    public string Password { get; set; } = "";
+
+    /// <summary><see cref="Password"/> as written to config.json: DPAPI-encrypted like <see cref="LlmConfig.ApiKeyStored"/>, and stable while unchanged.</summary>
+    [JsonPropertyName("password")]
+    public string PasswordStored
+    {
+        get
+        {
+            if (_cipherOf != Password) { _cipher = SecretBox.Protect(Password); _cipherOf = Password; }
+            return _cipher;
+        }
+        set
+        {
+            Password = SecretBox.Unprotect(value ?? "");
+            if (SecretBox.IsProtected(value)) { _cipher = value!; _cipherOf = Password; } else _cipherOf = null;
+        }
+    }
+    private string _cipher = "";
+    private string? _cipherOf = "";
+
+    /// <summary>Pre-v11 single field ("127.0.0.1:7890", "socks5://user:pass@host:port"); split into the fields on load and left null.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Address { get; set; }
+
+    /// <summary>A host and a valid port: the proxy can be used.</summary>
+    [JsonIgnore]
+    public bool IsSet => Host.Trim().Length > 0 && Port is > 0 and <= 65535;
+
+    public ProxyConfig Clone() => new() { Mode = Mode, Scheme = Scheme, Host = Host, Port = Port, User = User, Password = Password };
 }
 
 /// <summary>DPAPI (current user) wrapping for secrets kept in config files: "dpapi:" + base64.</summary>

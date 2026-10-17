@@ -228,7 +228,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
             _cfg = SettingsDraft.Clone(d);
             _host.Storage.Set(_cfg);
         });
-        // Service, model and streaming only apply to the AI provider: grey them out otherwise. The model picker follows the service.
+        // Service, model and streaming only apply to the AI provider, the proxy only to Google: each shows for its own. The model picker follows the service.
         var modelHost = new ContentControl();
         void BuildModel() => modelHost.Content = _host.Ui.ModelPicker(d.LlmProvider, d.Model, v => { d.Model = v; Changed(); });
         BuildModel();
@@ -240,13 +240,13 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         void SyncStream()
         {
             bool llm = d.Provider == "llm";
-            foreach (var row in new[] { serviceRow, modelRow, streamRow }) { row.IsEnabled = llm; row.Opacity = llm ? 1 : 0.45; }
-            proxyRow.IsEnabled = !llm; proxyRow.Opacity = llm ? 0.45 : 1;
+            foreach (var row in new[] { serviceRow, modelRow, streamRow }) row.Visibility = llm ? Visibility.Visible : Visibility.Collapsed;
+            proxyRow.Visibility = llm ? Visibility.Collapsed : Visibility.Visible;
         }
         SyncStream();
         return Form.Stack(
             Form.Card(
-                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 需要代理"),
+                Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 需要代理"),
                 proxyRow,
                 serviceRow,
                 modelRow,

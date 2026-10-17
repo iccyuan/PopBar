@@ -53,13 +53,18 @@ public static class Form
         return g;
     }
 
-    /// <summary>A card containing rows separated by hairlines.</summary>
+    /// <summary>A card containing rows separated by hairlines. A row may be collapsed later; its hairline goes with it.</summary>
     public static Border Card(params UIElement[] rows)
     {
         var panel = new StackPanel();
         for (int i = 0; i < rows.Length; i++)
         {
-            if (i > 0) panel.Children.Add(new System.Windows.Shapes.Rectangle { Height = 1, Fill = (Brush?)Res("BorderBrush") ?? Brushes.LightGray });
+            if (i > 0)
+            {
+                var line = new System.Windows.Shapes.Rectangle { Height = 1, Fill = (Brush?)Res("BorderBrush") ?? Brushes.LightGray };
+                line.SetBinding(UIElement.VisibilityProperty, new System.Windows.Data.Binding(nameof(UIElement.Visibility)) { Source = rows[i] });
+                panel.Children.Add(line);
+            }
             panel.Children.Add(rows[i]);
         }
         var b = new Border { Child = panel, Margin = new Thickness(0, 0, 0, 8) };

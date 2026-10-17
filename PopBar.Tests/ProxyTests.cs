@@ -55,16 +55,34 @@ public class ProxyTests
     [Fact]
     public void Routes_come_to_popbars_way_direct_or_the_proxy()
     {
-        var proxy = new ProxyConfig { Mode = ProxyModes.None, Address = "127.0.0.1:7890" };
+        var proxy = new ProxyConfig { Mode = ProxyModes.None, Host = "127.0.0.1", Port = 7890 };
         // PopBar connects directly, a plugin still uses the proxy
         Assert.Same(proxy, ProxyManager.Setting(proxy, PopBar.Sdk.ProxyRoute.Default));
         var via = ProxyManager.Setting(proxy, PopBar.Sdk.ProxyRoute.Proxy);
-        Assert.Equal((ProxyModes.Custom, "127.0.0.1:7890"), (via.Mode, via.Address));
+        Assert.Equal((ProxyModes.Custom, "127.0.0.1", 7890), (via.Mode, via.Host, via.Port));
         // PopBar uses the proxy, a plugin goes direct
         proxy.Mode = ProxyModes.Custom;
         Assert.Equal(ProxyModes.None, ProxyManager.Setting(proxy, PopBar.Sdk.ProxyRoute.Direct).Mode);
-        // no address set: "use the proxy" means Windows' proxy
+        // no port yet: "use the proxy" means Windows' proxy
         Assert.Equal(ProxyModes.System, ProxyManager.Setting(new ProxyConfig(), PopBar.Sdk.ProxyRoute.Proxy).Mode);
+    }
+
+    [Fact]
+    public void A_v10_address_is_split_into_the_fields()
+    {
+        var c = ConfigStore.Parse("""{ "configVersion": 10, "proxy": { "mode": "custom", "address": "socks5://me:pw@10.0.0.2:1080" } }""", out bool migrated);
+        Assert.True(migrated);
+        Assert.Equal((ProxySchemes.Socks5, "10.0.0.2", 1080, "me", "pw"), (c.Proxy.Scheme, c.Proxy.Host, c.Proxy.Port, c.Proxy.User, c.Proxy.Password));
+        Assert.Null(c.Proxy.Address);
+        Assert.Equal(ProxyModes.Custom, c.Proxy.Mode);
+    }
+
+    [Fact]
+    public void The_password_is_not_written_in_plain_text()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new ProxyConfig { Host = "h", Port = 1, User = "u", Password = "secret-pw" });
+        Assert.DoesNotContain("secret-pw", json);
+        Assert.Equal("secret-pw", System.Text.Json.JsonSerializer.Deserialize<ProxyConfig>(json)!.Password);
     }
 
     [Fact]

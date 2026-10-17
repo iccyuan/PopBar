@@ -151,6 +151,21 @@ public sealed class ConfigStore
             cfg.ConfigVersion = 10;
             migrated = true;
         }
+        if (cfg.ConfigVersion < 11)
+        {
+            // config v11: the proxy is type / host / port / login instead of one address to type.
+            if (!string.IsNullOrWhiteSpace(cfg.Proxy.Address) && Core.ProxyManager.TryParseAddress(cfg.Proxy.Address, out var uri, out var login, out _))
+            {
+                cfg.Proxy.Scheme = uri.Scheme.StartsWith("socks", StringComparison.OrdinalIgnoreCase) ? ProxySchemes.Socks5 : ProxySchemes.Http;
+                cfg.Proxy.Host = uri.Host;
+                cfg.Proxy.Port = uri.Port;
+                cfg.Proxy.User = login?.UserName ?? "";
+                cfg.Proxy.Password = login?.Password ?? "";
+            }
+            cfg.Proxy.Address = null;
+            cfg.ConfigVersion = 11;
+            migrated = true;
+        }
         // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
         if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
         return cfg;

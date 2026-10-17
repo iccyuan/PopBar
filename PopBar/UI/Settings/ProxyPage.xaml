@@ -11,15 +11,34 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                        <TextBlock Text="代理地址" VerticalAlignment="Center"/>
-                        <ui:InfoTip Text="例如 127.0.0.1:7890、socks5://127.0.0.1:1080，需要认证可写成 http://用户名:密码@主机:端口。插件和 AI 服务选「使用代理」时走这里；不填则用系统代理。"/>
+                        <TextBlock Text="代理服务器" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="插件和 AI 服务选「使用代理」时走这里；端口没填时用系统代理。Clash、v2rayN 等一般是 127.0.0.1 加它们的 HTTP 或 SOCKS5 端口。"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBox x:Name="AddressBox" Width="240" VerticalAlignment="Center" TextChanged="Address_Changed"/>
+                        <ComboBox x:Name="SchemeCombo" Width="100" VerticalAlignment="Center" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Field_Changed"/>
+                        <TextBox x:Name="HostBox" Width="150" Margin="8,0,0,0" VerticalAlignment="Center" ToolTip="主机，本机一般是 127.0.0.1" TextChanged="Field_Changed"/>
+                        <TextBlock Text=":" Margin="6,0" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}"/>
+                        <TextBox x:Name="PortBox" Width="70" VerticalAlignment="Center" ToolTip="端口，如 7890" TextChanged="Field_Changed" PreviewTextInput="Port_PreviewTextInput"/>
                         <Button x:Name="TestButton" Content="测试" Margin="8,0,0,0" VerticalAlignment="Center" Click="Test_Click"/>
                     </StackPanel>
                 </Grid>
                 <TextBlock x:Name="TestResult" Style="{StaticResource Muted}" Margin="0,-4,0,8" TextWrapping="Wrap" Visibility="Collapsed"/>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="需要认证" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="AuthSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Auth_Changed" Unchecked="Auth_Changed"/>
+                </Grid>
+                <Grid x:Name="AuthRow" Style="{StaticResource Row}" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="用户名 / 密码" VerticalAlignment="Center" Margin="0,8,12,8"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBox x:Name="UserBox" Width="150" VerticalAlignment="Center" ToolTip="用户名" TextChanged="Field_Changed"/>
+                        <PasswordBox x:Name="PasswordBox" Width="150" Margin="8,0,0,0" VerticalAlignment="Center" ToolTip="密码（加密保存）" PasswordChanged="Field_Changed"/>
+                    </StackPanel>
+                </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
                     <Grid.ColumnDefinitions>

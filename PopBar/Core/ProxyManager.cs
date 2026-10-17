@@ -38,14 +38,19 @@ internal sealed class ProxyManager
         }));
 
     /// <summary>What a route comes to: PopBar's own way, direct, or the proxy (Windows' when none is set).</summary>
-    internal static ProxyConfig Setting(ProxyConfig proxy, Sdk.ProxyRoute route) => route switch
+    internal static ProxyConfig Setting(ProxyConfig proxy, Sdk.ProxyRoute route)
     {
-        Sdk.ProxyRoute.Direct => new ProxyConfig { Mode = ProxyModes.None },
-        Sdk.ProxyRoute.Proxy => string.IsNullOrWhiteSpace(proxy.Address)
-            ? new ProxyConfig { Mode = ProxyModes.System }
-            : new ProxyConfig { Mode = ProxyModes.Custom, Address = proxy.Address },
-        _ => proxy,
-    };
+        switch (route)
+        {
+            case Sdk.ProxyRoute.Direct: return new ProxyConfig { Mode = ProxyModes.None };
+            case Sdk.ProxyRoute.Proxy when !proxy.IsSet: return new ProxyConfig { Mode = ProxyModes.System };
+            case Sdk.ProxyRoute.Proxy:
+                var via = proxy.Clone();
+                via.Mode = ProxyModes.Custom;
+                return via;
+            default: return proxy;
+        }
+    }
 
     /// <summary>A client fixed to one setting with connections of its own, for a connection test of a draft.</summary>
     public static HttpClient ForTest(ProxyConfig proxy, TimeSpan timeout) =>
@@ -70,11 +75,11 @@ internal sealed class ProxyManager
     private HttpMessageInvoker Route(ProxyConfig proxy) =>
         _routes.GetOrAdd(RouteKey(proxy), _ => new HttpMessageInvoker(NewHandler(proxy), disposeHandler: true));
 
-    /// <summary>Settings that lead the same way share a handler: "system", "none", or "custom:" + the address.</summary>
+    /// <summary>Settings that lead the same way share a handler: "system", "none", or the proxy with its login (in memory only).</summary>
     private static string RouteKey(ProxyConfig p) => p.Mode switch
     {
         ProxyModes.None => ProxyModes.None,
-        ProxyModes.Custom => ProxyModes.Custom + ":" + p.Address.Trim(),
+        ProxyModes.Custom when p.IsSet => $"{p.Scheme}://{p.User}:{p.Password}@{p.Host.Trim()}:{p.Port}",
         _ => ProxyModes.System,
     };
 
@@ -91,11 +96,15 @@ internal sealed class ProxyManager
             case ProxyModes.None:
                 handler.UseProxy = false;
                 break;
-            case ProxyModes.Custom when TryParseAddress(p.Address, out var uri, out var credentials, out _):
-                handler.Proxy = new LocalBypass(new WebProxy(uri) { Credentials = credentials });
+            case ProxyModes.Custom when p.IsSet:
+                var scheme = p.Scheme == ProxySchemes.Socks5 ? ProxySchemes.Socks5 : ProxySchemes.Http;
+                handler.Proxy = new LocalBypass(new WebProxy(new UriBuilder(scheme, p.Host.Trim(), p.Port).Uri)
+                {
+                    Credentials = p.User.Length > 0 ? new NetworkCredential(p.User, p.Password) : null,
+                });
                 break;
             case ProxyModes.Custom:
-                if (!string.IsNullOrWhiteSpace(p.Address)) Log.Warn($"proxy address \"{p.Address}\" is not valid; using the system proxy");
+                // "use the proxy" with none filled in yet: the system proxy, as the page says
                 handler.Proxy = new LocalBypass(WebRequest.GetSystemWebProxy());
                 break;
             default:
@@ -106,8 +115,8 @@ internal sealed class ProxyManager
     }
 
     /// <summary>
-    /// A proxy address as typed: "127.0.0.1:7890" (HTTP), "http://host:port", "socks5://host:port", "socks4://..."; a
-    /// user and password may come before the host ("http://user:pass@host:port").
+    /// A proxy address in one string, as config files before v11 kept it: "127.0.0.1:7890" (HTTP), "http://host:port",
+    /// "socks5://host:port", "socks4://..."; a user and password may come before the host ("http://user:pass@host:port").
     /// </summary>
     public static bool TryParseAddress(string? text, out Uri uri, out NetworkCredential? credentials, out string error)
     {
