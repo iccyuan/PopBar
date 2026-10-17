@@ -8,11 +8,12 @@
         FontFamily="{StaticResource UiFont}"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType" TextOptions.TextHintingMode="Animated">
-    <!-- Glass frame over the whole window so Mica shows through; DWM still draws the caption buttons. -->
+    <!-- Glass frame over the whole window so Mica shows through. The caption buttons are ours (top right): DWM's would
+         sit under the translucent content tint and look washed out. -->
     <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="True"/>
+        <WindowChrome CaptionHeight="44" GlassFrameThickness="-1" ResizeBorderThickness="6" CornerRadius="0" UseAeroCaptionButtons="False"/>
     </WindowChrome.WindowChrome>
-    <Grid>
+    <Grid x:Name="RootGrid">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="*"/>
@@ -72,6 +73,12 @@
                 <ui:AboutPage x:Name="PanelAbout" Visibility="Collapsed"/>
             </Grid>
         </ScrollViewer>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+            <Button x:Name="MinButton" Style="{StaticResource CaptionButton}" Content="&#xE921;" ToolTip="最小化" Click="MinButton_Click"/>
+            <Button x:Name="MaxButton" Style="{StaticResource CaptionButton}" Content="&#xE922;" Click="MaxButton_Click"/>
+            <Button x:Name="CloseButton" Style="{StaticResource CaptionCloseButton}" Content="&#xE8BB;" ToolTip="关闭" Click="CloseButton_Click"/>
+        </StackPanel>
 
         <!-- unsaved-changes bar: nothing is written until the user saves -->
         <Border x:Name="SaveBar" Grid.Column="1" VerticalAlignment="Bottom" Margin="32,0,40,20" CornerRadius="14"

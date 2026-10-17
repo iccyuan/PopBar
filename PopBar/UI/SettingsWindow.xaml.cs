@@ -43,7 +43,23 @@ public partial class SettingsWindow : Window
         LoadPages();
 
         VersionText.Text = "v" + typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3);
-        SourceInitialized += (_, _) => Acrylic.Apply(this, BackdropKind.Acrylic, ThemeManager.IsDark, roundCorners: true);
+        SourceInitialized += (_, _) =>
+        {
+            Acrylic.Apply(this, BackdropKind.Acrylic, ThemeManager.IsDark, roundCorners: true);
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            // without the system menu style DWM stops drawing its own caption buttons, which would show through the tint
+            var style = Native.NativeMethods.GetWindowLongPtr(hwnd, Native.NativeMethods.GWL_STYLE).ToInt64();
+            Native.NativeMethods.SetWindowLongPtr(hwnd, Native.NativeMethods.GWL_STYLE, new IntPtr(style & ~WS_SYSMENU));
+            System.Windows.Interop.HwndSource.FromHwnd(hwnd)?.AddHook(CaptionHook);
+        };
+        StateChanged += (_, _) =>
+        {
+            bool max = WindowState == WindowState.Maximized;
+            MaxButton.Content = max ? "" : "";
+            // a maximized window hangs its frame (resize border + padded border) off the screen edges; keep the content on screen
+            var f = SystemParameters.WindowResizeBorderThickness;
+            RootGrid.Margin = max ? new Thickness(f.Left + 4, f.Top + 4, f.Right + 4, f.Bottom + 4) : new Thickness(0);
+        };
         ContentScroll.SizeChanged += (_, _) => UpdateSaveBarGlass();   // the bar's place inside the page moves with the window height...
         ContentScroll.ScrollChanged += (_, _) => UpdateSaveBarGlass(); // ...and with scrolling
         ThemeManager.Changed += OnThemeChanged;
@@ -62,6 +78,58 @@ public partial class SettingsWindow : Window
                 e.Handled = true;
             }
         };
+    }
+
+    // ---- caption buttons ----
+
+    private void MinButton_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void MaxButton_Click(object sender, RoutedEventArgs e) => ToggleMaximized();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ToggleMaximized()
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+
+    private const int WM_NCHITTEST = 0x0084, WM_NCMOUSELEAVE = 0x02A2, WM_NCLBUTTONDOWN = 0x00A1, WM_NCLBUTTONUP = 0x00A2, HTMAXBUTTON = 9;
+    private const long WS_SYSMENU = 0x00080000;
+
+    /// <summary>
+    /// The maximize button answers HTMAXBUTTON so Windows 11 shows its snap layouts on hover. The system then owns the
+    /// mouse there, so hover and click are handled from the non-client messages instead of WPF's.
+    /// </summary>
+    private IntPtr CaptionHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
+        {
+            case WM_NCHITTEST:
+                bool over = OverMaxButton(lParam);
+                MaxButton.Tag = over ? "hot" : null;
+                if (!over) break;
+                handled = true;
+                return HTMAXBUTTON;
+            case WM_NCLBUTTONDOWN when wParam == HTMAXBUTTON:
+                handled = true;
+                break;
+            case WM_NCLBUTTONUP when wParam == HTMAXBUTTON:
+                handled = true;
+                MaxButton.Tag = null;
+                ToggleMaximized();
+                break;
+            case WM_NCMOUSELEAVE:
+                MaxButton.Tag = null;
+                break;
+        }
+        return IntPtr.Zero;
+    }
+
+    private bool OverMaxButton(IntPtr lParam)
+    {
+        if (!MaxButton.IsVisible) return false;
+        long lp = lParam.ToInt64();
+        var p = MaxButton.PointFromScreen(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
+        return p.X >= 0 && p.Y >= 0 && p.X < MaxButton.ActualWidth && p.Y < MaxButton.ActualHeight;
     }
 
     private void LoadPages()
