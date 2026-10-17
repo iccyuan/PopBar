@@ -30,8 +30,12 @@ public sealed class ConfigStore
 
     public event Action<AppConfig>? Changed;
 
-    /// <summary>Snapshot of the current config. Treat as read-only; use <see cref="Update"/> to change.</summary>
-    public AppConfig Current { get { lock (_gate) return _current; } }
+    /// <summary>
+    /// The current config. Every change installs a new object (copy-on-write), so a reference read here never changes
+    /// underneath its reader on another thread (the hook and capture threads iterate its lists without a lock). Never
+    /// mutate it; use <see cref="Update"/>.
+    /// </summary>
+    public AppConfig Current => Volatile.Read(ref _current);
 
     public void Load()
     {
@@ -101,6 +105,8 @@ public sealed class ConfigStore
                         cfg.ConfigVersion = 7;
                         migrated = true;
                     }
+                    // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
+                    if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();
@@ -117,29 +123,26 @@ public sealed class ConfigStore
         }
     }
 
-    /// <summary>Apply a mutation, persist, and broadcast.</summary>
+    /// <summary>
+    /// Apply a mutation to a private copy, persist it and swap it in, then broadcast. Writers are serialized; readers
+    /// holding the previous object keep a consistent (if older) view. The callback must not keep the object it is given.
+    /// </summary>
     public void Update(Action<AppConfig> mutate)
     {
-        AppConfig snapshot;
+        AppConfig next;
         lock (_gate)
         {
-            mutate(_current);
+            next = Clone(_current);
+            mutate(next);
+            Volatile.Write(ref _current, next);
             SaveLocked();
-            snapshot = _current;
         }
-        Changed?.Invoke(snapshot);
+        Changed?.Invoke(next);
     }
 
-    /// <summary>Replace the whole config (used by the settings window).</summary>
-    public void Replace(AppConfig cfg)
-    {
-        lock (_gate)
-        {
-            _current = cfg;
-            SaveLocked();
-        }
-        Changed?.Invoke(cfg);
-    }
+    /// <summary>Deep copy through the same JSON form the file uses, so a copy is exactly what a reload would give.</summary>
+    public static AppConfig Clone(AppConfig c) =>
+        JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(c, JsonOptions), JsonOptions) ?? new AppConfig();
 
     private void SaveLocked()
     {

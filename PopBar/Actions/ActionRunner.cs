@@ -3,13 +3,17 @@ using PopBar.Core;
 
 namespace PopBar.Actions;
 
-/// <summary>Executes an action against the captured selection. Runs on a worker thread, never on the UI thread.</summary>
-internal static class ActionRunner
+/// <summary>
+/// Executes an action against the captured selection on the thread pool, never on the UI thread and never on the
+/// engine's capture thread: a slow action (an AI reply streaming for half a minute, a program being launched) must not
+/// hold up the next selection. Clipboard-borrowing actions serialize themselves on <see cref="ClipboardBackup.Gate"/>.
+/// </summary>
+internal sealed class ActionRunner(Plugins.PluginManager plugins)
 {
-    /// <summary>Set by App at startup; plugin-typed actions are routed here.</summary>
-    public static Plugins.PluginManager? Plugins { get; set; }
+    /// <summary>Start the action and return at once; failures are logged.</summary>
+    public void Start(ActionDefinition a, Selection sel) => _ = Task.Run(() => RunAsync(a, sel));
 
-    public static void Run(ActionDefinition a, Selection sel)
+    private async Task RunAsync(ActionDefinition a, Selection sel)
     {
         string text = sel.Text;
         IntPtr sourceHwnd = sel.SourceWindow;
@@ -18,8 +22,7 @@ internal static class ActionRunner
             switch ((a.Type ?? "").ToLowerInvariant())
             {
                 case ActionTypes.Plugin:
-                    if (a.Ref != null && Plugins != null)
-                        Plugins.ExecuteAsync(a.Ref, sel.ToContext()).GetAwaiter().GetResult();
+                    if (a.Ref != null) await plugins.ExecuteAsync(a.Ref, sel.ToContext());
                     break;
 
                 case ActionTypes.Copy:

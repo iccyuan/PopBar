@@ -102,7 +102,37 @@ public sealed class LlmConfig
     public string Protocol { get; set; } = Core.Llm.LlmProviderIds.Anthropic;
     /// <summary>Optional for anthropic (defaults to api.anthropic.com); required for openai (e.g. http://localhost:4000/v1).</summary>
     public string BaseUrl { get; set; } = "";
+    /// <summary>The key in plain text, in memory only; the file holds <see cref="ApiKeyStored"/>.</summary>
+    [JsonIgnore]
     public string ApiKey { get; set; } = "";
+
+    /// <summary>
+    /// <see cref="ApiKey"/> as written to config.json: encrypted for the current Windows user (DPAPI), so another account
+    /// or a copied file cannot read it. A plain value from an older file is still read, and encrypted on the next save.
+    /// DPAPI output differs on every call, so the cipher is kept while the key is unchanged: serializing the same config
+    /// twice must give the same text (the settings window compares snapshots to tell whether anything was edited).
+    /// </summary>
+    [JsonPropertyName("apiKey")]
+    public string ApiKeyStored
+    {
+        get
+        {
+            if (_cipherOf != ApiKey) { _cipher = SecretBox.Protect(ApiKey); _cipherOf = ApiKey; }
+            return _cipher;
+        }
+        set
+        {
+            ApiKey = SecretBox.Unprotect(value ?? "");
+            // Keep an already encrypted value as is; a legacy plain one is encrypted the next time it is written.
+            if (SecretBox.IsProtected(value)) { _cipher = value!; _cipherOf = ApiKey; } else _cipherOf = null;
+        }
+    }
+    private string _cipher = "";
+    private string? _cipherOf = "";
+
+    /// <summary>A key is on disk unencrypted (a file from before keys were encrypted).</summary>
+    [JsonIgnore]
+    public bool ApiKeyNeedsProtecting => ApiKey.Length > 0 && _cipherOf == null;
     /// <summary>Default model; empty = the provider's suggestion.</summary>
     public string Model { get; set; } = "";
     /// <summary>"深度思考": think before answering, for requests that leave <see cref="Sdk.LlmRequest.Thinking"/> unset.</summary>
@@ -111,4 +141,45 @@ public sealed class LlmConfig
     public string Effort { get; set; } = Sdk.LlmEffort.Medium;
     /// <summary>Model ids the service returned the last time its list was fetched; shown in the model pickers until the next fetch.</summary>
     public List<string> Models { get; set; } = new();
+}
+
+/// <summary>DPAPI (current user) wrapping for secrets kept in config files: "dpapi:" + base64.</summary>
+internal static class SecretBox
+{
+    private const string Prefix = "dpapi:";
+    private static readonly byte[] Entropy = System.Text.Encoding.UTF8.GetBytes("PopBar.LlmConfig.ApiKey");
+
+    public static bool IsProtected(string? value) => value != null && value.StartsWith(Prefix, StringComparison.Ordinal);
+
+    public static string Protect(string plain)
+    {
+        if (plain.Length == 0) return "";
+        try
+        {
+            var bytes = System.Security.Cryptography.ProtectedData.Protect(System.Text.Encoding.UTF8.GetBytes(plain), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return Prefix + Convert.ToBase64String(bytes);
+        }
+        catch (Exception ex)
+        {
+            // Never lose the key: without DPAPI (should not happen on Windows) it stays readable rather than vanishing.
+            Log.Warn("api key encryption failed, stored as is: " + ex.Message);
+            return plain;
+        }
+    }
+
+    public static string Unprotect(string stored)
+    {
+        if (!IsProtected(stored)) return stored;
+        try
+        {
+            var bytes = System.Security.Cryptography.ProtectedData.Unprotect(Convert.FromBase64String(stored[Prefix.Length..]), Entropy, System.Security.Cryptography.DataProtectionScope.CurrentUser);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+        catch (Exception ex)
+        {
+            // Another user's or another machine's file: the key has to be entered again.
+            Log.Warn("api key could not be decrypted (config from another account?): " + ex.Message);
+            return "";
+        }
+    }
 }

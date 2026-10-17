@@ -32,6 +32,7 @@ public partial class App : Application
     private HotkeyManager? _hotkeys;
     private HttpClient? _http;
     private LlmService? _llm;
+    private SettingsHub? _settingsHub;
     private readonly PanelRegistry _panels = new();
     /// <summary>Plugin tray entries in registration order, keyed by their full id ("plugin:item").</summary>
     private readonly List<(string Id, TrayItem Item)> _pluginTrayItems = new();
@@ -103,9 +104,7 @@ public partial class App : Application
             ResyncActions = id => _plugins?.Resync(id),
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
-        SettingsWindow.PluginDrafts = services.SettingsHub;
-        SettingsWindow.TrayItems = () => _pluginTrayItems.ToList();
-        ActionRunner.Plugins = _plugins;
+        _settingsHub = services.SettingsHub;
         _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
         _engine = new SelectionEngine(_store, _popup, Dispatcher, _plugins, _panels);
@@ -306,7 +305,7 @@ public partial class App : Application
     {
         if (_settings == null)
         {
-            _settings = new SettingsWindow(_store, _plugins!, _llm!);
+            _settings = new SettingsWindow(_store, _plugins!, _llm!, _settingsHub!, () => _pluginTrayItems.ToList());
             _settings.Closed += (_, _) =>
             {
                 _settings = null;

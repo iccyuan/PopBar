@@ -99,7 +99,7 @@ public sealed class SendToPlugin : IPopBarPlugin
             Group = _cfg.Fold ? GroupName : null, GroupIcon = "send",
             // Finding, launching and activating the target can take seconds; the engine's worker must not wait for it
             // or the bar stops reacting to selections meanwhile.
-            Execute = (ctx, ct) => { _ = Task.Run(() => SendSafe(t, ctx), ct); return Task.CompletedTask; },
+            Execute = (ctx, ct) => Task.Run(() => SendSafe(t, ctx), ct), // polls for the window with sleeps: keep it off the caller
             Configure = () => ConfigureTarget(t.Id),
         }).ToList();
     }

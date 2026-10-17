@@ -296,7 +296,6 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <Border Grid.Column="0" Width="24" Height="36" Background="Transparent" Cursor="SizeAll" ToolTip="拖动整组排序" VerticalAlignment="Center" Margin="0,0,6,0" PreviewMouseLeftButtonDown="DragHandle_MouseDown">
                                                 <ui:IconImage Icon="grip-vertical" Size="16" Brush="{DynamicResource MutedBrush}"/>
@@ -309,19 +308,13 @@
                                                 <TextBlock Text="{Binding Name}" FontSize="14"/>
                                                 <TextBlock Text="{Binding Note}" Style="{StaticResource Muted}" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                                             </StackPanel>
-                                            <!-- count + expander sit where plain rows keep their edit / delete buttons... -->
+                                            <!-- count + expander sit at the right, where plain rows keep their switch -->
                                             <Border Grid.Column="3" CornerRadius="10" Padding="9,2,9,3" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource AccentHoverBrush}"/>
                                             </Border>
-                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" Margin="6,0,14,0" VerticalAlignment="Center" ToolTip="收起 / 展开" Click="GroupToggle_Click">
+                                            <Button Grid.Column="4" Style="{StaticResource IconButton}" Margin="6,0,0,0" VerticalAlignment="Center" ToolTip="收起 / 展开" Click="GroupToggle_Click">
                                                 <ui:IconImage Icon="{Binding ChevronIcon}" Size="16" Brush="{DynamicResource MutedBrush}"/>
                                             </Button>
-                                            <!-- ...and the fold switch lines up with the switches of the rows around it -->
-                                            <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center"
-                                                        ToolTip="开：操作条上只显示一个插件按钮，点开再选动作；关：每个动作各占一个按钮">
-                                                <TextBlock Text="收起为一个按钮" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                <CheckBox Style="{StaticResource Switch}" IsChecked="{Binding IsFolded, Mode=TwoWay}" VerticalAlignment="Center" Checked="GroupFold_Changed" Unchecked="GroupFold_Changed"/>
-                                            </StackPanel>
                                         </Grid>
                                         <!-- guide line under the plugin icon ties the members to it -->
                                         <Border Margin="47,6,0,0" BorderThickness="2,0,0,0" BorderBrush="{DynamicResource AccentSoftBrush}"
@@ -379,31 +372,23 @@
 
                 <!-- ===== Services: capabilities shared by plugins ===== -->
                 <StackPanel x:Name="PanelServices" Visibility="Collapsed">
-                    <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,8"/>
-                    <Border Style="{StaticResource Card}">
+                    <DockPanel Margin="0,0,0,12">
+                        <Button x:Name="AddLlmButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="＋ 添加服务商" VerticalAlignment="Center" Click="AddLlm_Click"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                            <ui:InfoTip Text="可以同时配置多家服务商，各家的地址、密钥、模型分别保存。AI 助手、翻译等插件默认用标了「默认」的那家，也可以在各自设置里另选。OpenAI：任何兼容 /chat/completions 的接口都行"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <!-- one row per configured service (built in code); click a row to edit it in the card below -->
+                    <StackPanel x:Name="LlmServiceList"/>
+                    <TextBlock x:Name="LlmEmptyHint" Style="{StaticResource Muted}" Margin="4,0,0,8" TextWrapping="Wrap"
+                               Text="还没有配置服务商。点「添加服务商」选一家，填好地址、密钥和模型；可以添加多家，再指定一家为默认。"/>
+                    <StackPanel x:Name="LlmFormHeader" Orientation="Horizontal" Margin="4,10,0,8">
+                        <ui:IconImage x:Name="LlmFormLogo" Icon="bot" Size="16" Brush="{DynamicResource TextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="LlmFormName" Style="{StaticResource H2}" Margin="0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Border x:Name="LlmFormCard" Style="{StaticResource Card}">
                         <StackPanel>
-                            <Grid Style="{StaticResource Row}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                                    <TextBlock Text="服务商" VerticalAlignment="Center"/>
-                                    <ui:InfoTip Text="可以配置多家，各家的地址、密钥、模型分别保存；OpenAI：任何兼容 /chat/completions 的接口都行"/>
-                                    </StackPanel>
-                                <ComboBox x:Name="LlmProtocolCombo" Grid.Column="1" Width="240" VerticalAlignment="Center"
-                                          SelectedValuePath="Key" SelectionChanged="Llm_Changed">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <ui:IconImage Icon="{Binding Logo}" Size="16" Brush="{DynamicResource TextBrush}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="{Binding Value}" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </Grid>
-                            <Rectangle Style="{StaticResource RowSep}"/>
                             <Grid Style="{StaticResource Row}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

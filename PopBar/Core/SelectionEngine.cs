@@ -23,9 +23,11 @@ internal sealed class SelectionEngine : IDisposable
     private readonly Dispatcher _ui;
     private readonly PluginManager _plugins;
     private readonly IPanelRegistry _panels;
+    private readonly ActionRunner _runner;
     private readonly InputHook _hook = new();
     private readonly TextCapture _capture = new();
     private readonly EditableProbe _editable = new();
+    /// <summary>Capture jobs only: the UIA client lives on this STA thread. Actions do not run here.</summary>
     private readonly BlockingCollection<Action> _jobs = new();
     private readonly Thread _worker;
 
@@ -56,9 +58,11 @@ internal sealed class SelectionEngine : IDisposable
         _ui = ui;
         _plugins = plugins;
         _panels = panels;
+        _runner = new ActionRunner(plugins);
         _hook.Mouse += OnMouse;
         _hook.KeyDown += OnKey;
-        _popup.ActionClicked += (a, sel) => Enqueue(() => ActionRunner.Run(a, sel));
+        // Actions run off the capture thread (see ActionRunner), so the next selection is never queued behind one.
+        _popup.ActionClicked += (a, sel) => _runner.Start(a, sel);
         _popup.Shown += r => { _popupRect = r; _popupVisible = true; };
         _popup.Hidden += () => _popupVisible = false;
 
@@ -94,7 +98,7 @@ internal sealed class SelectionEngine : IDisposable
             case WM_LBUTTONDOWN:
                 if (_popupVisible && _popupRect.Contains(x, y)) { _downInPopup = true; return; }
                 _downInPopup = false;
-                _pending = null;
+                Volatile.Write(ref _pending, null);
                 _multiDown = now - _downTicks <= GetDoubleClickTime() && Dist(_downX, _downY, x, y) <= DoubleClickSlopPx;
                 // Chain is judged by the release that triggered, not by visibility: a fast third click often lands
                 // before the bar from the double click is on screen, and must still count as the same gesture.
@@ -147,9 +151,10 @@ internal sealed class SelectionEngine : IDisposable
     }
 
     // --- "press a key to show" mode: the last captured selection waits here for the reveal key ---
-    private Selection? _pending;
-    private List<ActionDefinition>? _pendingActions;
-    private long _pendingTicks;
+    // Written by the capture thread, taken by the hook thread: one immutable record swapped atomically, so the hook can
+    // never pair one selection's text with another's actions.
+    private sealed record PendingShow(Selection Selection, List<ActionDefinition> Actions, long Ticks);
+    private PendingShow? _pending;
     private const int PendingWindowMs = 4000;
 
     /// <summary>Virtual key for a configured reveal key: "ctrl"/"alt"/"shift"/"win" or any WPF Key name (e.g. "F8", "CapsLock").</summary>
@@ -180,20 +185,18 @@ internal sealed class SelectionEngine : IDisposable
     private void OnKey(uint vk)
     {
         var cfg = _store.Current;
-        if (cfg.ShowMode == "key" && _pending != null && IsRevealKey(vk, RevealKeyVk(cfg.ShowKey)))
+        if (cfg.ShowMode == "key" && Volatile.Read(ref _pending) != null && IsRevealKey(vk, RevealKeyVk(cfg.ShowKey))
+            && Interlocked.Exchange(ref _pending, null) is { } p)
         {
-            if (Environment.TickCount64 - _pendingTicks <= PendingWindowMs)
+            if (Environment.TickCount64 - p.Ticks <= PendingWindowMs)
             {
-                var sel = _pending; var acts = _pendingActions!;
-                _pending = null;
                 _ui.InvokeAsync(() =>
                 {
-                    try { _popup.ShowFor(sel, acts, cfg); }
+                    try { _popup.ShowFor(p.Selection, p.Actions, cfg); }
                     catch (Exception ex) { Log.Error("popup show failed", ex); }
                 }, DispatcherPriority.Send);
                 return; // the reveal key must not hide what it just revealed
             }
-            _pending = null;
         }
         // Bare modifiers never dismiss: holding Ctrl auto-repeats key-downs, which would hide the bar
         // right after a Ctrl+double-click shows it.
@@ -268,9 +271,7 @@ internal sealed class SelectionEngine : IDisposable
         if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))
         {
             // Wait for the reveal key (see OnKey) instead of popping up right away.
-            _pendingActions = actions;
-            _pendingTicks = Environment.TickCount64;
-            _pending = sel;
+            Volatile.Write(ref _pending, new PendingShow(sel, actions, Environment.TickCount64));
             if (update && _popupVisible) RequestHide(); // the revealed bar shows the old text; wait for the key again
             return true;
         }
