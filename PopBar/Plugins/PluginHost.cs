@@ -145,7 +145,7 @@ internal sealed class PluginHost : IPluginHost
         _s = s;
         _log = new PluginLogger(pluginId);
         _storage = new PluginStorage(pluginId);
-        DataDir = Path.Combine(PluginStorage.PluginsDir, pluginId);
+        DataDir = PluginStorage.DataDirOf(pluginId);
         Settings = new SettingsSession(s.SettingsHub, pluginId);
         Ui = new HostUi(s.Llm);
     }

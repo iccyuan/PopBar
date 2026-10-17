@@ -30,7 +30,10 @@ public interface IPluginHost
     IHostUi Ui { get; }
     /// <summary>"dark" or "light" - current bar theme.</summary>
     string Theme { get; }
-    /// <summary>Directory for plugin data files (%AppData%\PopBar\plugins\{id}\).</summary>
+    /// <summary>
+    /// Directory for plugin data files (%AppData%\PopBar\plugins\.data\{id}\; may not exist yet). It survives updates
+    /// of the plugin: unlike the folder the plugin is installed in, which an update replaces.
+    /// </summary>
     string DataDir { get; }
     /// <summary>Capabilities shared between plugins (translator, OCR...). See <see cref="IServiceRegistry"/>.</summary>
     IServiceRegistry Services { get; }

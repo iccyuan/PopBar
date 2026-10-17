@@ -300,6 +300,7 @@ public partial class App : Application
             Core.JavaAccessBridgeSetup.Apply(cfg.JavaAccessBridge);
             ThemeManager.BlurOpacity = cfg.BlurOpacity;
             ThemeManager.Apply(cfg.Theme);
+            _plugins?.ApplyEnabled(cfg);
         });
     }
 

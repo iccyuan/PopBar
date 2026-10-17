@@ -11,7 +11,12 @@ namespace PopBar.Plugins;
 internal sealed class PluginManager : IDisposable
 {
     /// <param name="Source">The DLL a third-party plugin came from; null for built-ins.</param>
-    public sealed record Loaded(IPopBarPlugin Plugin, PluginHost Host, bool BuiltIn, string? Error, string? Source = null);
+    /// <param name="Stopped">
+    /// Switched off by the user: never initialized, or disposed with everything it registered undone (hotkeys, tray
+    /// entries, shared services, model providers). Its <see cref="Plugin"/> is then a fresh, uninitialized instance -
+    /// fine for its name, icon and version, but nothing that needs <see cref="IPopBarPlugin.Initialize"/>.
+    /// </param>
+    public sealed record Loaded(IPopBarPlugin Plugin, PluginHost Host, bool BuiltIn, string? Error, string? Source = null, bool Stopped = false);
 
     /// <summary>A third-party DLL that could not be loaded at all (no plugin object to show), with the reason.</summary>
     public sealed record LoadFailure(string Path, string Error);
@@ -41,16 +46,77 @@ internal sealed class PluginManager : IDisposable
         if (external) foreach (var (p, dll) in DiscoverExternal()) Register(p, builtIn: false, dll);
         RefreshActions();
         SyncConfig();
-        Log.Info($"plugins loaded: {string.Join(", ", _plugins.Select(p => p.Plugin.Id + (p.Error != null ? "(error)" : "")))}");
+        Log.Info($"plugins loaded: {string.Join(", ", _plugins.Select(p => p.Plugin.Id + (p.Error != null ? "(error)" : p.Stopped ? "(off)" : "")))}");
     }
 
+    /// <summary>Add a plugin; it starts only when the user has not switched it off.</summary>
     private void Register(IPopBarPlugin plugin, bool builtIn, string? source = null)
     {
         var host = _hostFactory(plugin.Id);
-        string? error = null;
-        try { plugin.Initialize(host); }
-        catch (Exception ex) { error = ex.Message; Log.Error($"plugin {plugin.Id} init failed", ex); }
-        _plugins.Add(new Loaded(plugin, host, builtIn, error, source));
+        var loaded = _store.Current.IsPluginEnabled(plugin.Id)
+            ? new Loaded(plugin, host, builtIn, Start(plugin, host), source)
+            : new Loaded(plugin, host, builtIn, null, source, Stopped: true);
+        lock (_gate) _plugins.Add(loaded);
+    }
+
+    /// <summary>Initialize a plugin; the error message when it throws.</summary>
+    private static string? Start(IPopBarPlugin plugin, PluginHost host)
+    {
+        try { plugin.Initialize(host); return null; }
+        catch (Exception ex) { Log.Error($"plugin {plugin.Id} init failed", ex); return ex.Message; }
+    }
+
+    /// <summary>Dispose a running plugin and undo what it registered through its host. UI thread.</summary>
+    private static void Stop(Loaded l)
+    {
+        try { l.Plugin.Dispose(); }
+        catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} dispose", ex); }
+        l.Host.Release(l.Plugin.GetType().Assembly);
+    }
+
+    /// <summary>
+    /// Start or stop a plugin as the user switched it (idempotent). Stopping disposes it and withdraws its hotkeys,
+    /// tray entries, shared services and model providers, so other plugins see it as absent; its buttons stay in the
+    /// action list (switched off with it) for when it comes back. Starting initializes a fresh instance - a disposed
+    /// object is not expected to work again. UI thread.
+    /// </summary>
+    public void SetEnabled(string pluginId, bool enabled)
+    {
+        Loaded? l;
+        int i;
+        lock (_gate)
+        {
+            i = _plugins.FindIndex(p => string.Equals(p.Plugin.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+            l = i >= 0 ? _plugins[i] : null;
+        }
+        if (l == null || l.Stopped != enabled) return;
+        Loaded next;
+        if (enabled) next = l with { Error = Start(l.Plugin, l.Host), Stopped = false };
+        else
+        {
+            Stop(l);
+            next = l with { Plugin = Fresh(l.Plugin), Error = null, Stopped = true };
+        }
+        lock (_gate) _plugins[i] = next;
+        Log.Info($"plugin {pluginId} {(enabled ? "started" : "stopped")}{(next.Error != null ? " (init failed)" : "")}");
+        RefreshActions();
+        if (enabled && next.Error == null) SyncConfig();   // anything it offers that the bar has not seen yet
+        ActionsSynced?.Invoke();
+    }
+
+    /// <summary>Bring every plugin in line with the config's switches (after the config changed). UI thread.</summary>
+    public void ApplyEnabled(AppConfig cfg)
+    {
+        List<string> ids;
+        lock (_gate) ids = _plugins.Select(p => p.Plugin.Id).ToList();
+        foreach (var id in ids) SetEnabled(id, cfg.IsPluginEnabled(id));
+    }
+
+    /// <summary>A new, uninitialized instance of the plugin's class (the same one when it cannot be made).</summary>
+    private static IPopBarPlugin Fresh(IPopBarPlugin old)
+    {
+        try { return Activator.CreateInstance(old.GetType()) as IPopBarPlugin ?? old; }
+        catch (Exception ex) { Log.Warn($"plugin {old.Id}: no fresh instance ({ex.Message}); the disposed one is reused"); return old; }
     }
 
     // ------------------------------------------------------------------ discovery
@@ -84,11 +150,12 @@ internal sealed class PluginManager : IDisposable
             Register(p, builtIn: false, dll);
         }
         RefreshActions();
-        var added = _plugins.Skip(before).ToList();
+        List<Loaded> added;
+        lock (_gate) added = _plugins.Skip(before).ToList();
         SyncConfig();
         // An update replaces an older version: the buttons of actions it no longer has leave the bar. Not for a plugin
-        // that failed to start, whose actions are just missing for now.
-        foreach (var l in added.Where(l => l.Error == null)) SyncConfig(l.Plugin.Id);
+        // that failed to start or is switched off, whose actions are just missing for now.
+        foreach (var l in added.Where(l => l.Error == null && !l.Stopped)) SyncConfig(l.Plugin.Id);
         ActionsSynced?.Invoke();
         return added;
     }
@@ -103,13 +170,12 @@ internal sealed class PluginManager : IDisposable
     {
         var full = Path.GetFullPath(folder).TrimEnd('\\');
         bool From(string? source) => source != null && string.Equals(Path.GetDirectoryName(Path.GetFullPath(source)), full, StringComparison.OrdinalIgnoreCase);
-        var gone = _plugins.Where(l => !l.BuiltIn && From(l.Source)).ToList();
+        List<Loaded> gone;
+        lock (_gate) gone = _plugins.Where(l => !l.BuiltIn && From(l.Source)).ToList();
         foreach (var l in gone)
         {
-            try { l.Plugin.Dispose(); }
-            catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} dispose", ex); }
-            l.Host.Release(l.Plugin.GetType().Assembly);
-            _plugins.Remove(l);
+            if (!l.Stopped) Stop(l);
+            lock (_gate) _plugins.Remove(l);
             Log.Info($"plugin unloaded: {l.Plugin.Id}");
         }
         _failures.RemoveAll(f => From(f.Path));
@@ -187,7 +253,7 @@ internal sealed class PluginManager : IDisposable
             _actions.Clear();
             foreach (var l in _plugins)
             {
-                if (l.Error != null) continue;
+                if (l.Error != null || l.Stopped) continue;
                 IReadOnlyList<PluginAction> acts;
                 try { acts = l.Plugin.GetActions(); }
                 catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} GetActions", ex); continue; }
@@ -305,6 +371,7 @@ internal sealed class PluginManager : IDisposable
     {
         foreach (var l in _plugins)
         {
+            if (l.Stopped) continue;
             try { l.Plugin.Dispose(); }
             catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} dispose", ex); }
         }

@@ -152,7 +152,8 @@ internal static partial class PluginInstaller
         var name = Regex.Replace(suggested.Trim().ToLowerInvariant(), @"[^a-z0-9._-]+", "-").Trim('-', '.');
         if (name.Length == 0) name = "plugin";
         var path = Path.Combine(PluginStorage.PluginsDir, name);
-        // An existing folder without DLLs is some plugin's data (e.g. plugins\ocr\), not an installed plugin.
+        // An existing folder without DLLs is data from before plugin data moved to plugins\.data\ (its plugin has not
+        // run since, so it was not migrated), not an installed plugin: don't install over it.
         if (Directory.Exists(path) && Directory.GetFiles(path, "*.dll").Length == 0) name += "-plugin";
         return name;
     }

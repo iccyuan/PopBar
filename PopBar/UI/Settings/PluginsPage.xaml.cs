@@ -99,15 +99,30 @@ internal partial class PluginsPage : SettingsPage
             head.Children.Add(uninstall);
         }
         var toggle = new CheckBox { Style = Res<Style>("Switch"), IsChecked = !_disabled.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        // a standalone switch: saved at once, the plugin's actions come and go right away
-        toggle.Checked += (_, _) => { _disabled.Remove(plugin.Id); SaveDisabled(); };
-        toggle.Unchecked += (_, _) => { _disabled.Add(plugin.Id); SaveDisabled(); };
+        // a standalone switch: saved at once, and the plugin starts / stops right away (its card then shows its
+        // settings or drops them: a stopped plugin has none to show)
+        toggle.Checked += (_, _) => { _disabled.Remove(plugin.Id); Switch(true); };
+        toggle.Unchecked += (_, _) => { _disabled.Add(plugin.Id); Switch(false); };
+        void Switch(bool on)
+        {
+            SaveDisabled();
+            Ctx.Plugins.SetEnabled(plugin.Id, on);
+            Dispatcher.InvokeAsync(() =>
+            {
+                int at = PluginList.Children.IndexOf(card);
+                var now = Ctx.Plugins.Plugins.FirstOrDefault(p => string.Equals(p.Plugin.Id, plugin.Id, StringComparison.OrdinalIgnoreCase));
+                if (at < 0 || now == null) return;
+                _openSettings.Remove(plugin.Id);
+                PluginList.Children.RemoveAt(at);
+                PluginList.Children.Insert(at, BuildCard(now));
+            });
+        }
         Grid.SetColumn(toggle, 4);
         head.Children.Add(toggle);
         stack.Children.Add(head);
 
         FrameworkElement? view = null;
-        if (l.Error == null)
+        if (l.Error == null && !l.Stopped)
         {
             try { view = plugin.CreateSettingsView(); }
             catch (Exception ex) { Log.Error($"plugin {plugin.Id} settings view", ex); }
