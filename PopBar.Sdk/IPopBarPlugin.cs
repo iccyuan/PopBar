@@ -16,6 +16,12 @@ public interface IPopBarPlugin : IDisposable
     /// <summary>Icon standing for the plugin as a whole (its card in settings, its group of actions). PopBar icon name.</summary>
     string Icon => "puzzle";
 
+    /// <summary>
+    /// How this plugin's actions sit on the bar: merged into one button or not, shown by default or not. The plugin
+    /// decides; PopBar reads it every time the bar is built, so it may follow the plugin's own settings.
+    /// </summary>
+    BarOptions Bar => BarOptions.Default;
+
     /// <summary>Called once after loading. Keep the host; register hotkeys / tray items here.</summary>
     void Initialize(IPluginHost host);
 
@@ -38,14 +44,11 @@ public sealed class PluginAction
     public string Icon { get; init; } = "circle";
     /// <summary>One line shown under the action in settings, e.g. "粘贴到 notepad.exe". Optional.</summary>
     public string? Description { get; init; }
-    /// <summary>Whether the button is switched on when it is first added to the bar. Niche actions can start off.</summary>
-    public bool EnabledByDefault { get; init; } = true;
     /// <summary>
-    /// Actions of one plugin that share a group name fold into a single bar button (this label, <see cref="GroupIcon"/>)
-    /// that expands in place, whenever two or more of them apply to a selection. Keeps the bar short. Optional.
+    /// Whether this button is switched on when it is first added to the bar. Niche actions can start off. Only counts
+    /// while <see cref="BarOptions.ShowByDefault"/> of the plugin is on (that one switches the whole plugin's off).
     /// </summary>
-    public string? Group { get; init; }
-    public string GroupIcon { get; init; } = "circle";
+    public bool EnabledByDefault { get; init; } = true;
     /// <summary>
     /// Where the action lands the first time it is added to the bar: right after the action with this id, either a
     /// stock action ("search", "copy") or a full plugin action id ("translate:panel"). When unset, or that action is
@@ -63,6 +66,30 @@ public sealed class PluginAction
     /// Without it, "编辑" takes the user to the plugin's settings page instead.
     /// </summary>
     public Func<bool>? Configure { get; init; }
+}
+
+/// <summary>How a plugin's actions appear on the bar (<see cref="IPopBarPlugin.Bar"/>).</summary>
+public sealed class BarOptions
+{
+    /// <summary>One button per action, all shown by default.</summary>
+    public static BarOptions Default { get; } = new();
+
+    /// <summary>
+    /// Merge the plugin's actions into one bar button with this label, which opens a list of them. Only when two or
+    /// more of them apply to the selection: an action that applies alone keeps its own button, so actions that come
+    /// and go with the selection still show as themselves. Null = one button per action.
+    /// </summary>
+    public string? MergeAs { get; init; }
+
+    /// <summary>Icon of the merged button; null = the plugin's <see cref="IPopBarPlugin.Icon"/>.</summary>
+    public string? MergeIcon { get; init; }
+
+    /// <summary>
+    /// Whether the plugin's actions are switched on when they first join the bar: right after the plugin is installed
+    /// (and enabled), or when it adds a new action later. False adds them switched off, for the user to turn on on the
+    /// "动作" page. <see cref="PluginAction.EnabledByDefault"/> can still keep single actions off while this is on.
+    /// </summary>
+    public bool ShowByDefault { get; init; } = true;
 }
 
 /// <summary>What the user selected and where.</summary>

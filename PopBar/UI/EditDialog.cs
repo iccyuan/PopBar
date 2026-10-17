@@ -9,7 +9,7 @@ namespace PopBar.UI;
 /// <summary>Generic modal editor (title, caller-supplied content, 保存 / 取消) in the settings window's style.</summary>
 internal sealed class EditDialog : Window
 {
-    public EditDialog(string title, FrameworkElement content, double width)
+    public EditDialog(string title, FrameworkElement content, double width, string okText = "保存")
     {
         Title = title;
         Width = width;
@@ -38,7 +38,7 @@ internal sealed class EditDialog : Window
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
         var cancel = new Button { Content = "取消", IsCancel = true, MinWidth = 80, Margin = new Thickness(0, 0, 8, 0) };
-        var ok = new Button { Content = "保存", IsDefault = true, MinWidth = 80 };
+        var ok = new Button { Content = okText, IsDefault = true, MinWidth = 80 };
         ok.Style = (Style)FindResource("AccentButton");
         ok.Click += (_, _) => DialogResult = true;
         buttons.Children.Add(cancel);

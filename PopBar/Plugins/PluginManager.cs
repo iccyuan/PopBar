@@ -34,10 +34,11 @@ internal sealed class PluginManager : IDisposable
         _hostFactory = hostFactory;
     }
 
-    public void Load(IEnumerable<IPopBarPlugin> builtIns)
+    /// <param name="external">Also load third-party plugins from the plugins folder (off in tests).</param>
+    public void Load(IEnumerable<IPopBarPlugin> builtIns, bool external = true)
     {
         foreach (var p in builtIns) Register(p, builtIn: true);
-        foreach (var (p, dll) in DiscoverExternal()) Register(p, builtIn: false, dll);
+        if (external) foreach (var (p, dll) in DiscoverExternal()) Register(p, builtIn: false, dll);
         RefreshActions();
         SyncConfig();
         Log.Info($"plugins loaded: {string.Join(", ", _plugins.Select(p => p.Plugin.Id + (p.Error != null ? "(error)" : "")))}");
@@ -60,28 +61,89 @@ internal sealed class PluginManager : IDisposable
         if (!Directory.Exists(dir)) yield break;
         foreach (var sub in Directory.GetDirectories(dir))
         {
-            foreach (var dll in Directory.GetFiles(sub, "*.dll"))
+            if (Path.GetFileName(sub).StartsWith('.')) continue; // staged installs (.pending)
+            foreach (var p in DiscoverIn(sub)) yield return p;
+        }
+    }
+
+    /// <summary>
+    /// Load a plugin folder installed while PopBar runs: its plugins start at once (actions join the bar as they
+    /// declare, see <see cref="BarOptions.ShowByDefault"/>) without a restart. Call on the UI thread.
+    /// </summary>
+    public IReadOnlyList<Loaded> LoadInstalled(string folder)
+    {
+        int before = _plugins.Count;
+        foreach (var (p, dll) in DiscoverIn(folder))
+        {
+            if (_plugins.Any(l => string.Equals(l.Plugin.Id, p.Id, StringComparison.OrdinalIgnoreCase)))
             {
-                IPopBarPlugin[] found;
-                try { found = LoadFrom(dll).ToArray(); }
-                catch (BadImageFormatException) { continue; } // a native dependency shipped next to the plugin, not an assembly
-                catch (Exception ex)
-                {
-                    // GetTypes' own message only says "see LoaderExceptions": surface the first real cause.
-                    var cause = ex is ReflectionTypeLoadException rtl ? rtl.LoaderExceptions.FirstOrDefault(e => e != null) ?? ex : ex;
-                    Log.Warn($"plugin dll {dll}: {cause.Message}");
-                    _failures.Add(new LoadFailure(dll, cause.Message));
-                    continue;
-                }
-                foreach (var p in found) yield return (p, dll);
+                Log.Warn($"plugin id {p.Id} from {dll} is already loaded; skipped");
+                _failures.Add(new LoadFailure(dll, $"插件 id「{p.Id}」与已加载的插件重复"));
+                continue;
             }
+            Register(p, builtIn: false, dll);
+        }
+        RefreshActions();
+        var added = _plugins.Skip(before).ToList();
+        SyncConfig();
+        // An update replaces an older version: the buttons of actions it no longer has leave the bar. Not for a plugin
+        // that failed to start, whose actions are just missing for now.
+        foreach (var l in added.Where(l => l.Error == null)) SyncConfig(l.Plugin.Id);
+        ActionsSynced?.Invoke();
+        return added;
+    }
+
+    /// <summary>
+    /// Stop and drop the plugins loaded from <paramref name="folder"/>: dispose them and undo what they registered
+    /// (hotkeys, tray entries, shared services, model providers, settings drafts). With <paramref name="dropActions"/>
+    /// their buttons leave the bar too (uninstall); without, they stay for the new version to take over (update).
+    /// Call on the UI thread. Returns the ids of the plugins removed.
+    /// </summary>
+    public List<string> Unload(string folder, bool dropActions)
+    {
+        var full = Path.GetFullPath(folder).TrimEnd('\\');
+        bool From(string? source) => source != null && string.Equals(Path.GetDirectoryName(Path.GetFullPath(source)), full, StringComparison.OrdinalIgnoreCase);
+        var gone = _plugins.Where(l => !l.BuiltIn && From(l.Source)).ToList();
+        foreach (var l in gone)
+        {
+            try { l.Plugin.Dispose(); }
+            catch (Exception ex) { Log.Error($"plugin {l.Plugin.Id} dispose", ex); }
+            l.Host.Release(l.Plugin.GetType().Assembly);
+            _plugins.Remove(l);
+            Log.Info($"plugin unloaded: {l.Plugin.Id}");
+        }
+        _failures.RemoveAll(f => From(f.Path));
+        var ids = gone.Select(l => l.Plugin.Id).ToList();
+        RefreshActions();
+        if (dropActions && ids.Count > 0)
+            _store.Update(c => c.Actions.RemoveAll(a => a.IsPlugin && ids.Any(id => (a.Ref ?? "").StartsWith(id + ":", StringComparison.OrdinalIgnoreCase))));
+        ActionsSynced?.Invoke();
+        return ids;
+    }
+
+    private IEnumerable<(IPopBarPlugin Plugin, string Dll)> DiscoverIn(string sub)
+    {
+        foreach (var dll in Directory.GetFiles(sub, "*.dll"))
+        {
+            IPopBarPlugin[] found;
+            try { found = LoadFrom(dll).ToArray(); }
+            catch (BadImageFormatException) { continue; } // a native dependency shipped next to the plugin, not an assembly
+            catch (Exception ex)
+            {
+                // GetTypes' own message only says "see LoaderExceptions": surface the first real cause.
+                var cause = ex is ReflectionTypeLoadException rtl ? rtl.LoaderExceptions.FirstOrDefault(e => e != null) ?? ex : ex;
+                Log.Warn($"plugin dll {dll}: {cause.Message}");
+                _failures.Add(new LoadFailure(dll, cause.Message));
+                continue;
+            }
+            foreach (var p in found) yield return (p, dll);
         }
     }
 
     private static IEnumerable<IPopBarPlugin> LoadFrom(string dll)
     {
         var alc = new PluginLoadContext(dll);
-        var asm = alc.LoadFromAssemblyPath(dll);
+        var asm = PluginLoadContext.LoadUnlocked(alc, dll);
         foreach (var t in asm.GetTypes())
         {
             if (t.IsAbstract || !typeof(IPopBarPlugin).IsAssignableFrom(t)) continue;
@@ -90,9 +152,10 @@ internal sealed class PluginManager : IDisposable
     }
 
     /// <summary>
-    /// Isolates plugin dependencies but shares PopBar.Sdk (and WPF) with the host. Not collectible: WPF keeps
-    /// references into plugin assemblies (styles, templates, dispatcher callbacks), so unloading would not free them;
-    /// a fixed plugin is picked up on the next start.
+    /// Isolates plugin dependencies but shares PopBar.Sdk (and WPF) with the host. Assemblies are read into memory
+    /// rather than mapped from disk, so their files are never locked: a plugin can be updated or removed while PopBar
+    /// runs (<see cref="Unload"/>). Not collectible: WPF keeps references into plugin assemblies (styles, templates,
+    /// dispatcher callbacks), so an unloaded plugin's code stays in memory until exit, unused.
     /// </summary>
     private sealed class PluginLoadContext : AssemblyLoadContext
     {
@@ -102,7 +165,15 @@ internal sealed class PluginManager : IDisposable
         {
             if (name.Name == "PopBar.Sdk") return null; // use the host's copy
             var p = _resolver.ResolveAssemblyToPath(name);
-            return p != null ? LoadFromAssemblyPath(p) : null;
+            return p != null ? LoadUnlocked(this, p) : null;
+        }
+
+        public static Assembly LoadUnlocked(AssemblyLoadContext alc, string path)
+        {
+            using var dll = new MemoryStream(File.ReadAllBytes(path));
+            var pdbPath = Path.ChangeExtension(path, ".pdb");
+            using var pdb = File.Exists(pdbPath) ? new MemoryStream(File.ReadAllBytes(pdbPath)) : null; // line numbers in plugin stack traces
+            return alc.LoadFromStream(dll, pdb);
         }
     }
 
@@ -144,7 +215,12 @@ internal sealed class PluginManager : IDisposable
     public void SyncConfig(string? pruneOwner = null)
     {
         Dictionary<string, PluginAction> offered;
-        lock (_gate) offered = _actions.ToDictionary(kv => kv.Key, kv => kv.Value.Action, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, bool> showByDefault;
+        lock (_gate)
+        {
+            offered = _actions.ToDictionary(kv => kv.Key, kv => kv.Value.Action, StringComparer.OrdinalIgnoreCase);
+            showByDefault = _actions.ToDictionary(kv => kv.Key, kv => BarOf(kv.Value.Plugin).ShowByDefault, StringComparer.OrdinalIgnoreCase);
+        }
         bool Owned(ActionDefinition a) => pruneOwner != null && a.IsPlugin && (a.Ref ?? "").StartsWith(pruneOwner + ":", StringComparison.OrdinalIgnoreCase);
 
         var cfg = _store.Current;
@@ -162,7 +238,7 @@ internal sealed class PluginManager : IDisposable
             foreach (var (id, act) in offered)
             {
                 if (c.Actions.Any(a => a.IsPlugin && string.Equals(a.Ref, id, StringComparison.OrdinalIgnoreCase))) continue;
-                var def = new ActionDefinition { Id = id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = id, Label = act.Label, Icon = act.Icon, Enabled = act.EnabledByDefault };
+                var def = new ActionDefinition { Id = id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = id, Label = act.Label, Icon = act.Icon, Enabled = showByDefault[id] && act.EnabledByDefault };
                 string owner = id[..id.IndexOf(':')];
                 // Where the plugin asked for it, else next to its siblings (a second send-to target by the first), else last.
                 int after = string.IsNullOrWhiteSpace(act.PlaceAfter) ? -1 : c.Actions.FindIndex(a =>
@@ -184,11 +260,20 @@ internal sealed class PluginManager : IDisposable
         return false;
     }
 
-    /// <summary>The fold group a plugin action belongs to on the bar, if its plugin declared one (see <see cref="PluginAction.Group"/>).</summary>
+    /// <summary>The merged bar button a plugin action belongs to, if its plugin merges its actions (see <see cref="BarOptions.MergeAs"/>).</summary>
     public Core.BarGroup? GroupOf(ActionDefinition def)
     {
-        if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out var action) || string.IsNullOrWhiteSpace(action.Group)) return null;
-        return new Core.BarGroup(plugin.Id + "/" + action.Group, action.Group, action.GroupIcon);
+        if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out _)) return null;
+        var bar = BarOf(plugin);
+        if (string.IsNullOrWhiteSpace(bar.MergeAs)) return null;
+        return new Core.BarGroup(plugin.Id, bar.MergeAs, string.IsNullOrWhiteSpace(bar.MergeIcon) ? IconOf(plugin.Id) : bar.MergeIcon);
+    }
+
+    /// <summary>The plugin's <see cref="IPopBarPlugin.Bar"/>; the defaults when it throws.</summary>
+    private static BarOptions BarOf(IPopBarPlugin plugin)
+    {
+        try { return plugin.Bar ?? BarOptions.Default; }
+        catch (Exception ex) { Log.Warn($"plugin {plugin.Id} Bar threw: {ex.Message}"); return BarOptions.Default; }
     }
 
     /// <summary>The icon a plugin declared for itself (<see cref="IPopBarPlugin.Icon"/>); "puzzle" for unknown ids.</summary>

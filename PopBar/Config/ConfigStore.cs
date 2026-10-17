@@ -24,6 +24,12 @@ public sealed class ConfigStore
 
     private readonly object _gate = new();
     private AppConfig _current = new();
+    private readonly string _path;
+
+    public ConfigStore() : this(FilePath) { }
+
+    /// <summary>A store backed by another file (tests).</summary>
+    internal ConfigStore(string path) => _path = path;
 
     /// <summary>True when no config file existed at startup (first run).</summary>
     public bool IsFirstRun { get; private set; }
@@ -43,9 +49,9 @@ public sealed class ConfigStore
         {
             try
             {
-                if (File.Exists(FilePath))
+                if (File.Exists(_path))
                 {
-                    var cfg = Parse(File.ReadAllText(FilePath), out bool migrated);
+                    var cfg = Parse(File.ReadAllText(_path), out bool migrated);
                     _current = cfg;
                     IsFirstRun = false;
                     if (migrated) SaveLocked();
@@ -154,10 +160,10 @@ public sealed class ConfigStore
     {
         try
         {
-            Directory.CreateDirectory(Dir);
-            var tmp = FilePath + ".tmp";
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            var tmp = _path + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(_current, JsonOptions));
-            File.Move(tmp, FilePath, overwrite: true);
+            File.Move(tmp, _path, overwrite: true);
         }
         catch (Exception ex)
         {

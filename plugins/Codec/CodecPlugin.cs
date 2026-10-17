@@ -22,6 +22,8 @@ public sealed partial class CodecPlugin : IPopBarPlugin
 
     public string Id => "codec";
     public string Icon => "code";
+    /// <summary>Usually one button fits the selection; when several do (Base64 that is also a timestamp…), one "编码" button lists them.</summary>
+    public BarOptions Bar { get; } = new() { MergeAs = "编码", MergeIcon = "code" };
     public string Name => "编码工具";
     public string Description => "选中 Base64、URL 编码、JSON、JWT、时间戳时出现对应按钮。";
     public Version Version => new(0, 1, 0);

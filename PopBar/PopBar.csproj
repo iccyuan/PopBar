@@ -30,11 +30,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The built-in plugins (plugins/): separate assemblies that only know PopBar.Sdk; the app just ships them. -->
+    <ProjectReference Include="..\plugins\Translate\PopBar.Plugins.Translate.csproj" />
+    <ProjectReference Include="..\plugins\Ai\PopBar.Plugins.Ai.csproj" />
+    <ProjectReference Include="..\plugins\Ocr\PopBar.Plugins.Ocr.csproj" />
+    <ProjectReference Include="..\plugins\Screenshot\PopBar.Plugins.Screenshot.csproj" />
+    <ProjectReference Include="..\plugins\SendTo\PopBar.Plugins.SendTo.csproj" />
+    <ProjectReference Include="..\plugins\Qr\PopBar.Plugins.Qr.csproj" />
+    <ProjectReference Include="..\plugins\Codec\PopBar.Plugins.Codec.csproj" />
+    <ProjectReference Include="..\plugins\Notes\PopBar.Plugins.Notes.csproj" />
+    <ProjectReference Include="..\plugins\ScreenTranslate\PopBar.Plugins.ScreenTranslate.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- COM interop for IUIAutomation (same assembly FlaUI.UIA3 uses). -->
     <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
     <!-- Official Anthropic SDK for the "anthropic" LLM protocol. -->
     <PackageReference Include="Anthropic" Version="12.55.0" />
-    <PackageReference Include="ZXing.Net" Version="0.16.9" />
   </ItemGroup>
 
   <ItemGroup>

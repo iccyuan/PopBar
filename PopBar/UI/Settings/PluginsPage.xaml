@@ -3,8 +3,22 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:PopBar.UI">
     <StackPanel>
-        <TextBlock Style="{StaticResource H2}" Text="已安装的插件" Margin="4,0,0,8"/>
-        <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" TextWrapping="Wrap" x:Name="PluginDirText"/>
+        <DockPanel Margin="0,0,0,8">
+            <Button x:Name="InstallButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="＋ 安装插件" VerticalAlignment="Center" Click="Install_Click"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource H2}" Text="已安装的插件" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                <ui:InfoTip x:Name="PluginDirTip"/>
+            </StackPanel>
+        </DockPanel>
+        <!-- install / uninstall progress and result -->
+        <Border x:Name="InstallNotice" Style="{StaticResource Card}" Padding="14,8,8,8" Visibility="Collapsed">
+            <DockPanel>
+                <Button x:Name="NoticeClose" DockPanel.Dock="Right" Style="{StaticResource IconButton}" ToolTip="关闭" VerticalAlignment="Center" Margin="10,0,0,0" Click="NoticeClose_Click">
+                    <ui:IconImage Icon="x" Size="13" Brush="{DynamicResource MutedBrush}"/>
+                </Button>
+                <TextBlock x:Name="InstallText" VerticalAlignment="Center" TextWrapping="Wrap"/>
+            </DockPanel>
+        </Border>
         <StackPanel x:Name="PluginList"/>
     </StackPanel>
 </ui:SettingsPage>

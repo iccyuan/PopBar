@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using Interop.UIAutomationClient;
+using PopBar.Sdk;
 
 namespace PopBar.Plugins.Builtin.Screenshot;
 
@@ -22,6 +23,9 @@ internal sealed class ShotTarget(IntPtr hwnd, Int32Rect rect)
 /// </summary>
 internal static class ShotTargets
 {
+    /// <summary>The plugin's logger, set when it initializes.</summary>
+    public static IPluginLogger? Log { get; set; }
+
     private const int MinSize = 8;
     /// <summary>Taskbars on the main and the other monitors.</summary>
     private static readonly string[] TaskbarClasses = ["Shell_TrayWnd", "Shell_SecondaryTrayWnd"];
@@ -77,7 +81,7 @@ internal static class ShotTargets
                 Add(t, parts, b.left, b.top, b.right, b.bottom);
             }
         }
-        catch (Exception ex) { Log.Warn("taskbar elements unavailable: " + ex.Message); }
+        catch (Exception ex) { Log?.Warn("taskbar elements unavailable: " + ex.Message); }
     }
 
     private static IUIAutomation CreateUia()

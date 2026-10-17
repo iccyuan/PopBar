@@ -8,7 +8,6 @@ using PopBar.Config;
 using PopBar.Core;
 using PopBar.Plugins;
 using PopBar.Plugins.Builtin;
-using PopBar.Plugins.Builtin.Screenshot;
 using PopBar.Sdk;
 using PopBar.UI;
 using WinForms = System.Windows.Forms;
@@ -58,9 +57,11 @@ public partial class App : Application
         _mutex = new Mutex(true, MutexName, out bool createdNew);
         if (!createdNew)
         {
-            // Another instance is running: hand it the request ("--run <trayItemId>", else open settings), then leave.
+            // Another instance is running: hand it the request ("--run <trayItemId>", "--install <source>", else open settings), then leave.
             int ri = Array.IndexOf(e.Args, "--run");
-            SendToRunningInstance(ri >= 0 && ri + 1 < e.Args.Length ? e.Args[ri + 1] : "");
+            int ii = Array.IndexOf(e.Args, "--install");
+            SendToRunningInstance(ii >= 0 && ii + 1 < e.Args.Length ? InstallCommand + e.Args[ii + 1]
+                : ri >= 0 && ri + 1 < e.Args.Length ? e.Args[ri + 1] : "");
             Shutdown();
             return;
         }
@@ -95,6 +96,7 @@ public partial class App : Application
             Hotkeys = _hotkeys,
             Panels = _panels,
             AddTrayItem = (id, item) => _pluginTrayItems.Add((id, item)),
+            RemoveTrayItems = plugin => _pluginTrayItems.RemoveAll(i => i.Id.StartsWith(plugin + ":", StringComparison.OrdinalIgnoreCase)),
             ShowPopup = ctx => _engine?.ShowExternal(ctx),
             OpenSettings = pluginId => Dispatcher.InvokeAsync(() => ShowSettings(pluginId)),
             RunAction = (id, ctx) => _plugins!.ExecuteAsync(id, ctx),
@@ -102,7 +104,7 @@ public partial class App : Application
         };
         _plugins = new PluginManager(_store, id => new PluginHost(id, services));
         _settingsHub = services.SettingsHub;
-        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
+        _plugins.Load(new IPopBarPlugin[] { new TranslatePlugin(), new AiPlugin(), new OcrPlugin(), new PopBar.Plugins.Builtin.Screenshot.ScreenshotPlugin(), new SendToPlugin(), new QrPlugin(), new CodecPlugin(), new NotesPlugin(), new ScreenTranslatePlugin() });
 
         _engine = new SelectionEngine(_store, _popup, Dispatcher, _plugins, _panels);
         _engine.Start();
@@ -110,7 +112,20 @@ public partial class App : Application
         CreateTray();
 
         Log.Info($"PopBar started, config={ConfigStore.FilePath}");
-        if (_store.IsFirstRun || e.Args.Contains("--settings")) ShowSettings();
+        int install = Array.IndexOf(e.Args, "--install");
+        if (install >= 0 && install + 1 < e.Args.Length) InstallPlugin(e.Args[install + 1]);
+        else if (_store.IsFirstRun || e.Args.Contains("--settings")) ShowSettings();
+    }
+
+    /// <summary>Prefix of a forwarded "--install" request; tray item ids ("plugin:item") never start with it.</summary>
+    private const string InstallCommand = "--install ";
+
+    /// <summary><c>PopBar.exe --install &lt;.zip / .dll / GitHub repository&gt;</c>: the plugins page installs it (after the usual confirmation).</summary>
+    private void InstallPlugin(string source)
+    {
+        Log.Info("--install " + source);
+        ShowSettings();
+        _settings?.InstallPlugin(source);
     }
 
     // ------------------------------------------------------------------ tray
@@ -294,7 +309,7 @@ public partial class App : Application
     {
         if (_settings == null)
         {
-            _settings = new SettingsWindow(_store, _plugins!, _llm!, _settingsHub!, () => _pluginTrayItems.ToList());
+            _settings = new SettingsWindow(_store, _plugins!, _llm!, _settingsHub!, () => _pluginTrayItems.ToList(), _http!);
             _settings.Closed += (_, _) =>
             {
                 _settings = null;
@@ -312,7 +327,7 @@ public partial class App : Application
         _settings.Activate();
     }
 
-    /// <summary>One line per connection: a tray-item id to run (PopBar.exe --run ocr:capture), or empty to open settings.</summary>
+    /// <summary>One line per connection: a tray-item id to run (PopBar.exe --run ocr:capture), "--install &lt;source&gt;", or empty to open settings.</summary>
     private void ListenForCommands()
     {
         var t = new Thread(() =>
@@ -331,6 +346,7 @@ public partial class App : Application
                 Dispatcher.InvokeAsync(() =>
                 {
                     if (cmd.Length == 0) { ShowSettings(); return; }
+                    if (cmd.StartsWith(InstallCommand, StringComparison.Ordinal)) { InstallPlugin(cmd[InstallCommand.Length..].Trim()); return; }
                     Log.Info("--run " + cmd);
                     RunTrayCommand(cmd);
                 });

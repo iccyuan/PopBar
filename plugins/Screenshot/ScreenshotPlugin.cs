@@ -58,6 +58,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
     public void Initialize(IPluginHost host)
     {
         _host = host;
+        ShotTargets.Log = host.Log;
         _cfg = host.Storage.Get<Settings>();
         if (string.Equals(_cfg.CaptureHotkey, LegacyCaptureHotkey, StringComparison.OrdinalIgnoreCase))
         {

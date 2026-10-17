@@ -59,11 +59,15 @@ AI 模型在「设置 → 服务」配置：`anthropic`（官方 SDK）或 `open
 
 - 改动需点保存（Ctrl+S）才生效，取消恢复；主题、按钮文字、按钮数、毛玻璃不透明度即时生效。
 - 「动作」页拖动排序，同插件的动作成组；「插件」页每个插件一张卡片，齿轮展开其设置。
-- 命令行：`--settings` 打开设置，`--run ocr:capture` 触发某个动作（可绑到任意快捷键工具）。
+- 命令行：`--settings` 打开设置，`--run ocr:capture` 触发某个动作（可绑到任意快捷键工具），`--install <插件 .zip / .dll 或 GitHub 仓库地址>` 安装插件。
 
 ## 写一个插件
 
-新建类库引用 `PopBar.Sdk`，实现 `IPopBarPlugin`，DLL 放到 `%AppData%\PopBar\plugins\<目录>\` 后重启。完整示例见 `samples/HelloPlugin`。
+新建类库引用 `PopBar.Sdk`，实现 `IPopBarPlugin`，完整示例见 `samples/HelloPlugin`。
+
+安装：设置 →「插件」→「安装插件」，填 GitHub 仓库地址（安装最新 Release 里的 `.zip` 或 `.dll`），或选本地 `.zip`（插件和依赖）/ `.dll`；也可以 `PopBar.exe --install <路径或仓库地址>`。安装、更新、卸载都即时生效，不用重启（插件程序集从内存加载，文件不被占用）。插件装在 `%AppData%\PopBar\plugins\<目录>\`。
+
+插件决定自己的按钮怎么上操作条：`IPopBarPlugin.Bar`（`BarOptions`）里 `MergeAs` 让多个动作同时出现时合并成一个按钮（如「发送到」「编码」），`ShowByDefault` 决定装好后动作是否默认显示在操作条上；单个动作还可用 `PluginAction.EnabledByDefault` 默认关闭、`PlaceAfter` 指定首次出现的位置。
 
 ```csharp
 public sealed class HelloPlugin : IPopBarPlugin
@@ -103,12 +107,17 @@ public sealed class HelloPlugin : IPopBarPlugin
 ## 分层
 
 ```
-PopBar.Sdk   接口：IPopBarPlugin / IPluginHost / IPanel / ILlmService / IHostUi（IHostDialogs / IHostInputs / IHostVisuals / ILlmUi）/ Ui.Form
-Core         SelectionEngine、TextCapture（UIA → 剪贴板策略链）、LlmService、ThemeManager、InputHook
-Plugins      PluginManager、PluginHost、Builtin/*
-UI           PopupWindow、PanelWindow、FrostedGlass、Icons；SettingsWindow 只管导航与保存，各页在 UI/Settings（每页一个 SettingsPage，自己读写所管字段、自己判断有无改动）
-App          组合根：托盘、单实例、热键
+PopBar.Sdk          插件契约：IPopBarPlugin / IPluginHost / IPanel / ILlmService / IHostUi（IHostDialogs / IHostInputs / IHostVisuals / ILlmUi）/ Ui.Form / Ui.ScreenWindows
+PopBar/             核心程序，不含任何具体插件
+  Core              SelectionEngine、TextCapture（UIA → 剪贴板策略链）、LlmService、ThemeManager、InputHook
+  Plugins           插件宿主：PluginManager（加载 / 热卸载）、PluginHost、PluginInstaller
+  UI                PopupWindow、PanelWindow、FrostedGlass、Icons；SettingsWindow 只管导航与保存，各页在 UI/Settings
+  App               组合根：托盘、单实例、热键、注册内置插件
+plugins/            内置插件，每个一个项目（Translate、Ai、Ocr、Screenshot、SendTo、Qr、Codec、Notes、ScreenTranslate）
+samples/            第三方插件示例
 ```
+
+内置插件和第三方插件走同一套契约：每个插件项目只引用 `PopBar.Sdk`（`plugins/Directory.Build.props`），编译器保证它碰不到核心代码；插件之间也互不引用，要共享能力就用 `host.Services`（如屏幕翻译用 OCR 和翻译插件提供的 `IOcrEngine`、`ITextTranslator`）。主程序只在组合根里把它们作为内置插件注册、随程序一起发布。
 
 扩展点：操作栏按钮用 `IPopBarPlugin`；AI 提供商用 `ILlmProvider`（`host.Llm.RegisterProvider`），兼容 `/chat/completions` 的服务直接用 `new OpenAiCompatibleProvider(options, dialect)`，只在 `IChatCompletionsDialect` 里写与众不同的部分（思考参数、token 上限字段、推理字段）；「服务」页可配置多家服务商并指定默认，`LlmRequest.Provider` 选用其中一家、`Thinking` / `Effort` 留空即跟随该服务的深度思考设置，深度档位由 `ILlmProvider.EffortLevels` 按模型给出；取词方式用 `ITextCaptureStrategy`；插件间能力用 `host.Services.Provide<T>()`。
 

@@ -5,7 +5,6 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
-using PopBar.Plugins.Builtin.Screenshot;
 using PopBar.Sdk;
 using PopBar.Sdk.Ui;
 
@@ -189,7 +188,7 @@ internal sealed class NoteWindow : Window
         Title = "PopBar 便签";
         WindowStartupLocation = WindowStartupLocation.Manual;
         UseLayoutRounding = true;
-        double s = ShotNative.ScaleAt(note.X, note.Y);
+        double s = ScreenWindows.ScaleAt(note.X, note.Y);
         Left = note.X / s - 14; Top = note.Y / s - 14;
         Width = note.Width + 28; Height = note.Height + 28;
 
@@ -231,7 +230,7 @@ internal sealed class NoteWindow : Window
         RenderOptions.SetClearTypeHint(_card, ClearTypeHint.Enabled);
 
         _saveTimer.Tick += (_, _) => { _saveTimer.Stop(); _save(); };
-        SourceInitialized += (_, _) => ShotNative.MakeToolWindow(this);
+        SourceInitialized += (_, _) => ScreenWindows.HideFromAltTab(this);
         LocationChanged += (_, _) => RememberPosition();
         Closed += (_, _) => { if (_saveTimer.IsEnabled) { _saveTimer.Stop(); _save(); } };
     }
@@ -244,11 +243,10 @@ internal sealed class NoteWindow : Window
     private void RememberPosition()
     {
         if (!IsLoaded) return;
-        var h = new WindowInteropHelper(this).Handle;
-        if (h == IntPtr.Zero || !ShotNative.GetWindowRect(h, out var r)) return;
-        double s = ShotNative.ScaleAt(r.L, r.T);
+        if (!ScreenWindows.TryGetBounds(this, out var r)) return;
+        double s = ScreenWindows.ScaleAt(r.X, r.Y);
         int m = (int)Math.Round(14 * s);
-        Note.X = r.L + m; Note.Y = r.T + m;
+        Note.X = r.X + m; Note.Y = r.Y + m;
         _saveTimer.Stop(); _saveTimer.Start();
     }
 

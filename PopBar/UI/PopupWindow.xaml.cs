@@ -50,6 +50,7 @@ public partial class PopupWindow : Window, IPopupPresenter
     public PopupWindow()
     {
         InitializeComponent();
+        Sdk.HostChrome.SetIsChrome(this, true); // window pickers and screen captures skip the bar
         SourceInitialized += OnSourceInitialized;
         ThemeManager.Changed += _ => Dispatcher.InvokeAsync(() => ApplyTheme(ThemeManager.Setting, force: true));
     }

@@ -98,11 +98,11 @@ internal partial class ActionsPage : SettingsPage
         }
     }
 
-    /// <summary>How the group looks on the bar: folded by the plugin itself into one button, or one button per action.</summary>
+    /// <summary>How the group looks on the bar: merged by the plugin into one button, or one button per action.</summary>
     private string GroupNote(ActionGroupRow g)
     {
         var first = g.Members.FirstOrDefault()?.Def;
-        if (first != null && Ctx.Plugins.GroupOf(first) is { } bar) return $"操作条上合并为一个「{bar.Label}」按钮，点击后展开选择";
+        if (first != null && Ctx.Plugins.GroupOf(first) is { } bar) return $"同时出现两个以上时，操作条上合并为一个「{bar.Label}」按钮";
         return "操作条上每个动作各占一个按钮";
     }
 

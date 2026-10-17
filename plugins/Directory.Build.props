@@ -1,0 +1,22 @@
+<Project>
+  <!-- Shared by every built-in plugin. Each is its own assembly and sees only PopBar.Sdk, exactly like a
+       third-party plugin: none of PopBar's own code (Core, UI, Config...) is reachable from here. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <!-- Same target as the app: the OCR plugin needs the Windows 10 SDK projection, and one TFM keeps them uniform. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <RootNamespace>PopBar.Plugins.Builtin</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)..\PopBar.Sdk\PopBar.Sdk.csproj" />
+  </ItemGroup>
+</Project>

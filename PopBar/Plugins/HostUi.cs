@@ -209,9 +209,12 @@ internal sealed class HostUi : IHostUi
         return combo;
     }
 
-    public bool EditDialog(string title, FrameworkElement content, double width = 540)
+    public bool EditDialog(string title, FrameworkElement content, double width = 540) => EditDialog(title, content, width, "保存");
+
+    /// <summary><see cref="EditDialog(string, FrameworkElement, double)"/> with another label on the confirm button.</summary>
+    internal bool EditDialog(string title, FrameworkElement content, double width, string okText)
     {
-        var dlg = new EditDialog(title, content, width) { Owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) };
+        var dlg = new EditDialog(title, content, width, okText) { Owner = Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive) };
         return dlg.ShowDialog() == true;
     }
 

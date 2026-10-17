@@ -7,24 +7,13 @@ namespace PopBar.Core;
 internal static class InputSender
 {
     /// <summary>dwExtraInfo marker on every key we inject, so our own hooks can ignore them.</summary>
-    public static readonly UIntPtr Tag = new(0x504F5042); // "POPB"
+    public static readonly UIntPtr Tag = new(Sdk.HostInput.InjectedTag); // the convention plugins follow too
 
     private static INPUT Key(ushort vk, bool up) => new()
     {
         type = INPUT_KEYBOARD,
         u = new INPUTUNION { ki = new KEYBDINPUT { wVk = vk, dwFlags = up ? KEYEVENTF_KEYUP : 0, dwExtraInfo = Tag } },
     };
-
-    /// <summary>Mouse wheel at the cursor (negative = scroll down), tagged so our hooks ignore it.</summary>
-    public static void SendWheel(int delta)
-    {
-        var input = new INPUT
-        {
-            type = 0, // INPUT_MOUSE
-            u = new INPUTUNION { mi = new MOUSEINPUT { mouseData = unchecked((uint)delta), dwFlags = 0x0800 /* MOUSEEVENTF_WHEEL */, dwExtraInfo = Tag } },
-        };
-        SendInput(1, new[] { input }, Marshal.SizeOf<INPUT>());
-    }
 
     public static void SendCtrlCombo(ushort vk)
     {

@@ -62,6 +62,8 @@ public sealed class SendToPlugin : IPopBarPlugin
 
     public string Id => "sendto";
     public string Icon => "send";
+    /// <summary>Targets merge into one "发送到" button unless the user turned that off in this plugin's settings.</summary>
+    public BarOptions Bar => _cfg.Fold ? new BarOptions { MergeAs = GroupName, MergeIcon = "send" } : BarOptions.Default;
     public string Name => "发送到应用";
     public string Description => "把选中内容粘贴到别的程序、带参数启动程序或打开 URL 协议。";
     public Version Version => new(0, 2, 1);
@@ -97,7 +99,6 @@ public sealed class SendToPlugin : IPopBarPlugin
             // Inside the folded list a target named like the group itself ("发送到") says nothing: name its program.
             Id = t.Id, Label = folded && t.Label == GroupName ? ProgramName(t) : t.Label, Icon = t.Icon,
             Description = Describe(t),
-            Group = _cfg.Fold ? GroupName : null, GroupIcon = "send",
             // Finding, launching and activating the target can take seconds; the engine's worker must not wait for it
             // or the bar stops reacting to selections meanwhile.
             Execute = (ctx, ct) => Task.Run(() => SendSafe(t, ctx), ct), // polls for the window with sleeps: keep it off the caller

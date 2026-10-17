@@ -21,6 +21,8 @@ internal sealed class HostServices
     public required HotkeyManager Hotkeys { get; init; }
     /// <summary>Registers a plugin's tray entry under its full id ("plugin:item").</summary>
     public required Action<string, TrayItem> AddTrayItem { get; init; }
+    /// <summary>Drop every tray entry of a plugin (by plugin id), when it is unloaded.</summary>
+    public required Action<string> RemoveTrayItems { get; init; }
     public required Action<SelectionContext> ShowPopup { get; init; }
     public required Action<string> OpenSettings { get; init; }
     public required Func<string, SelectionContext, Task> RunAction { get; init; }
@@ -89,6 +91,12 @@ internal sealed class ServiceRegistry : IServiceRegistry
     {
         lock (_map) return _map.TryGetValue(typeof(T), out var s) ? (T)s : null;
     }
+
+    /// <summary>Withdraw the implementations that come from an unloaded plugin's assembly.</summary>
+    public void RemoveFrom(System.Reflection.Assembly asm)
+    {
+        lock (_map) foreach (var k in _map.Where(kv => kv.Value.GetType().Assembly == asm).Select(kv => kv.Key).ToList()) _map.Remove(k);
+    }
 }
 
 /// <summary>Pending plugin-settings drafts of the open settings window; Save applies them, Cancel drops them.</summary>
@@ -113,6 +121,9 @@ internal sealed class SettingsHub
         }
         _pending.Clear();
     }
+
+    /// <summary>Forget an unloaded plugin's draft.</summary>
+    public void Remove(string plugin) { _pending.Remove(plugin); _apply.Remove(plugin); Changed?.Invoke(); }
 
     /// <summary>Drop all drafts; the window rebuilds the views (which register again).</summary>
     public void DiscardAll() { _pending.Clear(); _apply.Clear(); }
@@ -282,11 +293,33 @@ internal sealed class PluginHost : IPluginHost
         return hiddenByClass != IntPtr.Zero ? hiddenByClass : hidden;
     }
 
-    public bool RegisterHotkey(string id, string gesture, Action callback) =>
-        _s.Dispatcher.Invoke(() => _s.Hotkeys.Register($"{_pluginId}:{id}", gesture, callback));
+    public bool RegisterHotkey(string id, string gesture, Action callback)
+    {
+        lock (_hotkeys) _hotkeys.Add(id);
+        return _s.Dispatcher.Invoke(() => _s.Hotkeys.Register($"{_pluginId}:{id}", gesture, callback));
+    }
+
+    /// <summary>Hotkey ids this plugin registered, released with it.</summary>
+    private readonly HashSet<string> _hotkeys = new();
+
+    /// <summary>
+    /// Undo what the plugin registered through this host, after it was disposed on unload: hotkeys, tray entries,
+    /// settings drafts, and services / model providers implemented in its assembly. UI thread.
+    /// </summary>
+    public void Release(System.Reflection.Assembly pluginAssembly)
+    {
+        string[] keys;
+        lock (_hotkeys) { keys = _hotkeys.ToArray(); _hotkeys.Clear(); }
+        foreach (var k in keys) _s.Hotkeys.Unregister($"{_pluginId}:{k}");
+        _s.RemoveTrayItems(_pluginId);
+        _s.SettingsHub.Remove(_pluginId);
+        _s.Services.RemoveFrom(pluginAssembly);
+        if (_s.Llm is Core.LlmService llm) llm.RemoveProvidersFrom(pluginAssembly);
+    }
 
     public void UnregisterHotkey(string id)
     {
+        lock (_hotkeys) _hotkeys.Remove(id);
         if (_s.Dispatcher.CheckAccess()) _s.Hotkeys.Unregister($"{_pluginId}:{id}");
         else _s.Dispatcher.InvokeAsync(() => _s.Hotkeys.Unregister($"{_pluginId}:{id}"));
     }

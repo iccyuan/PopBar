@@ -26,6 +26,12 @@ internal sealed class LlmService : ILlmService
 
     public IReadOnlyList<ILlmProvider> Providers { get { lock (_gate) return _providers.ToList(); } }
 
+    /// <summary>Drop the providers an unloaded plugin registered (identified by the assembly they come from).</summary>
+    public void RemoveProvidersFrom(System.Reflection.Assembly asm)
+    {
+        lock (_gate) _providers.RemoveAll(p => p.GetType().Assembly == asm);
+    }
+
     public void RegisterProvider(ILlmProvider provider)
     {
         lock (_gate)

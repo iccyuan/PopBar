@@ -4,7 +4,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using PopBar.Core;
 using PopBar.Sdk;
 
 namespace PopBar.Plugins.Builtin.Screenshot;
@@ -158,7 +157,7 @@ internal sealed class ScrollCapture
             while (!_stop && st.Height < Stitcher.MaxHeight)
             {
                 ShotNative.SetCursorPos(cx, cy);
-                InputSender.SendWheel(-120 * notches);
+                ShotNative.SendWheel(-120 * notches);
                 Thread.Sleep(420);
                 var frame = Stable();
                 int shift = st.Append(frame);

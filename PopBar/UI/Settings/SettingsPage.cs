@@ -11,6 +11,8 @@ internal sealed class SettingsContext
     public required ConfigStore Store { get; init; }
     public required Plugins.PluginManager Plugins { get; init; }
     public required Sdk.ILlmService Llm { get; init; }
+    /// <summary>The host's proxy-aware HttpClient (plugin downloads).</summary>
+    public required System.Net.Http.HttpClient Http { get; init; }
     /// <summary>Plugin settings drafts waiting for Save (edited inside the plugin cards).</summary>
     public required Plugins.SettingsHub PluginDrafts { get; init; }
     /// <summary>Tray entries registered by plugins, offered for the tray left-click action and the tray menu.</summary>

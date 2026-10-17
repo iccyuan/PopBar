@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using PopBar.Sdk;
 using Drawing = System.Drawing;
 
 namespace PopBar.Plugins.Builtin.Screenshot;
@@ -10,6 +11,11 @@ namespace PopBar.Plugins.Builtin.Screenshot;
 /// <summary>Win32 bits the screenshot plugin needs. Kept local so the plugin stays self-contained.</summary>
 internal static class ShotNative
 {
+    [DllImport("user32.dll")] private static extern void mouse_event(uint flags, int dx, int dy, int data, nuint extraInfo);
+
+    /// <summary>Mouse wheel at the cursor (negative = scroll down), tagged so PopBar's hooks ignore it.</summary>
+    public static void SendWheel(int delta) => mouse_event(0x0800 /* MOUSEEVENTF_WHEEL */, 0, 0, delta, HostInput.InjectedTag);
+
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 
     public delegate bool EnumWindowsProc(IntPtr h, IntPtr l);
@@ -30,11 +36,7 @@ internal static class ShotNative
     [DllImport("shcore.dll")] public static extern int GetDpiForMonitor(IntPtr mon, int type, out uint x, out uint y);
 
     /// <summary>DIP→physical scale of the monitor containing a physical point.</summary>
-    public static double ScaleAt(int x, int y)
-    {
-        var mon = MonitorFromPoint(new POINT { X = x, Y = y }, 2);
-        return GetDpiForMonitor(mon, 0, out uint dx, out _) == 0 && dx > 0 ? dx / 96.0 : 1.0;
-    }
+    public static double ScaleAt(int x, int y) => PopBar.Sdk.Ui.ScreenWindows.ScaleAt(x, y);
 
     public static readonly IntPtr HWND_TOPMOST = new(-1);
     public const uint SWP_SHOWWINDOW = 0x40, SWP_NOACTIVATE = 0x10, SWP_NOSIZE = 0x1;
@@ -44,12 +46,7 @@ internal static class ShotNative
     public static Int32Rect VirtualScreen() =>
         new(GetSystemMetrics(76), GetSystemMetrics(77), GetSystemMetrics(78), GetSystemMetrics(79));
 
-    public static void MakeToolWindow(Window w)
-    {
-        var h = new WindowInteropHelper(w).Handle;
-        var ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64();
-        SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(ex | WS_EX_TOOLWINDOW));
-    }
+    public static void MakeToolWindow(Window w) => PopBar.Sdk.Ui.ScreenWindows.HideFromAltTab(w);
 
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
@@ -158,7 +155,7 @@ internal static class ShotNative
     private static bool OwnWindowRect(IntPtr h, ref RECT r)
     {
         if (HwndSource.FromHwnd(h)?.RootVisual is not Window w) return true;
-        if (w is PopBar.UI.PopupWindow || w.Opacity <= 0.01) return false;
+        if (HostChrome.GetIsChrome(w) || w.Opacity <= 0.01) return false;
         if (!w.AllowsTransparency || w.Content is not FrameworkElement c) return true;
         var m = c.Margin;
         if (m.Left <= 0 && m.Top <= 0 && m.Right <= 0 && m.Bottom <= 0) return true;

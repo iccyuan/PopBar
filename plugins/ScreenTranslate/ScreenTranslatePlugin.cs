@@ -8,7 +8,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
-using PopBar.Plugins.Builtin.Screenshot;
 using PopBar.Sdk;
 using PopBar.Sdk.Ui;
 
@@ -230,7 +229,7 @@ internal sealed class TranslateOverlay : Window
         UseLayoutRounding = true;
         WindowStartupLocation = WindowStartupLocation.Manual;
 
-        _s = ShotNative.ScaleAt(rect.X, rect.Y);
+        _s = ScreenWindows.ScaleAt(rect.X, rect.Y);
         double w = rect.Width / _s, h = rect.Height / _s;
         Left = rect.X / _s; Top = rect.Y / _s;
         SizeToContent = SizeToContent.WidthAndHeight;
@@ -245,10 +244,10 @@ internal sealed class TranslateOverlay : Window
         RenderOptions.SetClearTypeHint(_layer, ClearTypeHint.Enabled);
         Content = root;
 
-        SourceInitialized += (_, _) => ShotNative.MakeToolWindow(this);
+        SourceInitialized += (_, _) => ScreenWindows.HideFromAltTab(this);
         Loaded += (_, _) =>
         {
-            ShotNative.SetWindowPos(new WindowInteropHelper(this).Handle, ShotNative.HWND_TOPMOST, rect.X, rect.Y, 0, 0, ShotNative.SWP_NOSIZE | ShotNative.SWP_NOACTIVATE);
+            ScreenWindows.PinTopmostAt(this, rect.X, rect.Y);
             Activate();
         };
         Closed += (_, _) => _cts.Cancel();

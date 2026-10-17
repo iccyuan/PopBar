@@ -14,14 +14,14 @@ internal partial class AboutPage : UserControl
         var ver = typeof(AboutPage).Assembly.GetName().Version;
         AboutVersion.Text = "v" + ver?.ToString(3) + "  ·  .NET " + Environment.Version;
         ConfigPathRun.Text = ConfigStore.FilePath;
-        LogPathRun.Text = System.IO.Path.Combine(ConfigStore.Dir, "popbar.log");
+        LogPathRun.Text = Log.FilePath;
     }
 
     private void OpenConfigDir_Click(object sender, RoutedEventArgs e) =>
         Open("explorer.exe", $"/select,\"{ConfigStore.FilePath}\"", "open config dir");
 
     private void OpenLog_Click(object sender, RoutedEventArgs e) =>
-        Open(System.IO.Path.Combine(ConfigStore.Dir, "popbar.log"), null, "open log");
+        Open(Log.FilePath, null, "open log");
 
     private void OpenRepo_Click(object sender, RoutedEventArgs e) =>
         Open("https://github.com/iccyuan/PopBar", null, "open repo");

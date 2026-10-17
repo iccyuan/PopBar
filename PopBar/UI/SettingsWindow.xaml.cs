@@ -20,7 +20,8 @@ public partial class SettingsWindow : Window
     /// <summary>The config the pages last loaded or saved: the "before" of the three-way merge.</summary>
     private AppConfig _loaded = new();
 
-    internal SettingsWindow(ConfigStore store, Plugins.PluginManager plugins, Sdk.ILlmService llm, Plugins.SettingsHub pluginDrafts, Func<List<(string Id, Sdk.TrayItem Item)>> trayItems)
+    internal SettingsWindow(ConfigStore store, Plugins.PluginManager plugins, Sdk.ILlmService llm, Plugins.SettingsHub pluginDrafts,
+        Func<List<(string Id, Sdk.TrayItem Item)>> trayItems, System.Net.Http.HttpClient http)
     {
         _store = store;
         _pluginDrafts = pluginDrafts;
@@ -29,7 +30,7 @@ public partial class SettingsWindow : Window
 
         var ctx = new SettingsContext
         {
-            Store = store, Plugins = plugins, Llm = llm, PluginDrafts = pluginDrafts, TrayItems = trayItems, Owner = this,
+            Store = store, Plugins = plugins, Llm = llm, PluginDrafts = pluginDrafts, TrayItems = trayItems, Owner = this, Http = http,
             Status = text => StatusText.Text = text,
             ShowPlugin = ShowPluginsPage,
         };
@@ -164,6 +165,13 @@ public partial class SettingsWindow : Window
         PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelServices.Visibility = NavServices.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Install a plugin from a .zip / .dll path or a GitHub repository (asks for confirmation first).</summary>
+    public void InstallPlugin(string source)
+    {
+        NavPlugins.IsChecked = true;
+        PanelPlugins.InstallFrom(source);
     }
 
     public void ShowPluginsPage(string? pluginId = null)
