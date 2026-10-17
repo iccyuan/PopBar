@@ -135,10 +135,10 @@ internal partial class PluginsPage : SettingsPage
 
     private void Install_Click(object sender, RoutedEventArgs e)
     {
-        ShowAddMenu(InstallButton, new (string, string, string?, Action)[]
+        ShowAddMenu(InstallButton, new (string?, string, Action)[]
         {
-            ("github", "从 GitHub 仓库安装…", "下载仓库最新发布（Release）里的 .zip 或 .dll", InstallFromGitHub),
-            ("folder-open", "从本地文件安装…", "选一个插件 .zip（含依赖）或单个 .dll", InstallFromFile),
+            (null, "从GitHub安装", InstallFromGitHub),
+            (null, "从本地文件安装", InstallFromFile),
         });
     }
 

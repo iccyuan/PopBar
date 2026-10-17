@@ -22,6 +22,8 @@ internal sealed class LlmService : ILlmService
         _store = store;
         _http = http;
         foreach (var p in BuiltinProviders.Create()) RegisterProvider(p);
+        Catalog = new ModelCatalog(http, System.IO.Path.Combine(ConfigStore.Dir, "model-catalog.json"));
+        _ = Task.Run(() => Catalog.EnsureFreshAsync()); // at most daily, in the background
     }
 
     public IReadOnlyList<ILlmProvider> Providers { get { lock (_gate) return _providers.ToList(); } }
@@ -106,6 +108,25 @@ internal sealed class LlmService : ILlmService
         if (p == null) return Array.Empty<string>();
         try { return p.EffortLevels(Resolve(providerId, model).Model); }
         catch (Exception ex) { Log.Warn($"effort levels of {p.Id}: {ex.Message}"); return Array.Empty<string>(); }
+    }
+
+    /// <summary>OpenRouter's model catalog, the one source of per-model features.</summary>
+    public ModelCatalog Catalog { get; }
+
+    public LlmCapabilities CapabilitiesOf(string? providerId, string? model)
+    {
+        var (_, _, p) = Service(providerId);
+        return p == null ? new(LlmFeatures.None, LlmFeatureSource.Unknown) : CapabilitiesOf(p, Resolve(providerId, model).Model);
+    }
+
+    /// <summary>A provider's features plus what the catalog lists for <paramref name="model"/> (the settings page passes its unsaved pick).</summary>
+    public LlmCapabilities CapabilitiesOf(ILlmProvider p, string model) =>
+        Catalog.Lookup(model) is { } f ? new(p.Features | f, LlmFeatureSource.Catalog) : new(p.Features, LlmFeatureSource.Unknown);
+
+    public async Task<LlmCapabilities> RefreshCapabilitiesAsync(string? providerId, string? model, CancellationToken ct = default)
+    {
+        await Catalog.EnsureFreshAsync(ct);
+        return CapabilitiesOf(providerId, model);
     }
 
     public async IAsyncEnumerable<string> StreamAsync(LlmRequest request, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)

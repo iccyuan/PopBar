@@ -765,6 +765,8 @@
     </Style>
     <!-- ===== context menu (simple items, no submenus): frosted glass, see ui:Frost ===== -->
     <Style TargetType="ContextMenu">
+        <!-- the card's minimum width (the template passes it on); a menu sized to its items sets 0 -->
+        <Setter Property="MinWidth" Value="176"/>
         <Setter Property="Background" Value="{DynamicResource PopupTintBrush}"/>
         <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
         <Setter Property="FontSize" Value="13"/>
@@ -783,7 +785,7 @@
                         </Border>
                         <!-- blurred screenshot of what is underneath, placed once the menu knows where it landed -->
                         <Border CornerRadius="12" ui:Frost.IsGlass="True"/>
-                        <Border CornerRadius="12" Background="{TemplateBinding Background}" Padding="4" MinWidth="176" RenderOptions.ClearTypeHint="Enabled">
+                        <Border CornerRadius="12" Background="{TemplateBinding Background}" Padding="4" MinWidth="{TemplateBinding MinWidth}" RenderOptions.ClearTypeHint="Enabled">
                             <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle"/>
                         </Border>
                     </Grid>
@@ -827,29 +829,24 @@
             </Setter.Value>
         </Setter>
     </Style>
-    <!-- a pick-one-to-add menu item (see SettingsPage.ShowAddMenu): icon tile, title, and the Tag as a muted line under it -->
+    <!-- a pick-one-to-add menu item (see SettingsPage.ShowAddMenu): looks like a ComboBox list item - same padding,
+         corners, font and hover - with the icon in front; what it does is in its tooltip -->
     <Style x:Key="RichMenuItem" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}"/>
+        <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="MenuItem">
-                    <Border x:Name="Bd" Background="Transparent" CornerRadius="9" Padding="8,7,14,7">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Border x:Name="Tile" Width="32" Height="32" CornerRadius="9" Background="{DynamicResource AccentSoftBrush}" VerticalAlignment="Top" Margin="0,0,12,0">
-                                <ContentPresenter ContentSource="Icon" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center" MaxWidth="260">
-                                <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" TextElement.FontSize="13.5"/>
-                                <TextBlock x:Name="Detail" Text="{TemplateBinding Tag}" Foreground="{DynamicResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                            </StackPanel>
-                        </Grid>
+                    <Border x:Name="Bd" Background="Transparent" CornerRadius="8" Padding="8,7,14,7">
+                        <StackPanel Orientation="Horizontal">
+                            <ContentPresenter x:Name="IconSlot" ContentSource="Icon" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </StackPanel>
                     </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="Tag" Value="{x:Null}">
-                            <Setter TargetName="Detail" Property="Visibility" Value="Collapsed"/>
+                        <Trigger Property="Icon" Value="{x:Null}">
+                            <Setter TargetName="IconSlot" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                         <Trigger Property="IsHighlighted" Value="True">
                             <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PopupHoverBrush}"/>

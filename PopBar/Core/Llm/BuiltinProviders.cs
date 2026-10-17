@@ -10,6 +10,8 @@ internal static class LlmProviderIds
     public const string OpenAi = "openai";
     public const string Ollama = "ollama";
     public const string DeepSeek = "deepseek";
+    public const string OpenRouter = "openrouter";
+    public const string Grok = "xai";
 }
 
 /// <summary>The OpenAI-compatible services PopBar ships with; each is the shared protocol plus its dialect.</summary>
@@ -26,13 +28,23 @@ internal static class BuiltinProviders
         new OpenAiCompatibleProvider(new()
         {
             Id = LlmProviderIds.Ollama, Name = "Ollama", Logo = "ollama", DefaultBaseUrl = "http://localhost:11434/v1", DefaultModel = "qwen2.5",
-            Hint = "本机 Ollama，无需密钥；模型名用「获取模型」拉取",
+            Hint = "本机 Ollama 留空地址、无需密钥；在线（Ollama Cloud）填 https://ollama.com/v1 和 API Key。模型名用「获取模型」拉取",
         }, new OllamaDialect()),
         new OpenAiCompatibleProvider(new()
         {
             Id = LlmProviderIds.DeepSeek, Name = "DeepSeek", Logo = "deepseek", DefaultBaseUrl = "https://api.deepseek.com/v1", DefaultModel = "deepseek-flash",
             RequiresApiKey = true, Hint = "需要 DeepSeek API Key",
         }, new DeepSeekDialect()),
+        new OpenAiCompatibleProvider(new()
+        {
+            Id = LlmProviderIds.OpenRouter, Name = "OpenRouter", Logo = "openrouter", DefaultBaseUrl = "https://openrouter.ai/api/v1", DefaultModel = "openai/gpt-4o-mini",
+            RequiresApiKey = true, Hint = "需要 OpenRouter API Key；模型名形如 anthropic/claude-sonnet-4，用「获取模型」拉取",
+        }, new OpenRouterDialect()),
+        new OpenAiCompatibleProvider(new()
+        {
+            Id = LlmProviderIds.Grok, Name = "Grok", Logo = "grok", DefaultBaseUrl = "https://api.x.ai/v1", DefaultModel = "grok-4",
+            RequiresApiKey = true, Hint = "需要 xAI API Key",
+        }, new GrokDialect()),
     ];
 }
 
@@ -81,4 +93,33 @@ internal sealed class DeepSeekDialect : ChatCompletionsDialect
 
     public override IReadOnlyList<string> EffortLevels(string model) => Levels;
     protected override string Effort(LlmRequest request) => LlmEffort.Nearest(request.EffortLevel, Levels);
+}
+
+/// <summary>
+/// openrouter.ai/docs/use-cases/reasoning-tokens: one "reasoning" object for every upstream model - effort low / medium /
+/// high, or enabled = false - and the reasoning streamed back in delta.reasoning (read by the base dialect).
+/// </summary>
+internal sealed class OpenRouterDialect : ChatCompletionsDialect
+{
+    public override void AddReasoning(IDictionary<string, object> body, LlmRequest request) =>
+        body["reasoning"] = request.ThinkingOn ? new { effort = Effort(request) } : new { enabled = false };
+}
+
+/// <summary>
+/// docs.x.ai: only the grok-3-mini family takes reasoning_effort, and only low / high; Grok 4 always reasons and rejects
+/// the field. Reasoning comes back in reasoning_content (read by the base dialect).
+/// </summary>
+internal sealed class GrokDialect : ChatCompletionsDialect
+{
+    private static readonly IReadOnlyList<string> Levels = [LlmEffort.Low, LlmEffort.High];
+
+    private static bool TakesEffort(string model) => model.StartsWith("grok-3-mini", StringComparison.OrdinalIgnoreCase);
+
+    public override IReadOnlyList<string> EffortLevels(string model) => TakesEffort(model) ? Levels : [];
+
+    public override void AddReasoning(IDictionary<string, object> body, LlmRequest request)
+    {
+        if (request.ThinkingOn && body.TryGetValue("model", out var m) && m is string model && TakesEffort(model))
+            body[ChatCompletionsFields.ReasoningEffort] = LlmEffort.Nearest(request.EffortLevel, Levels);
+    }
 }

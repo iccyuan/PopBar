@@ -7,11 +7,11 @@
             <Button x:Name="AddLlmButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Content="＋ 添加服务商" VerticalAlignment="Center" Click="AddLlm_Click"/>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Style="{StaticResource H2}" Text="AI 模型" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                <ui:InfoTip Text="可以同时配置多家服务商，各家的地址、密钥、模型分别保存。AI 助手、翻译等插件默认用标了「默认」的那家，也可以在各自设置里另选。OpenAI：任何兼容 /chat/completions 的接口都行"/>
+                <ui:InfoTip Text="可以同时配置多家服务商，各家的地址、密钥、模型分别保存。插件默认用标了「默认」的那家，也可以在各自设置里另选。OpenAI：任何兼容 /chat/completions 的接口都行"/>
             </StackPanel>
         </DockPanel>
-        <!-- one row per configured service (built in code); click a row to edit it in the card below -->
-        <StackPanel x:Name="LlmServiceList"/>
+        <!-- one chip per configured service (built in code); click a chip to edit it in the card below -->
+        <WrapPanel x:Name="LlmServiceList"/>
         <TextBlock x:Name="LlmEmptyHint" Style="{StaticResource Muted}" Margin="4,0,0,8" TextWrapping="Wrap"
                    Text="还没有配置服务商。点「添加服务商」选一家，填好地址、密钥和模型；可以添加多家，再指定一家为默认。"/>
         <StackPanel x:Name="LlmFormHeader" Orientation="Horizontal" Margin="4,10,0,8">
@@ -27,7 +27,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
                         <TextBlock Text="设为默认" VerticalAlignment="Center"/>
-                        <ui:InfoTip Text="AI 助手、翻译等插件没有另选服务商时用这一家"/>
+                        <ui:InfoTip Text="插件没有另选服务商时用这一家"/>
                     </StackPanel>
                     <CheckBox x:Name="LlmDefaultSw" Grid.Column="1" Style="{StaticResource Switch}" VerticalAlignment="Center" Checked="LlmDefault_Changed" Unchecked="LlmDefault_Changed"/>
                 </Grid>
@@ -68,7 +68,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
-                        <TextBlock Text="默认模型" VerticalAlignment="Center"/>
+                        <TextBlock Text="模型" VerticalAlignment="Center"/>
                         <ui:InfoTip Text="各插件可在自己的设置里另选模型"/>
                         </StackPanel>
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -88,7 +88,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
                         <TextBlock Text="深度思考" VerticalAlignment="Center"/>
-                        <ui:InfoTip Text="先推理再回答，更准但更慢、更费 token；AI 助手的思考过程显示在答案上方，可收起。翻译总是不思考"/>
+                        <ui:InfoTip Text="让模型先推理再回答：更准，但更慢、更费 token。打开后可选思考深度。这是这家服务商的默认设置，插件也可以按需另行指定。"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <ComboBox x:Name="LlmEffortCombo" Width="150" Margin="0,0,14,0" VerticalAlignment="Center" ToolTip="思考深度"

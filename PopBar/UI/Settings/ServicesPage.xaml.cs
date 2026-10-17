@@ -99,7 +99,7 @@ internal partial class ServicesPage : SettingsPage
         RebuildList();
     }
 
-    /// <summary>The list of added services: logo, name, model · host, a "默认" mark, edit / delete; the selected one is outlined.</summary>
+    /// <summary>The added services as chips: logo, name, a "默认" mark, a warning while incomplete, remove; the selected one is outlined.</summary>
     private void RebuildList()
     {
         LlmServiceList.Children.Clear();
@@ -109,68 +109,56 @@ internal partial class ServicesPage : SettingsPage
         AddLlmButton.IsEnabled = Ctx.Llm.Providers.Any(p => !_drafts.ContainsKey(p.Id));
         AddLlmButton.ToolTip = AddLlmButton.IsEnabled ? "添加一家模型服务商，各家的地址、密钥、模型分别保存" : "所有服务商都已添加";
         ToolTipService.SetShowOnDisabled(AddLlmButton, true);
-        foreach (var id in ids) LlmServiceList.Children.Add(BuildRow(id, _drafts[id]));
+        foreach (var id in ids) LlmServiceList.Children.Add(BuildChip(id, _drafts[id]));
     }
 
-    private Border BuildRow(string id, LlmConfig d)
+    private Border BuildChip(string id, LlmConfig d)
     {
         var p = ProviderOf(id);
         bool selected = string.Equals(id, _shown, StringComparison.OrdinalIgnoreCase);
-        var g = new Grid();
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var box = new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 12, 0), VerticalAlignment = VerticalAlignment.Center, Background = Res<Brush>("AccentSoftBrush") };
-        box.Child = new IconImage { Icon = ProviderItem.LogoOf(p), Size = 16, Brush = Res<Brush>("TextBrush"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        g.Children.Add(box);
-
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        var title = new StackPanel { Orientation = Orientation.Horizontal };
-        title.Children.Add(new TextBlock { Text = p?.Name ?? id, FontSize = 14, VerticalAlignment = VerticalAlignment.Center });
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new IconImage { Icon = ProviderItem.LogoOf(p), Size = 16, Brush = Res<Brush>("TextBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        row.Children.Add(new TextBlock { Text = p?.Name ?? id, FontSize = 13.5, VerticalAlignment = VerticalAlignment.Center });
         if (IsDefault(id))
         {
-            var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 1, 7, 2), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Background = Res<Brush>("AccentSoftBrush"), ToolTip = "插件没有另选服务商时用这一家" };
+            var pill = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(6, 0, 6, 1), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, Background = Res<Brush>("AccentSoftBrush"), ToolTip = "插件没有另选服务商时用这一家" };
             pill.Child = new TextBlock { Text = "默认", FontSize = 11, Foreground = Res<Brush>("AccentHoverBrush") };
-            title.Children.Add(pill);
+            row.Children.Add(pill);
         }
-        text.Children.Add(title);
-        // Model and host at a glance, or what is still missing: the row should say whether this one can be used yet.
+        // Model and host, or what is still missing, on hover; an incomplete service also shows a warning mark.
         string model = string.IsNullOrWhiteSpace(d.Model) ? (p?.DefaultModel ?? "") : d.Model;
         string host = string.IsNullOrWhiteSpace(d.BaseUrl) ? (p?.DefaultBaseUrl ?? (p?.RequiresBaseUrl == false ? "官方接口" : "")) : d.BaseUrl;
         bool missingKey = p?.RequiresApiKey == true && string.IsNullOrWhiteSpace(d.ApiKey) && string.IsNullOrWhiteSpace(d.BaseUrl);
         bool missingHost = host.Length == 0;
-        string sub = p == null ? "提供这家服务的插件未加载"
+        string summary = p == null ? "提供这家服务的插件未加载"
             : missingHost ? "还没有填接口地址"
             : missingKey ? "还没有填 API Key"
             : (model.Length > 0 ? model : "未选模型") + " · " + host;
-        var subText = new TextBlock { Text = sub, Style = Res<Style>("Muted"), TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 1, 0, 0) };
-        if (p != null && (missingKey || missingHost)) subText.Foreground = Res<Brush>("DangerBrush");
-        text.Children.Add(subText);
-        Grid.SetColumn(text, 1);
-        g.Children.Add(text);
+        if (p == null || missingKey || missingHost)
+            row.Children.Add(new IconImage { Icon = "circle-alert", Size = 14, Brush = Res<Brush>("DangerBrush"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+        var del = new Button
+        {
+            Style = Res<Style>("IconButton"), Width = 22, Height = 22, Padding = new Thickness(0), MinWidth = 0, MinHeight = 0, Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            Content = new IconImage { Icon = "x", Size = 12, Brush = Res<Brush>("MutedBrush") }, ToolTip = "移除这家服务商（地址、密钥一起清掉；保存后生效）",
+        };
+        del.Click += (_, e) => { e.Handled = true; Remove(id); };
+        row.Children.Add(del);
 
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
-        var edit = new Button { Style = Res<Style>("IconButton"), Content = new IconImage { Icon = "pencil", Size = 14, Brush = Res<Brush>(selected ? "AccentHoverBrush" : "MutedBrush") }, ToolTip = "编辑" };
-        edit.Click += (_, _) => Show(id);
-        buttons.Children.Add(edit);
-        var del = new Button { Style = Res<Style>("IconButton"), Content = new IconImage { Icon = "trash", Size = 14, Brush = Res<Brush>("DangerBrush") }, ToolTip = "移除这家服务商（地址、密钥一起清掉；保存后生效）" };
-        del.Click += (_, _) => Remove(id);
-        buttons.Children.Add(del);
-        Grid.SetColumn(buttons, 2);
-        g.Children.Add(buttons);
-
-        var row = new Border { Child = g, Style = Res<Style>("Card"), Padding = new Thickness(14, 10, 10, 10), Margin = new Thickness(0, 0, 0, 8), Cursor = System.Windows.Input.Cursors.Hand };
-        if (selected) { row.BorderBrush = Res<Brush>("AccentBrush"); row.BorderThickness = new Thickness(1.5); }
-        row.MouseLeftButtonUp += (_, _) => Show(id);
-        return row;
+        var chip = new Border
+        {
+            Child = row, Style = Res<Style>("Card"), CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 5, 5, 5), Margin = new Thickness(0, 0, 8, 8),
+            Cursor = System.Windows.Input.Cursors.Hand, ToolTip = summary,
+        };
+        if (selected) { chip.BorderBrush = Res<Brush>("AccentBrush"); chip.BorderThickness = new Thickness(1.5); }
+        chip.MouseLeftButtonUp += (_, _) => Show(id);
+        return chip;
     }
 
     /// <summary>"＋ 添加服务商": the providers not added yet, as a menu under the button; picking one adds an empty draft and opens its form.</summary>
     private void AddLlm_Click(object sender, RoutedEventArgs e)
     {
         ShowAddMenu(AddLlmButton, Ctx.Llm.Providers.Where(p => !_drafts.ContainsKey(p.Id))
-            .Select(p => (ProviderItem.LogoOf(p), p.Name, p.Hint, (Action)(() => Add(p.Id)))));
+            .Select(p => ((string?)ProviderItem.LogoOf(p), p.Name, (Action)(() => Add(p.Id)))));
     }
 
     private void Add(string id)
@@ -201,8 +189,9 @@ internal partial class ServicesPage : SettingsPage
     }
 
     /// <summary>
-    /// Chips under the model: how answers come back (declared by the selected protocol's provider). Connection-level
-    /// features are not chips: listing models enables the "获取模型" button, a system prompt is supported everywhere.
+    /// Chips under the model: how answers come back (declared by the selected protocol's provider) and what the model in
+    /// the box can take or give - images, speech - rebuilt as it changes. Connection-level features are not chips:
+    /// listing models enables the "获取模型" button, a system prompt is supported everywhere.
     /// </summary>
     private void BuildFeatures()
     {
@@ -213,26 +202,49 @@ internal partial class ServicesPage : SettingsPage
         FetchModelsButton.IsEnabled = canList;
         FetchModelsButton.ToolTip = canList ? "从接口拉取可用模型" : "此协议不支持拉取模型列表，请手动填写";
         ToolTipService.SetShowOnDisabled(FetchModelsButton, true);
-        foreach (var (flag, text, icon, tip) in new (Sdk.LlmFeatures, string, string, string)[]
+        // Only what is supported shows: the backend's features, the depth when this model takes levels, and what OpenRouter's
+        // catalog lists for the model in the box (images, speech) - a model it does not know gets no such chip.
+        // On a pick from the list SelectionChanged comes before Text follows.
+        var model = ((LlmModelBox.SelectedItem as string) ?? LlmModelBox.Text ?? "").Trim();
+        if (model.Length == 0) model = provider.DefaultModel ?? "";
+        if (Ctx.Llm is not Core.LlmService llm) return;
+        var features = llm.CapabilitiesOf(provider, model).Features;
+        bool depth = false;
+        try { depth = provider.EffortLevels(model).Count > 0; } catch { /* a faulty provider: no depth chip */ }
+        if (!llm.Catalog.IsLoaded) LoadCatalogThenRebuild(llm);
+        foreach (var (on, text, icon, tip) in new (bool, string, string, string)[]
         {
-            (Sdk.LlmFeatures.Streaming, "流式输出", "zap", "回答边生成边显示"),
-            (Sdk.LlmFeatures.Thinking, "思考过程", "sparkles", "可开关思考，并显示模型的推理过程"),
-            (Sdk.LlmFeatures.Effort, "思考深度", "sliders", "可调思考深度，档位由服务商 / 模型决定"),
+            (features.HasFlag(Sdk.LlmFeatures.Streaming), "流式输出", "zap", "回答边生成边显示"),
+            (features.HasFlag(Sdk.LlmFeatures.Thinking), "思考过程", "sparkles", "可开关思考，并显示模型的推理过程"),
+            (features.HasFlag(Sdk.LlmFeatures.Effort) && depth, "思考深度", "sliders", "可调思考深度，档位由服务商 / 模型决定"),
+            (features.HasFlag(Sdk.LlmFeatures.Vision), "图片识别", "image", "能看懂图片（据 OpenRouter 模型目录）"),
+            (features.HasFlag(Sdk.LlmFeatures.Speech), "语音合成", "volume-2", "能输出语音（据 OpenRouter 模型目录）"),
         })
         {
-            bool on = provider.Features.HasFlag(flag);
+            if (!on) continue;
             var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var brush = Res<Brush>(on ? "AccentHoverBrush" : "MutedBrush");
-            row.Children.Add(new IconImage { Icon = on ? icon : "x", Size = 13, Brush = brush, VerticalAlignment = VerticalAlignment.Center });
+            var brush = Res<Brush>("AccentHoverBrush");
+            row.Children.Add(new IconImage { Icon = icon, Size = 13, Brush = brush, VerticalAlignment = VerticalAlignment.Center });
             row.Children.Add(new TextBlock { Text = text, FontSize = 12.5, Foreground = brush, Margin = new Thickness(5, 0, 0, 1), VerticalAlignment = VerticalAlignment.Center });
             LlmFeatureChips.Children.Add(new Border
             {
                 CornerRadius = new CornerRadius(10), Padding = new Thickness(9, 3, 10, 3), Margin = new Thickness(0, 0, 6, 6),
-                Background = Res<Brush>(on ? "AccentSoftBrush" : "HoverBrush"), Child = row,
-                ToolTip = on ? tip : "此协议不支持：" + tip,
+                Background = Res<Brush>("AccentSoftBrush"), Child = row, ToolTip = tip,
             });
         }
         UpdateThinkingRow();
+    }
+
+    private bool _catalogLoading;
+
+    /// <summary>First run (no cached catalog yet): fetch OpenRouter's catalog once, then redraw the chips with it.</summary>
+    private async void LoadCatalogThenRebuild(Core.LlmService llm)
+    {
+        if (_catalogLoading) return;
+        _catalogLoading = true;
+        try { await llm.Catalog.EnsureFreshAsync(); }
+        finally { _catalogLoading = false; }
+        if (llm.Catalog.IsLoaded) BuildFeatures();
     }
 
     /// <summary>
@@ -278,7 +290,8 @@ internal partial class ServicesPage : SettingsPage
     {
         if (Loading || Ctx == null) return; // also fired while InitializeComponent builds the form
         // The effort levels may differ per model, and only show while thinking is on.
-        if (sender == LlmThinkingSw || sender == LlmModelBox || (sender is TextBox tb && tb.TemplatedParent == LlmModelBox)) UpdateThinkingRow();
+        if (sender == LlmModelBox || (sender is TextBox tb && tb.TemplatedParent == LlmModelBox)) BuildFeatures(); // per-model chips and depth levels
+        else if (sender == LlmThinkingSw) UpdateThinkingRow();
         RaiseEdited();
     }
 

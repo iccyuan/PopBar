@@ -106,16 +106,28 @@ internal abstract class SettingsPage : UserControl
     private const double MenuGap = 4;
 
     /// <summary>
-    /// The drop-down under a "＋ 添加…" button: one <c>RichMenuItem</c>-styled entry per choice (icon tile, title,
-    /// a line of detail), its right edge lined up with the button's, which sits at the right of the page.
+    /// The drop-down under a "＋ 添加…" button, styled like the ComboBox lists: one <c>RichMenuItem</c> per choice (an
+    /// optional icon and the title), frosted, its right edge lined up with the button's at the right of the page.
     /// </summary>
-    protected void ShowAddMenu(FrameworkElement anchor, IEnumerable<(string Icon, string Title, string? Detail, Action OnClick)> items)
+    protected void ShowAddMenu(FrameworkElement anchor, IEnumerable<(string? Icon, string Title, Action OnClick)> items)
     {
-        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, MinWidth = 260 };
-        var style = Res<Style>("RichMenuItem");
-        foreach (var (icon, title, detail, onClick) in items)
+        // as wide as its items, no wider
+        var menu = new ContextMenu
         {
-            var item = new MenuItem { Style = style, Header = title, Tag = string.IsNullOrWhiteSpace(detail) ? null : detail, Icon = new IconImage { Icon = icon, Size = 16, Brush = Res<Brush>("AccentHoverBrush") } };
+            PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            MinWidth = 0,
+            // a context menu inherits fonts from its placement target, here a bold accent button: back to the lists' weight
+            FontWeight = FontWeights.Normal,
+            // and it is not in the window's tree: take the window's pixel snapping and text rendering like the ComboBox lists
+            UseLayoutRounding = anchor.UseLayoutRounding,
+        };
+        TextOptions.SetTextFormattingMode(menu, TextOptions.GetTextFormattingMode(anchor));
+        TextOptions.SetTextRenderingMode(menu, TextOptions.GetTextRenderingMode(anchor));
+        TextOptions.SetTextHintingMode(menu, TextOptions.GetTextHintingMode(anchor));
+        var style = Res<Style>("RichMenuItem");
+        foreach (var (icon, title, onClick) in items)
+        {
+            var item = new MenuItem { Style = style, Header = title, Icon = icon == null ? null : new IconImage { Icon = icon, Size = 16, Brush = Res<Brush>("TextBrush") } };
             item.Click += (_, _) => onClick();
             menu.Items.Add(item);
         }

@@ -39,6 +39,15 @@ public interface ILlmService
     /// </summary>
     IReadOnlyList<string> EffortLevels(string? providerId, string? model);
 
+    /// <summary>
+    /// What a service can do with a model (null = that service's default model): the backend's features plus the
+    /// model's own (<see cref="LlmFeatures.Vision"/>, <see cref="LlmFeatures.Speech"/>) as OpenRouter's model catalog
+    /// (cached locally) lists them; a model it does not list adds nothing (<see cref="LlmFeatureSource.Unknown"/>). No network.
+    /// </summary>
+    LlmCapabilities CapabilitiesOf(string? providerId, string? model);
+    /// <summary><see cref="CapabilitiesOf"/> after making sure the OpenRouter catalog is loaded (fetched if missing or a day old).</summary>
+    Task<LlmCapabilities> RefreshCapabilitiesAsync(string? providerId, string? model, CancellationToken ct = default);
+
     /// <summary>Stream the assistant reply as text chunks (the answer only; thinking is dropped).</summary>
     IAsyncEnumerable<string> StreamAsync(LlmRequest request, CancellationToken ct = default);
 
@@ -126,6 +135,68 @@ public enum LlmFeatures
     ModelList = 8,
     /// <summary>Honours <see cref="LlmRequest.Thinking"/> and streams the reasoning as thinking chunks.</summary>
     Thinking = 16,
+    /// <summary>The model understands images (vision). Per model, from OpenRouter's catalog: see <see cref="ILlmService.CapabilitiesOf"/>.</summary>
+    Vision = 32,
+    /// <summary>The model speaks: text-to-speech / audio output. Per model, from OpenRouter's catalog: see <see cref="ILlmService.CapabilitiesOf"/>.</summary>
+    Speech = 64,
+}
+
+/// <summary>Whether the model's part of <see cref="LlmCapabilities"/> is known.</summary>
+public enum LlmFeatureSource
+{
+    /// <summary>OpenRouter's catalog does not list the model (or is not loaded yet): its own features are unknown, none are claimed.</summary>
+    Unknown,
+    /// <summary>OpenRouter's model catalog lists the model with its input / output modalities.</summary>
+    Catalog,
+}
+
+/// <summary>What a service can do with a model, and whether the model's own features are known.</summary>
+public readonly record struct LlmCapabilities(LlmFeatures Features, LlmFeatureSource Source);
+
+/// <summary>Reading what model lists say about models (how PopBar reads OpenRouter's catalog).</summary>
+public static class ModelCapabilities
+{
+    /// <summary>
+    /// What one entry of a <c>/models</c> list says about the model (how the OpenRouter catalog is read), in the shapes gateways use: OpenRouter's
+    /// <c>architecture.input_modalities</c> / <c>output_modalities</c>, top-level <c>input_modalities</c> /
+    /// <c>output_modalities</c> / <c>modalities</c>, or <c>capabilities</c> as a list or an object of flags. Null when the
+    /// entry says nothing about it.
+    /// </summary>
+    public static LlmFeatures? FromModelEntry(System.Text.Json.JsonElement entry)
+    {
+        if (entry.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+        bool any = false;
+        var f = LlmFeatures.None;
+        void Inputs(System.Text.Json.JsonElement list)
+        {
+            if (list.ValueKind != System.Text.Json.JsonValueKind.Array) return;
+            any = true;
+            foreach (var v in list.EnumerateArray())
+                if (v.ValueKind == System.Text.Json.JsonValueKind.String && v.GetString() is "image" or "images" or "vision") f |= LlmFeatures.Vision;
+        }
+        void Outputs(System.Text.Json.JsonElement list)
+        {
+            if (list.ValueKind != System.Text.Json.JsonValueKind.Array) return;
+            any = true;
+            foreach (var v in list.EnumerateArray())
+                if (v.ValueKind == System.Text.Json.JsonValueKind.String && v.GetString() is "audio" or "speech") f |= LlmFeatures.Speech;
+        }
+        var scope = entry.TryGetProperty("architecture", out var arch) && arch.ValueKind == System.Text.Json.JsonValueKind.Object ? arch : entry;
+        if (scope.TryGetProperty("input_modalities", out var input)) Inputs(input);
+        if (scope.TryGetProperty("output_modalities", out var output)) Outputs(output);
+        if (!any && entry.TryGetProperty("modalities", out var both)) Inputs(both);
+        if (entry.TryGetProperty("capabilities", out var caps))
+        {
+            if (caps.ValueKind == System.Text.Json.JsonValueKind.Array) Inputs(caps);
+            else if (caps.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                any = true;
+                if (caps.TryGetProperty("vision", out var v) && v.ValueKind == System.Text.Json.JsonValueKind.True) f |= LlmFeatures.Vision;
+                if ((caps.TryGetProperty("tts", out var t) || caps.TryGetProperty("audio_output", out t)) && t.ValueKind == System.Text.Json.JsonValueKind.True) f |= LlmFeatures.Speech;
+            }
+        }
+        return any ? f : null;
+    }
 }
 
 /// <summary>Values of <see cref="LlmRequest.Effort"/>, lowest to highest.</summary>
