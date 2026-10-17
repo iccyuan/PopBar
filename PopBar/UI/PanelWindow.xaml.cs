@@ -46,6 +46,7 @@ public partial class PanelWindow : Window, IPanel
         if (!string.IsNullOrWhiteSpace(opt.Source))
         {
             _sourceFull = opt.Source.Trim();
+            _sourceToolTip = opt.SourceToolTip;
             ApplySource();
             SourceBox.Visibility = Visibility.Visible;
         }
@@ -113,7 +114,7 @@ public partial class PanelWindow : Window, IPanel
     private const double SourceCollapsedHeight = 52;   // three lines of the 12px source text
     private const double SourceExpandedHeight = 240;   // beyond this the source scrolls
     private string _sourceFull = "";
-    private bool _sourceCut, _sourceExpanded;
+    private bool _sourceCut, _sourceExpanded, _sourceToolTip;
     private RECT _work;
 
     /// <summary>
@@ -131,7 +132,7 @@ public partial class PanelWindow : Window, IPanel
         if (_sourceCut) fitted = MiddleEllipsis(_sourceFull, width - SourceToggleGutter, SourceCollapsedHeight);
         SourceScroll.Margin = new Thickness(0, 0, _sourceCut ? SourceToggleGutter : 0, 0);
         SourceText.Text = _sourceExpanded ? _sourceFull : fitted;
-        SourceText.ToolTip = _sourceCut && !_sourceExpanded ? _sourceFull : null;
+        SourceText.ToolTip = _sourceToolTip && _sourceCut && !_sourceExpanded ? _sourceFull : null;
         SourceExpandBtn.Visibility = _sourceExpanded || _sourceCut ? Visibility.Visible : Visibility.Collapsed;
     }
 

@@ -116,6 +116,8 @@ public sealed class PanelOptions
     public int AnchorY { get; init; }
     /// <summary>Shown collapsed above the result, e.g. the source text.</summary>
     public string? Source { get; init; }
+    /// <summary>Hovering a <see cref="Source"/> cut short by the collapsed box shows all of it in a tooltip. Off by default (the box has its own 显示全部 toggle).</summary>
+    public bool SourceToolTip { get; init; }
     /// <summary>Panel width in DIP. Plugins may change it later with <see cref="IPanel.SetSize"/>.</summary>
     public double Width { get; init; } = 480;
     /// <summary>Allow the user to edit the result text (e.g. OCR output).</summary>
