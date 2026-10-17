@@ -130,6 +130,13 @@ public sealed class ConfigStore
             cfg.ConfigVersion = 7;
             migrated = true;
         }
+        if (cfg.ConfigVersion < 8)
+        {
+            // config v8: terminals / remote desktops / VMs are skipped by the code itself; the list keeps only the user's own.
+            cfg.NoClipboardApps.RemoveAll(p => Core.ClipboardCaptureStrategy.BuiltinNoClipboardApps.Contains(p));
+            cfg.ConfigVersion = 8;
+            migrated = true;
+        }
         // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
         if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
         return cfg;

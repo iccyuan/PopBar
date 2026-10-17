@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 7;
+    public int ConfigVersion { get; set; } = 8;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
@@ -52,12 +52,11 @@ public sealed class AppConfig
     /// <summary>Process names (e.g. "game.exe") where PopBar never shows.</summary>
     public List<string> ExcludedApps { get; set; } = new();
 
-    /// <summary>Process names where the Ctrl+C fallback is never used (terminals: Ctrl+C would interrupt).</summary>
-    public List<string> NoClipboardApps { get; set; } = new()
-    {
-        "WindowsTerminal.exe", "conhost.exe", "OpenConsole.exe", "mintty.exe", "putty.exe",
-        "mstsc.exe", "vmware-vmx.exe", "VirtualBoxVM.exe", "alacritty.exe", "wezterm-gui.exe",
-    };
+    /// <summary>
+    /// Extra process names where the Ctrl+C fallback is never used, on top of the built-in terminals / remote desktops /
+    /// VMs (<see cref="Core.ClipboardCaptureStrategy.BuiltinNoClipboardApps"/>).
+    /// </summary>
+    public List<string> NoClipboardApps { get; set; } = new();
 
     public List<ActionDefinition> Actions { get; set; } = DefaultActions.Create();
 

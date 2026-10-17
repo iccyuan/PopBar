@@ -135,14 +135,11 @@ internal partial class PluginsPage : SettingsPage
 
     private void Install_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = InstallButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-        var github = new MenuItem { Header = "从 GitHub 仓库安装…", Icon = new IconImage { Icon = "github", Size = 15, Brush = Res<Brush>("TextBrush") }, ToolTip = "下载仓库最新发布（Release）里的 .zip 或 .dll" };
-        github.Click += (_, _) => InstallFromGitHub();
-        var local = new MenuItem { Header = "从本地文件安装…", Icon = new IconImage { Icon = "folder-open", Size = 15, Brush = Res<Brush>("TextBrush") }, ToolTip = "选一个插件 .zip（含依赖）或单个 .dll" };
-        local.Click += (_, _) => InstallFromFile();
-        menu.Items.Add(github);
-        menu.Items.Add(local);
-        menu.IsOpen = true;
+        ShowAddMenu(InstallButton, new (string, string, string?, Action)[]
+        {
+            ("github", "从 GitHub 仓库安装…", "下载仓库最新发布（Release）里的 .zip 或 .dll", InstallFromGitHub),
+            ("folder-open", "从本地文件安装…", "选一个插件 .zip（含依赖）或单个 .dll", InstallFromFile),
+        });
     }
 
     private void InstallFromGitHub()

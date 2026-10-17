@@ -56,6 +56,15 @@ public class ConfigMigrationTests
         Assert.True(migrated);
         Assert.Equal("sk-plain", cfg.LlmServices[0].ApiKey);
     }
+
+    [Fact]
+    public void V8_drops_builtin_no_clipboard_apps_and_keeps_the_users()
+    {
+        var cfg = ConfigStore.Parse("""{ "configVersion": 7, "noClipboardApps": [ "WindowsTerminal.exe", "mstsc.exe", "myapp.exe" ] }""", out bool migrated);
+        Assert.True(migrated);
+        Assert.Equal(new[] { "myapp.exe" }, cfg.NoClipboardApps);
+        Assert.Empty(new AppConfig().NoClipboardApps);
+    }
 }
 
 public class SecretBoxTests

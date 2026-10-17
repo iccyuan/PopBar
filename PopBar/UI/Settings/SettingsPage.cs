@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using PopBar.Config;
 
 namespace PopBar.UI;
@@ -99,4 +100,33 @@ internal abstract class SettingsPage : UserControl
     protected void Changed(object sender, RoutedEventArgs e) => RaiseEdited();
 
     protected T Res<T>(string key) => (T)FindResource(key);
+
+    /// <summary>Margin of the ContextMenu template's root grid (Themes/Modern.xaml), room for the shadow.</summary>
+    private const double MenuShadowRoom = 10;
+    private const double MenuGap = 4;
+
+    /// <summary>
+    /// The drop-down under a "＋ 添加…" button: one <c>RichMenuItem</c>-styled entry per choice (icon tile, title,
+    /// a line of detail), its right edge lined up with the button's, which sits at the right of the page.
+    /// </summary>
+    protected void ShowAddMenu(FrameworkElement anchor, IEnumerable<(string Icon, string Title, string? Detail, Action OnClick)> items)
+    {
+        var menu = new ContextMenu { PlacementTarget = anchor, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, MinWidth = 260 };
+        var style = Res<Style>("RichMenuItem");
+        foreach (var (icon, title, detail, onClick) in items)
+        {
+            var item = new MenuItem { Style = style, Header = title, Tag = string.IsNullOrWhiteSpace(detail) ? null : detail, Icon = new IconImage { Icon = icon, Size = 16, Brush = Res<Brush>("AccentHoverBrush") } };
+            item.Click += (_, _) => onClick();
+            menu.Items.Add(item);
+        }
+        if (menu.Items.Count == 0) return;
+        // Opening the menu by hand raises no ContextMenuOpening, so Frost would not snapshot the screen on its own.
+        Frost.PrepareAtCursor();
+        void Align(double width) => (menu.HorizontalOffset, menu.VerticalOffset) = (anchor.ActualWidth - width + MenuShadowRoom, MenuGap - MenuShadowRoom);
+        menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        Align(menu.DesiredSize.Width);
+        // the measure above can run before the template is in place; correct with the real width once it is on screen
+        menu.Opened += (_, _) => { if (Math.Abs(menu.ActualWidth - menu.DesiredSize.Width) > 0.5) Align(menu.ActualWidth); };
+        menu.IsOpen = true;
+    }
 }

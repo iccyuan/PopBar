@@ -11,21 +11,21 @@
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <ComboBox x:Name="ExcludedPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
                     <Button Content="添加" Margin="8,0,0,0" Click="AddExcluded_Click"/>
-                    <Button Content="浏览 exe…" Margin="8,0,0,0" Click="BrowseExcluded_Click"/>
+                    <Button Content="浏览" Margin="8,0,0,0" Click="BrowseExcluded_Click"/>
                 </StackPanel>
             </StackPanel>
         </Border>
 
-        <TextBlock Style="{StaticResource H2}" Text="禁用剪贴板回退的应用"/>
+        <TextBlock Style="{StaticResource H2}" Text="不模拟 Ctrl+C 复制的应用"/>
         <Border Style="{StaticResource Card}" Padding="18,14">
             <StackPanel>
-                <TextBlock Style="{StaticResource Muted}" Text="这些程序里不用 Ctrl+C 取词。" Margin="0,0,0,10"/>
+                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                           Text="有的程序读不到选中的文字，PopBar 会替你按一下 Ctrl+C 复制出来（之后把剪贴板还原）。如果某个程序里 Ctrl+C 有别的作用、被这样一按会出问题，就把它加到这里。终端、远程桌面和虚拟机已自动排除，不用添加。"/>
                 <StackPanel x:Name="NoClipList"/>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                     <ComboBox x:Name="NoClipPick" Width="320" DisplayMemberPath="Label" SelectedValuePath="Exe" DropDownOpened="ProcessPick_Opened"/>
                     <Button Content="添加" Margin="8,0,0,0" Click="AddNoClip_Click"/>
-                    <Button Content="浏览 exe…" Margin="8,0,0,0" Click="BrowseNoClip_Click"/>
-                    <Button Content="恢复默认" Margin="8,0,0,0" Click="ResetNoClip_Click" ToolTip="恢复为内置的终端 / 远程桌面 / 虚拟机列表"/>
+                    <Button Content="浏览" Margin="8,0,0,0" Click="BrowseNoClip_Click"/>
                 </StackPanel>
             </StackPanel>
         </Border>

@@ -169,17 +169,8 @@ internal partial class ServicesPage : SettingsPage
     /// <summary>"＋ 添加服务商": the providers not added yet, as a menu under the button; picking one adds an empty draft and opens its form.</summary>
     private void AddLlm_Click(object sender, RoutedEventArgs e)
     {
-        var menu = new ContextMenu { PlacementTarget = AddLlmButton, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
-        foreach (var p in Ctx.Llm.Providers.Where(p => !_drafts.ContainsKey(p.Id)))
-        {
-            var item = new MenuItem { Header = p.Name, Icon = new IconImage { Icon = ProviderItem.LogoOf(p), Size = 16, Brush = Res<Brush>("TextBrush") } };
-            if (!string.IsNullOrWhiteSpace(p.Hint)) item.ToolTip = p.Hint;
-            var id = p.Id;
-            item.Click += (_, _) => Add(id);
-            menu.Items.Add(item);
-        }
-        if (menu.Items.Count == 0) return;
-        menu.IsOpen = true;
+        ShowAddMenu(AddLlmButton, Ctx.Llm.Providers.Where(p => !_drafts.ContainsKey(p.Id))
+            .Select(p => (ProviderItem.LogoOf(p), p.Name, p.Hint, (Action)(() => Add(p.Id)))));
     }
 
     private void Add(string id)

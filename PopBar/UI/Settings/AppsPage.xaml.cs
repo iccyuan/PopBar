@@ -88,12 +88,4 @@ internal partial class AppsPage : SettingsPage
     private void AddNoClip_Click(object sender, RoutedEventArgs e) => Add(NoClipPick, _noClip);
     private void BrowseExcluded_Click(object sender, RoutedEventArgs e) => Browse(_excluded);
     private void BrowseNoClip_Click(object sender, RoutedEventArgs e) => Browse(_noClip);
-
-    private void ResetNoClip_Click(object sender, RoutedEventArgs e)
-    {
-        _noClip.Clear();
-        _noClip.AddRange(new AppConfig().NoClipboardApps);
-        Render();
-        RaiseEdited();
-    }
 }

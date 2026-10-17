@@ -208,6 +208,13 @@ internal sealed class ClipboardCaptureStrategy : ITextCaptureStrategy
         "PuTTY",
     };
 
+    /// <summary>Processes where Ctrl+C interrupts or is sent on to another machine, always skipped (the settings list adds to these).</summary>
+    public static readonly HashSet<string> BuiltinNoClipboardApps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "WindowsTerminal.exe", "conhost.exe", "OpenConsole.exe", "mintty.exe", "putty.exe",
+        "mstsc.exe", "vmware-vmx.exe", "VirtualBoxVM.exe", "alacritty.exe", "wezterm-gui.exe",
+    };
+
     public CaptureMethod Method => CaptureMethod.Clipboard;
 
     public bool CanRun(CaptureContext ctx) => ctx.AllowClipboard && !IsTerminal(ctx.ForegroundWindow, ctx.ForegroundProcess, ctx.NoClipboardApps);
@@ -218,6 +225,7 @@ internal sealed class ClipboardCaptureStrategy : ITextCaptureStrategy
     {
         if (hwnd == IntPtr.Zero) return false;
         if (TerminalClasses.Contains(GetWindowClass(hwnd))) return true;
-        return proc.Length > 0 && noClipboardApps.Any(p => string.Equals(p, proc, StringComparison.OrdinalIgnoreCase));
+        if (proc.Length == 0) return false;
+        return BuiltinNoClipboardApps.Contains(proc) || noClipboardApps.Any(p => string.Equals(p, proc, StringComparison.OrdinalIgnoreCase));
     }
 }
