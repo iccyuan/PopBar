@@ -96,7 +96,7 @@ public sealed class BarOptions
     public bool ShowByDefault { get; init; } = true;
 }
 
-/// <summary>What the user selected and where.</summary>
+/// <summary>What the user selected and where (<see cref="ScreenX"/> / <see cref="ScreenY"/>: where the mouse was released).</summary>
 public sealed record SelectionContext(
     string Text,
     IntPtr SourceWindow,
@@ -105,4 +105,18 @@ public sealed record SelectionContext(
     int ScreenY)
 {
     public bool HasSourceWindow => SourceWindow != IntPtr.Zero;
+
+    /// <summary>
+    /// The selected text on screen (physical pixels): as the app reports it, else estimated from the lines the mouse
+    /// touched. Null when unknown, e.g. text that did not come from a selection. Keep your own windows off it; panels
+    /// from <see cref="IPluginHost.ShowPanel"/> avoid it by themselves. Since SDK 1.2.
+    /// </summary>
+    public ScreenRect? Area { get; init; }
+}
+
+/// <summary>A rectangle on screen in physical pixels (right / bottom exclusive).</summary>
+public readonly record struct ScreenRect(int Left, int Top, int Right, int Bottom)
+{
+    public int Width => Right - Left;
+    public int Height => Bottom - Top;
 }

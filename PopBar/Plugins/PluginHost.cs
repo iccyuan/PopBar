@@ -235,7 +235,7 @@ internal sealed class PluginHost : IPluginHost
     {
         var w = new PanelWindow(options, Theme);
         _s.Panels.Add(w);
-        w.ShowAt(options.AnchorX, options.AnchorY);
+        w.ShowAt(options.AnchorX, options.AnchorY, options.Avoid ?? RecentSelections.AreaAt(options.AnchorX, options.AnchorY));
         return w;
     }
 

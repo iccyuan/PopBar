@@ -34,8 +34,33 @@ public sealed record Selection(string Text, IntPtr SourceWindow, int X, int Y)
         return Bounds?.Left;
     }
 
-    public SelectionContext ToContext() =>
-        new(Text, SourceWindow, SourceWindow == IntPtr.Zero ? "" : GetWindowProcessName(SourceWindow), X, Y);
+    /// <summary>Half a text line (DIP), for the estimate when the app reports neither the text nor its line height.</summary>
+    internal const double HalfLineDip = 12;
 
-    public static Selection FromContext(SelectionContext c) => new(c.Text, c.SourceWindow, c.ScreenX, c.ScreenY);
+    /// <summary>
+    /// The selected text on screen: <see cref="Bounds"/> when reported, else estimated - the lines the mouse touched,
+    /// half a line around each, between the drag's two ends.
+    /// </summary>
+    internal RECT Area()
+    {
+        if (Bounds is { } b) return b;
+        int half = LineHeight is { } lh ? (lh + 1) / 2 : (int)Math.Round(HalfLineDip * GetMonitorAt(X, Y).dpi / 96.0);
+        int left = Math.Min(X, StartX ?? X), right = Math.Max(X, StartX ?? X);
+        return new RECT { Left = left, Top = Top - half, Right = right + 1, Bottom = Bottom + half };
+    }
+
+    public SelectionContext ToContext()
+    {
+        var a = Area();
+        return new(Text, SourceWindow, SourceWindow == IntPtr.Zero ? "" : GetWindowProcessName(SourceWindow), X, Y)
+        {
+            Area = new ScreenRect(a.Left, a.Top, a.Right, a.Bottom),
+        };
+    }
+
+    /// <summary>Text handed in by a plugin (<see cref="IPluginHost.ShowPopup"/>): its <see cref="SelectionContext.Area"/>, if any, counts as reported.</summary>
+    public static Selection FromContext(SelectionContext c) => new(c.Text, c.SourceWindow, c.ScreenX, c.ScreenY)
+    {
+        Bounds = c.Area is { } a ? new RECT { Left = a.Left, Top = a.Top, Right = a.Right, Bottom = a.Bottom } : null,
+    };
 }

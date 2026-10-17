@@ -139,6 +139,13 @@ public sealed class PanelOptions
     /// <summary>Screen point to anchor near (usually the selection point).</summary>
     public int AnchorX { get; init; }
     public int AnchorY { get; init; }
+    /// <summary>
+    /// What the panel must not cover, usually <see cref="SelectionContext.Area"/>: it opens below it, lined up with its
+    /// left edge, or - short of room below - above it, growing upwards. Null = the area of the selection an action was
+    /// run on when the anchor is that selection's point (so panels opened from actions avoid the text without this),
+    /// else just the anchor point. Since SDK 1.2.
+    /// </summary>
+    public ScreenRect? Avoid { get; init; }
     /// <summary>Shown collapsed above the result, e.g. the source text.</summary>
     public string? Source { get; init; }
     /// <summary>Hovering a <see cref="Source"/> cut short by the collapsed box shows all of it in a tooltip. Off by default (the box has its own 显示全部 toggle).</summary>

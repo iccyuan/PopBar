@@ -55,4 +55,24 @@ public class SelectionStartTests
     {
         Assert.Null(new Selection("t", IntPtr.Zero, 10, 10).TextStartX(12));
     }
+
+    [Fact]
+    public void The_text_area_is_estimated_from_the_lines_the_mouse_touched()
+    {
+        // dragged up from line 3 to line 1: half a line around each end, between the two x's
+        var a = (Drag(300, 200, 80, 50) with { LineHeight = 20 }).Area();
+        Assert.Equal((80, 40, 301, 210), (a.Left, a.Top, a.Right, a.Bottom));
+    }
+
+    [Fact]
+    public void A_reported_area_wins_and_travels_with_the_context()
+    {
+        var reported = new PopBar.Native.NativeMethods.RECT { Left = 10, Top = 20, Right = 500, Bottom = 90 };
+        var ctx = (Drag(300, 200, 80, 50) with { Bounds = reported }).ToContext();
+        Assert.Equal(new PopBar.Sdk.ScreenRect(10, 20, 500, 90), ctx.Area);
+
+        var back = Selection.FromContext(ctx);   // text a plugin hands back keeps its place
+        Assert.Equal(reported, back.Bounds);
+        Assert.Null(Selection.FromContext(ctx with { Area = null }).Bounds);
+    }
 }

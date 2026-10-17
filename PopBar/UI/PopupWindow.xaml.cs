@@ -37,7 +37,7 @@ public partial class PopupWindow : Window, IPopupPresenter
     /// <summary>How far (DIP) the bar starts before the first selected character.</summary>
     private const double StartInset = 8;
     /// <summary>Half a text line (DIP), for estimating the text around the mouse when the app does not report it.</summary>
-    private const double HalfLine = 12;
+    private const double HalfLine = Selection.HalfLineDip;
     /// <summary>DIP below the mouse hotspot the cursor arrow covers.</summary>
     private const double CursorHeight = 28;
 

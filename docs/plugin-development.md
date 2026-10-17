@@ -159,7 +159,8 @@ new PluginAction
 | `Text` | 选中的文字 |
 | `SourceWindow` / `HasSourceWindow` | 选区所在的窗口句柄（可用于 `PasteText` 写回） |
 | `SourceProcess` | 所在程序，如 `"notepad.exe"` |
-| `ScreenX` / `ScreenY` | 选区位置（物理像素），打开面板时作为锚点 |
+| `ScreenX` / `ScreenY` | 鼠标松开的位置（物理像素），打开面板时作为锚点 |
+| `Area` | 选中文字在屏幕上的范围（物理像素）：程序报告的，或按鼠标经过的行估算的；不知道时为 `null`。自己的窗口应避开它，`ShowPanel` 打开的面板会自动避开（SDK 1.2） |
 
 ### 动作列表会变
 
@@ -219,6 +220,8 @@ Icon = "hello-card",
 
 `host.ShowPanelAsync(options)` 在选区附近打开一个浮动面板，返回 `IPanel`。`IPanel` 的方法都可以在任意线程调用。
 
+面板会避开选中的文字：优先放在文字下方、左边和文字开头对齐；下方放不下时放到文字上方，内容变多时向上长，不会盖住文字。从动作里用 `ctx.ScreenX / ScreenY` 作锚点打开的面板自动如此；锚点不是选区时（比如截图区域），用 `Avoid` 指定要避开的范围。
+
 ```csharp
 var panel = await _host.ShowPanelAsync(new PanelOptions
 {
@@ -266,6 +269,7 @@ finally { panel.SetBusy(false); }
 | `ShowTextArea` | `true` | 只用 `SetContent` 时设为 `false` |
 | `MaxBodyHeight` | `420` | 正文最大高度，超出滚动 |
 | `SourceToolTip` | `false` | 原文被折叠时，鼠标悬停显示全文 |
+| `Avoid` | `null` | 面板不能盖住的区域，一般传 `ctx.Area`。不填时，如果锚点就是某个动作所在选区的位置，自动避开那段文字（SDK 1.2） |
 | `Bare` | `false` | 只要一个圆角容器：没有标题栏、底栏和内边距，整个面板由 `SetContent` 的内容决定 |
 
 ## 设置页
@@ -508,7 +512,7 @@ PopBar.exe --dev-plugin <构建输出目录>
 
 ## SDK 版本与兼容性
 
-`PopBar.Sdk` 的程序集版本就是插件 API 版本，与 PopBar 的程序版本无关，当前为 **1.1**。
+`PopBar.Sdk` 的程序集版本就是插件 API 版本，与 PopBar 的程序版本无关，当前为 **1.2**。
 
 - **新增**接口时次版本 +1（1.0 → 1.1）：旧插件在新 PopBar 上照常运行。
 - **破坏性改动**时主版本 +1（1.x → 2.0）。
@@ -526,6 +530,7 @@ PopBar.exe --dev-plugin <构建输出目录>
 |---|---|
 | 1.0 | 首个独立版本 |
 | 1.1 | `IPluginHost.RegisterIcon`；所有图标参数都可以直接写 SVG |
+| 1.2 | `SelectionContext.Area`、`ScreenRect`、`PanelOptions.Avoid`：面板避开选中的文字 |
 
 ## 常见问题
 

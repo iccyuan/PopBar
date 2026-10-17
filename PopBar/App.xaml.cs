@@ -154,7 +154,7 @@ public partial class App : Application
         {
             var p = new PanelWindow(new PanelOptions { Title = action.Label, Icon = action.Icon, ShowTextArea = false, Width = 380 }, ThemeManager.Effective);
             _panels.Add(p);
-            p.ShowAt(ctx.ScreenX, ctx.ScreenY);
+            p.ShowAt(ctx.ScreenX, ctx.ScreenY, ctx.Area);
             p.SetError("执行失败：" + Errors.Describe(ex));
         }
         catch (Exception e) { Log.Error("action error panel", e); }

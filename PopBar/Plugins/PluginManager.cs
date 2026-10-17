@@ -403,6 +403,7 @@ internal sealed class PluginManager : IDisposable
     public async Task ExecuteAsync(string actionId, SelectionContext ctx, CancellationToken ct = default)
     {
         if (!TryGet(actionId, out var plugin, out var action)) { Log.Warn("unknown plugin action " + actionId); return; }
+        RecentSelections.Remember(ctx);   // the panel it opens at ctx's point keeps clear of the text
         try { await action.Execute(ctx, ct); }
         catch (OperationCanceledException) { }
         catch (Exception ex)

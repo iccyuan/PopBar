@@ -92,33 +92,81 @@ public partial class PanelWindow : Window, IPanel
         var clip = new RectangleGeometry { RadiusX = 12, RadiusY = 12 };
         ShellBody.Clip = clip;
         ShellBody.SizeChanged += (_, e) => clip.Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
-        Shell.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); };
+        Shell.MouseLeftButtonDown += (_, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragPanel(); };
     }
 
-    /// <summary>Place the panel below the anchor point (physical pixels), clamped to the monitor work area.</summary>
-    public void ShowAt(int anchorX, int anchorY)
+    /// <summary>Gap (DIP) between the text kept clear and the panel.</summary>
+    private const double TextGap = 8;
+    /// <summary>Room (DIP) kept clear below the mouse point when no text area is known: the cursor arrow and the line under it.</summary>
+    private const double PointClearance = 18;
+    /// <summary>The panel's chrome (DIP) besides the body: title, footer, padding. With the body's cap, how tall a panel gets.</summary>
+    private const double ChromeHeight = 140;
+
+    /// <summary>Placed above the text: the card grows upwards from <see cref="_cardBottom"/> (physical px) instead of down over it.</summary>
+    private bool _growUp;
+    private int _cardBottom;
+
+    /// <summary>
+    /// Show the panel near the anchor point (physical pixels) without covering <paramref name="avoid"/>, the selected
+    /// text: below it, lined up with its left edge, when a full-grown panel fits there; else above it, growing upwards;
+    /// else on the roomier side. Without an area, the panel is centred under the point. Stays inside the work area.
+    /// </summary>
+    public void ShowAt(int anchorX, int anchorY, ScreenRect? avoid = null)
     {
         var (work, dpi) = GetMonitorAt(anchorX, anchorY);
         double scale = dpi / 96.0;
-        int m = (int)Math.Round(Root.Margin.Left * scale);
+        int Px(double dip) => (int)Math.Round(dip * scale);
+        int m = Px(Root.Margin.Left);
         // Measure first so the initial placement is right (DesiredSize includes the shadow margin).
         Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         int w = (int)Math.Ceiling(Width * scale);
-        int h = (int)Math.Ceiling(Math.Max(DesiredSize.Height, 180) * scale);
-        int x = Math.Clamp(anchorX - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
-        int y = anchorY + (int)(18 * scale) - m;
-        if (y + h - m > work.Bottom) y = Math.Max(work.Top - m, anchorY - h - (int)(18 * scale) + m);
+        int cardW = w - 2 * m;
+        int cardH = (int)Math.Ceiling(Math.Max(DesiredSize.Height, 180) * scale) - 2 * m;
+        int full = Math.Max(cardH, Px(_opt.MaxBodyHeight + ChromeHeight));   // how tall it may get as text streams in
+
+        // what to keep clear, and where the panel's text column should start
+        int clearTop, clearBottom, cardLeft;
+        if (avoid is { } a)
+        {
+            clearTop = Math.Min(a.Top, anchorY);
+            clearBottom = Math.Max(a.Bottom, anchorY + Px(PointClearance));   // nor the cursor arrow
+            cardLeft = a.Left - Px(Body.Margin.Left);                           // the text column starts where the selection does
+        }
+        else
+        {
+            clearTop = anchorY - Px(PointClearance);
+            clearBottom = anchorY + Px(PointClearance);
+            cardLeft = anchorX - cardW / 2;
+        }
+        int gap = Px(TextGap);
+        int below = work.Bottom - (clearBottom + gap), above = clearTop - gap - work.Top;
+        _growUp = below < full && (above >= full || above > below);
+
+        int cardTop = _growUp ? clearTop - gap - cardH : clearBottom + gap;
+        _cardBottom = clearTop - gap;
+        if (_growUp) Card.VerticalAlignment = VerticalAlignment.Bottom;   // spare room goes above it, see NeedRoom
+        int x = Math.Clamp(cardLeft - m, work.Left - m, Math.Max(work.Left - m, work.Right - cardW - m));
+        int y = Math.Clamp(cardTop - m, work.Top - m, Math.Max(work.Top - m, work.Bottom - cardH - m));
         _scale = scale;
         _work = work;
         CaptureMonitorGlass(work);
         Left = x / scale; Top = y / scale; // DIP relative to the primary monitor; corrected below with SetWindowPos
         Show();
         SetWindowPos(_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+        KeepOnScreen();   // the first layout ran before the move: settle the card against its real size now
         UpdateGlassViewbox();
         Activate();
         LocationChanged += (_, _) => UpdateGlassViewbox();
         Glass.SizeChanged += (_, _) => UpdateGlassViewbox();
         SizeChanged += (_, _) => KeepOnScreen();
+        Card.SizeChanged += (_, _) => KeepOnScreen();   // a card growing upwards inside spare room moves without the window resizing
+    }
+
+    /// <summary>The user moved the panel: a panel that grows upwards does so from where it was put down.</summary>
+    private void DragPanel()
+    {
+        DragMove();
+        if (_growUp && GetWindowRect(_hwnd, out var r)) _cardBottom = CardRect(r).Bottom;
     }
 
     // ---- source box 「显示全部 / 收起」 ----
@@ -201,15 +249,21 @@ public partial class PanelWindow : Window, IPanel
     /// <summary>Extra transparent room reserved at a time, so the window is resized once per few lines, not per frame.</summary>
     private const double RoomStep = 120;
 
-    /// <summary>The card is about to grow by <paramref name="more"/>: make sure the window already has room for it.</summary>
+    /// <summary>
+    /// The card is about to grow by <paramref name="more"/>: make sure the window already has room for it - below the
+    /// card, or above it for a panel that grows upwards.
+    /// </summary>
     private void NeedRoom(double more)
     {
         double need = Card.ActualHeight + more;
         if (_closed || need <= Root.MinHeight) return;
-        // the spare room never reaches past the work area: it would only push the window up for nothing
-        double avail = _hwnd != IntPtr.Zero && _work.Bottom != 0 && GetWindowRect(_hwnd, out var r)
-            ? (_work.Bottom - r.Top) / _scale - Root.Margin.Top
-            : double.PositiveInfinity;
+        // the spare room never reaches past the work area: it would only push the window around for nothing
+        double avail = double.PositiveInfinity;
+        if (_hwnd != IntPtr.Zero && _work.Bottom != 0 && GetWindowRect(_hwnd, out var r))
+        {
+            var card = CardRect(r);
+            avail = (_growUp ? card.Bottom - _work.Top : _work.Bottom - card.Top) / _scale;
+        }
         Root.MinHeight = Math.Max(need, Math.Min(need + RoomStep, avail));
     }
 
@@ -219,20 +273,36 @@ public partial class PanelWindow : Window, IPanel
         if (!_answer.IsRunning && !_think.IsRunning) Root.MinHeight = 0;
     }
 
-    /// <summary>The card's bottom edge in physical pixels (the window may extend below it with reserved room).</summary>
-    private int CardBottom(RECT r) => r.Top + (int)Math.Round((Root.Margin.Top + Card.ActualHeight) * _scale);
+    /// <summary>
+    /// The card in physical pixels, given the window rect: the window also holds the shadow margin and, while text
+    /// streams in, spare room below the card (or above it, for a panel growing upwards).
+    /// </summary>
+    private RECT CardRect(RECT window)
+    {
+        var at = Card.TranslatePoint(new Point(0, 0), this);
+        int left = window.Left + (int)Math.Round(at.X * _scale), top = window.Top + (int)Math.Round(at.Y * _scale);
+        return new RECT
+        {
+            Left = left, Top = top,
+            Right = left + (int)Math.Round(Card.ActualWidth * _scale), Bottom = top + (int)Math.Round(Card.ActualHeight * _scale),
+        };
+    }
 
-    /// <summary>After growing, slide the window so the card stays inside the work area (the shadow margin may hang over).</summary>
+    /// <summary>
+    /// After a size change, move the window so the card is where it belongs: a panel growing upwards keeps its bottom
+    /// edge (off the text); and every card stays inside the work area - overlapping the text only when it does not fit.
+    /// </summary>
     private void KeepOnScreen()
     {
         if (_hwnd == IntPtr.Zero || _work.Bottom == 0 || !GetWindowRect(_hwnd, out var r)) return;
-        int m = (int)Math.Round(Root.Margin.Left * _scale);
-        int x = r.Left, y = r.Top;
-        int bottom = CardBottom(r);
-        if (bottom > _work.Bottom) y = Math.Max(_work.Top - m, r.Top - (bottom - _work.Bottom));
-        if (r.Right - m > _work.Right) x = Math.Max(_work.Left - m, _work.Right - (r.Right - r.Left) + m);
-        if (x == r.Left && y == r.Top) return;
-        SetWindowPos(_hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        var card = CardRect(r);
+        int dx = 0, dy = _growUp ? _cardBottom - card.Bottom : 0;
+        if (card.Bottom + dy > _work.Bottom) dy = _work.Bottom - card.Bottom;
+        if (card.Top + dy < _work.Top) dy = _work.Top - card.Top;
+        if (card.Right > _work.Right) dx = _work.Right - card.Right;
+        if (card.Left + dx < _work.Left) dx = _work.Left - card.Left;
+        if (dx == 0 && dy == 0) return;
+        SetWindowPos(_hwnd, IntPtr.Zero, r.Left + dx, r.Top + dy, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     }
 
     private double _scale = 1;
@@ -259,9 +329,9 @@ public partial class PanelWindow : Window, IPanel
     {
         if (_glassImage == null || _closed || _hwnd == IntPtr.Zero) return;
         GetWindowRect(_hwnd, out var r);
-        int m = (int)Math.Round(Root.Margin.Left * _scale);
-        double gx = (r.Left + m - _glassX) * GlassDownscale;
-        double gy = (r.Top + m - _glassY) * GlassDownscale;
+        var card = CardRect(r);
+        double gx = (card.Left - _glassX) * GlassDownscale;
+        double gy = (card.Top - _glassY) * GlassDownscale;
         double gw = Math.Max(1, Glass.ActualWidth * _scale * GlassDownscale);
         double gh = Math.Max(1, Glass.ActualHeight * _scale * GlassDownscale);
         var brush = new ImageBrush(_glassImage)
@@ -286,8 +356,10 @@ public partial class PanelWindow : Window, IPanel
         // Hook coordinates are physical pixels; compare against the physical window rect (no DIP conversion).
         if (_closed || _hwnd == IntPtr.Zero || !IsVisible) return false;
         if (!GetWindowRect(_hwnd, out var r)) return false;
-        r.Bottom = Math.Min(r.Bottom, CardBottom(r) + (int)Math.Round(Root.Margin.Bottom * _scale));   // not the reserved room below the card
-        return r.Contains(x, y);
+        // the card and its shadow margin, not the spare room above or below it
+        var card = CardRect(r);
+        int m = (int)Math.Round(Root.Margin.Left * _scale);
+        return new RECT { Left = card.Left - m, Top = card.Top - m, Right = card.Right + m, Bottom = card.Bottom + m }.Contains(x, y);
     }
 
     private void ApplyTheme(string theme)
@@ -474,7 +546,7 @@ public partial class PanelWindow : Window, IPanel
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+        if (e.ButtonState == MouseButtonState.Pressed) DragPanel();
     }
 
     public void SetContent(Func<FrameworkElement> factory) => Ui(() =>
