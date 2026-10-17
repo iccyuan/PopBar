@@ -21,6 +21,8 @@ internal sealed class SettingsContext
     public required Window Owner { get; init; }
     /// <summary>One line in the window's status area.</summary>
     public required Action<string> Status { get; init; }
+    /// <summary>A setting a page saved at once (<see cref="SettingsPage.SaveAtOnce"/>): the window applies it to its copy of the loaded config too.</summary>
+    public required Action<Action<AppConfig>> SavedAtOnce { get; init; }
     /// <summary>Switch to the plugins page and open that plugin's settings.</summary>
     public required Action<string?> ShowPlugin { get; init; }
     /// <summary>Host-styled dialogs (file pickers, editor dialog) for the pages.</summary>
@@ -98,6 +100,30 @@ internal abstract class SettingsPage : UserControl
 
     /// <summary>XAML handler for plain inputs: any change is a (possible) edit.</summary>
     protected void Changed(object sender, RoutedEventArgs e) => RaiseEdited();
+
+    /// <summary>
+    /// Save one setting right away - a standalone switch needs no 保存 - and count it as saved: only that field of the
+    /// page's baseline moves, so other pending edits on the page stay pending.
+    /// </summary>
+    protected void SaveAtOnce(Action<AppConfig> write)
+    {
+        if (Loading || Ctx == null) return;
+        Ctx.Store.Update(write);
+        Ctx.SavedAtOnce(write);
+        Rebase(write);
+    }
+
+    /// <summary>Move just what <paramref name="write"/> sets in the page's baseline (a value saved elsewhere, e.g. from the tray).</summary>
+    protected void Rebase(Action<AppConfig> write)
+    {
+        if (_baseline.Length > 0)
+        {
+            var baseline = JsonSerializer.Deserialize<AppConfig>(_baseline) ?? new AppConfig();
+            write(baseline);
+            _baseline = JsonSerializer.Serialize(baseline);
+        }
+        Edited?.Invoke();
+    }
 
     protected T Res<T>(string key) => (T)FindResource(key);
 

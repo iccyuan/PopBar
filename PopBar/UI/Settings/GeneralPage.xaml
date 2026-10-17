@@ -11,12 +11,12 @@
                         <TextBlock Text="启用 PopBar" VerticalAlignment="Center"/>
                         <ui:InfoTip Text="关闭后不再弹出操作条"/>
                         </StackPanel>
-                    <CheckBox x:Name="EnabledSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="EnabledSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
                     <TextBlock Text="开机自动启动" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="AutoStartSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="AutoStartSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
@@ -69,17 +69,17 @@
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
                     <TextBlock Text="鼠标拖动选择文本" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="DragSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="DragSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
                     <TextBlock Text="双击 / 三击选中" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="DblSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="DblSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
                     <TextBlock Text="Shift + 点击扩展选择" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="ShiftSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="ShiftSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
             </StackPanel>
         </Border>
@@ -105,7 +105,7 @@
                         <TextBlock Text="Java 程序直接取词" VerticalAlignment="Center"/>
                         <ui:InfoTip Text="启用 Java Access Bridge（同 jabswitch -enable），IntelliJ IDEA 等 Java 程序不用 Ctrl+C 也能取词。对之后启动的 Java 程序生效，已打开的需重启。"/>
                     </StackPanel>
-                    <CheckBox x:Name="JavaBridgeSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                    <CheckBox x:Name="JavaBridgeSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Switch_Changed" Unchecked="Switch_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">

@@ -1,10 +1,16 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace PopBar.Config;
 
-/// <summary>Loads / saves <see cref="AppConfig"/> and notifies listeners when it changes.</summary>
+/// <summary>
+/// Loads / saves <see cref="AppConfig"/> and notifies listeners when it changes. In memory it is one object; on disk it
+/// is split by subject so each file stays small and readable: <c>actions.json</c>, <c>services.json</c> (AI services,
+/// keys encrypted), <c>proxy.json</c>, and <c>settings.json</c> for everything else. Only files whose content changed
+/// are written. A single <c>config.json</c> from older versions is split on first load and kept as <c>config.json.bak</c>.
+/// </summary>
 public sealed class ConfigStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -20,16 +26,31 @@ public sealed class ConfigStore
 
     public static string Dir { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PopBar");
-    public static string FilePath { get; } = Path.Combine(Dir, "config.json");
+    /// <summary>The main settings file (the others sit next to it).</summary>
+    public static string FilePath { get; } = Path.Combine(Dir, MainFile);
+
+    /// <summary>The file holding everything not given to a <see cref="Parts"/> file.</summary>
+    internal const string MainFile = "settings.json";
+    /// <summary>The single file of versions before the split.</summary>
+    internal const string LegacyFile = "config.json";
+    /// <summary>Which top-level properties (as named in JSON) live in which file.</summary>
+    internal static readonly (string File, string[] Keys)[] Parts =
+    [
+        ("actions.json", ["actions"]),
+        ("services.json", ["llmServices", "llmDefault", "llm"]),
+        ("proxy.json", ["proxy"]),
+    ];
 
     private readonly object _gate = new();
     private AppConfig _current = new();
-    private readonly string _path;
+    private readonly string _dir;
+    /// <summary>What each file was last read or written with, so unchanged files are not rewritten.</summary>
+    private readonly Dictionary<string, string> _onDisk = new(StringComparer.OrdinalIgnoreCase);
 
-    public ConfigStore() : this(FilePath) { }
+    public ConfigStore() : this(Dir) { }
 
-    /// <summary>A store backed by another file (tests).</summary>
-    internal ConfigStore(string path) => _path = path;
+    /// <summary>A store in another folder (tests).</summary>
+    internal ConfigStore(string dir) => _dir = dir;
 
     /// <summary>True when no config file existed at startup (first run).</summary>
     public bool IsFirstRun { get; private set; }
@@ -49,12 +70,38 @@ public sealed class ConfigStore
         {
             try
             {
-                if (File.Exists(_path))
+                var files = Parts.Select(p => p.File).Prepend(MainFile).Where(f => File.Exists(Path.Combine(_dir, f))).ToList();
+                var legacy = Path.Combine(_dir, LegacyFile);
+                string? json = null;
+                bool split = false;
+                if (files.Count > 0)
                 {
-                    var cfg = Parse(File.ReadAllText(_path), out bool migrated);
-                    _current = cfg;
+                    // one object again: every file's properties side by side
+                    var merged = new JsonObject();
+                    foreach (var f in files)
+                    {
+                        var text = File.ReadAllText(Path.Combine(_dir, f));
+                        _onDisk[f] = text;
+                        if (JsonNode.Parse(text, documentOptions: new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true }) is JsonObject o)
+                            foreach (var (key, value) in o.ToList()) { o.Remove(key); merged[key] = value; }
+                    }
+                    json = merged.ToJsonString();
+                }
+                else if (File.Exists(legacy))
+                {
+                    json = File.ReadAllText(legacy);
+                    split = true;
+                }
+                if (json != null)
+                {
+                    _current = Parse(json, out bool migrated);
                     IsFirstRun = false;
-                    if (migrated) SaveLocked();
+                    if (migrated || split) SaveLocked();
+                    if (split)
+                    {
+                        File.Move(legacy, legacy + ".bak", overwrite: true);
+                        Log.Info("config.json split into " + string.Join(", ", Parts.Select(p => p.File).Prepend(MainFile)) + "; the old file is config.json.bak");
+                    }
                     return;
                 }
             }
@@ -192,18 +239,39 @@ public sealed class ConfigStore
     public static AppConfig Clone(AppConfig c) =>
         JsonSerializer.Deserialize<AppConfig>(JsonSerializer.Serialize(c, JsonOptions), JsonOptions) ?? new AppConfig();
 
+    /// <summary>Write each file whose share of the config changed (each through a temp file, so a crash never leaves half a file).</summary>
     private void SaveLocked()
     {
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var tmp = _path + ".tmp";
-            File.WriteAllText(tmp, JsonSerializer.Serialize(_current, JsonOptions));
-            File.Move(tmp, _path, overwrite: true);
+            Directory.CreateDirectory(_dir);
+            foreach (var (file, json) in Split(_current))
+            {
+                if (_onDisk.TryGetValue(file, out var old) && old == json) continue;
+                var path = Path.Combine(_dir, file);
+                File.WriteAllText(path + ".tmp", json);
+                File.Move(path + ".tmp", path, overwrite: true);
+                _onDisk[file] = json;
+            }
         }
         catch (Exception ex)
         {
             Log.Error("config save failed", ex);
         }
+    }
+
+    /// <summary>The config as file name → that file's JSON: the <see cref="Parts"/> properties to their files, the rest to <see cref="MainFile"/>.</summary>
+    internal static IEnumerable<(string File, string Json)> Split(AppConfig c)
+    {
+        var all = JsonSerializer.SerializeToNode(c, JsonOptions)!.AsObject();
+        var writer = new JsonSerializerOptions { WriteIndented = true, Encoder = JsonOptions.Encoder };
+        foreach (var (file, keys) in Parts)
+        {
+            var part = new JsonObject();
+            foreach (var key in keys)
+                if (all.Remove(key, out var value)) part[key] = value;
+            yield return (file, part.ToJsonString(writer));
+        }
+        yield return (MainFile, all.ToJsonString(writer));
     }
 }

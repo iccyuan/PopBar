@@ -9,7 +9,7 @@
                 <TextBlock x:Name="AboutVersion" Style="{StaticResource Muted}" Margin="0,2,0,12"/>
                 <TextBlock Text="Windows 上的 PopClip：选中文本后立刻弹出操作条。C# / WPF / .NET，不抢焦点，功能以插件组织。" Margin="0,0,0,12"/>
                 <TextBlock>
-                    <Run Text="配置文件："/><Hyperlink Click="OpenConfigDir_Click"><Run x:Name="ConfigPathRun"/></Hyperlink>
+                    <Run Text="配置目录："/><Hyperlink Click="OpenConfigDir_Click"><Run x:Name="ConfigPathRun"/></Hyperlink>
                 </TextBlock>
                 <TextBlock Margin="0,4,0,0">
                     <Run Text="日志："/><Hyperlink Click="OpenLog_Click"><Run x:Name="LogPathRun"/></Hyperlink>

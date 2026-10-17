@@ -32,6 +32,7 @@ public partial class SettingsWindow : Window
         {
             Store = store, Plugins = plugins, Llm = llm, PluginDrafts = pluginDrafts, TrayItems = trayItems, Owner = this, Http = http,
             Status = text => StatusText.Text = text,
+            SavedAtOnce = write => write(_loaded),
             ShowPlugin = ShowPluginsPage,
         };
         foreach (var p in _pages)

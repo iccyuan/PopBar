@@ -114,7 +114,7 @@ public partial class App : Application
 
         CreateTray();
 
-        Log.Info($"PopBar started, config={ConfigStore.FilePath}");
+        Log.Info($"PopBar started, config in {ConfigStore.Dir}");
         int install = Array.IndexOf(e.Args, "--install");
         if (install >= 0 && install + 1 < e.Args.Length) InstallPlugin(e.Args[install + 1]);
         else if (_store.IsFirstRun || e.Args.Contains("--settings")) ShowSettings();

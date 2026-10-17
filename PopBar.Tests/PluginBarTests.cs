@@ -13,7 +13,7 @@ public sealed class PluginBarTests : IDisposable
 
     public PluginBarTests()
     {
-        _store = new ConfigStore(Path.Combine(_dir, "config.json"));
+        _store = new ConfigStore(_dir);
         _store.Load(); // first run: defaults, written to the temp file only
     }
 

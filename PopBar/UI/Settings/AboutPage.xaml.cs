@@ -13,12 +13,12 @@ internal partial class AboutPage : UserControl
         InitializeComponent();
         var ver = typeof(AboutPage).Assembly.GetName().Version;
         AboutVersion.Text = "v" + ver?.ToString(3) + "  ·  .NET " + Environment.Version;
-        ConfigPathRun.Text = ConfigStore.FilePath;
+        ConfigPathRun.Text = ConfigStore.Dir;
         LogPathRun.Text = Log.FilePath;
     }
 
     private void OpenConfigDir_Click(object sender, RoutedEventArgs e) =>
-        Open("explorer.exe", $"/select,\"{ConfigStore.FilePath}\"", "open config dir");
+        Open("explorer.exe", $"\"{ConfigStore.Dir}\"", "open config dir");
 
     private void OpenLog_Click(object sender, RoutedEventArgs e) =>
         Open(Log.FilePath, null, "open log");

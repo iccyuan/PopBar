@@ -31,7 +31,15 @@ internal partial class PluginsPage : SettingsPage
         BuildList();
     }
 
-    public override void Apply(AppConfig c) => c.DisabledPlugins = _disabled.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    public override void Apply(AppConfig c) => c.DisabledPlugins = DisabledList();
+
+    private List<string> DisabledList() => _disabled.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private void SaveDisabled()
+    {
+        var list = DisabledList();
+        SaveAtOnce(c => c.DisabledPlugins = list.ToList());
+    }
 
     /// <summary>Open a plugin's settings area (once the page is laid out).</summary>
     public void Open(string pluginId)
@@ -91,8 +99,9 @@ internal partial class PluginsPage : SettingsPage
             head.Children.Add(uninstall);
         }
         var toggle = new CheckBox { Style = Res<Style>("Switch"), IsChecked = !_disabled.Contains(plugin.Id), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        toggle.Checked += (_, _) => { _disabled.Remove(plugin.Id); RaiseEdited(); };
-        toggle.Unchecked += (_, _) => { _disabled.Add(plugin.Id); RaiseEdited(); };
+        // a standalone switch: saved at once, the plugin's actions come and go right away
+        toggle.Checked += (_, _) => { _disabled.Remove(plugin.Id); SaveDisabled(); };
+        toggle.Unchecked += (_, _) => { _disabled.Add(plugin.Id); SaveDisabled(); };
         Grid.SetColumn(toggle, 4);
         head.Children.Add(toggle);
         stack.Children.Add(head);

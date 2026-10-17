@@ -117,9 +117,25 @@ internal partial class GeneralPage : SettingsPage
     /// <summary>The enabled flag flipped elsewhere (tray): show it; when nothing else is pending it is not an edit.</summary>
     public void SyncEnabled(bool enabled)
     {
-        bool dirty = IsDirty;
         Quietly(() => EnabledSw.IsChecked = enabled);
-        if (!dirty) MarkSaved();
+        Rebase(c => c.Enabled = enabled);
+    }
+
+    /// <summary>The standalone switches save at once, no 保存 needed.</summary>
+    private void Switch_Changed(object sender, RoutedEventArgs e)
+    {
+        bool on = (sender as CheckBox)?.IsChecked == true;
+        Action<AppConfig>? write = sender switch
+        {
+            _ when sender == EnabledSw => c => c.Enabled = on,
+            _ when sender == AutoStartSw => c => c.AutoStart = on,
+            _ when sender == DragSw => c => c.TriggerOnDrag = on,
+            _ when sender == DblSw => c => c.TriggerOnDoubleClick = on,
+            _ when sender == ShiftSw => c => c.TriggerOnShiftClick = on,
+            _ when sender == JavaBridgeSw => c => c.JavaAccessBridge = on,
+            _ => null,
+        };
+        if (write != null) SaveAtOnce(write);
     }
 
     private static int ParseInt(string s, int def, int min, int max) =>

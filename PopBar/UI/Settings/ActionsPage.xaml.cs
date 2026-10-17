@@ -229,6 +229,21 @@ internal partial class ActionsPage : SettingsPage
         RaiseEdited();
     }
 
+    /// <summary>
+    /// An action's own on / off switch saves at once (only that action's flag; order and edits still wait for 保存).
+    /// The binding also fires this as rows are realized: nothing to write when the stored flag already matches, and an
+    /// action not saved yet has no stored flag - it goes with the rest on 保存.
+    /// </summary>
+    private void ActionSwitch_Changed(object sender, RoutedEventArgs e)
+    {
+        if (Loading || (sender as FrameworkElement)?.DataContext is not ActionRow row) return;
+        var id = row.Def.Id;
+        bool on = row.Enabled;
+        var stored = Ctx.Store.Current.Actions.FirstOrDefault(a => a.Id == id);
+        if (stored == null || stored.Enabled == on) { RaiseEdited(); return; }
+        SaveAtOnce(c => { if (c.Actions.FirstOrDefault(a => a.Id == id) is { } a) a.Enabled = on; });
+    }
+
     private void AddAction_Click(object sender, RoutedEventArgs e)
     {
         var dlg = new ActionEditWindow(new ActionDefinition { Label = "新动作", Icon = "star" }) { Owner = Ctx.Owner };

@@ -43,7 +43,7 @@
                                     <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
                                 </Button>
                             </StackPanel>
-                            <CheckBox Grid.Column="4" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                            <CheckBox Grid.Column="4" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="ActionSwitch_Changed" Unchecked="ActionSwitch_Changed"/>
                         </Grid>
                     </Border>
                 </DataTemplate>
@@ -113,7 +113,7 @@
                                                         <ui:IconImage Icon="trash" Size="14" Brush="{DynamicResource DangerBrush}"/>
                                                     </Button>
                                                 </StackPanel>
-                                                <CheckBox Grid.Column="5" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                                                <CheckBox Grid.Column="5" Style="{StaticResource Switch}" IsChecked="{Binding Enabled, Mode=TwoWay}" VerticalAlignment="Center" Checked="ActionSwitch_Changed" Unchecked="ActionSwitch_Changed"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
