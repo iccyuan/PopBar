@@ -20,6 +20,8 @@ internal partial class ServicesPage : SettingsPage
     public ServicesPage()
     {
         InitializeComponent();
+        LlmProxyCombo.ItemsSource = Plugins.HostUi.ProxyRoutes.Select(r => new KeyValuePair<Sdk.ProxyRoute, string>(r.Route, r.Label)).ToList();
+        LlmProxyTip.Text = "发往这家服务商的请求怎么连网，不管是哪个插件调用的。" + Plugins.HostUi.ProxyRouteTip;
         // Editable ComboBox: typing does not raise SelectionChanged, so listen to the inner TextBox too.
         LlmModelBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((s, e) => Llm_Changed(s, e)));
     }
@@ -61,6 +63,7 @@ internal partial class ServicesPage : SettingsPage
         if (_shown == null || !_drafts.TryGetValue(_shown, out var d)) return;
         d.BaseUrl = LlmBaseUrlBox.Text.Trim();
         d.ApiKey = LlmKeyBox.Password.Trim();
+        d.Proxy = LlmProxyCombo.SelectedValue is Sdk.ProxyRoute route ? route : Sdk.ProxyRoute.Default;
         d.Model = (LlmModelBox.Text ?? "").Trim();
         d.Thinking = LlmThinkingSw.IsChecked == true;
         if (LlmEffortCombo.SelectedValue is string effort) d.Effort = effort;
@@ -73,7 +76,7 @@ internal partial class ServicesPage : SettingsPage
         if (id == null || !_drafts.TryGetValue(id, out var d))
         {
             _shown = null;
-            LlmFormHeader.Visibility = LlmFormCard.Visibility = Visibility.Collapsed;
+            LlmFormCard.Visibility = Visibility.Collapsed;
             RebuildList();
             return;
         }
@@ -81,11 +84,10 @@ internal partial class ServicesPage : SettingsPage
         {
             _shown = id;
             var p = ProviderOf(id);
-            LlmFormLogo.Icon = ProviderItem.LogoOf(p);
-            LlmFormName.Text = p?.Name ?? id;
-            LlmFormHeader.Visibility = LlmFormCard.Visibility = Visibility.Visible;
+            LlmFormCard.Visibility = Visibility.Visible;
             LlmBaseUrlBox.Text = d.BaseUrl;
             LlmKeyBox.Password = d.ApiKey;
+            LlmProxyCombo.SelectedValue = d.Proxy;
             if (LlmKeyPlain.Visibility == Visibility.Visible) LlmKeyPlain.Text = d.ApiKey;
             LlmModelBox.ItemsSource = d.Models.Count > 0 ? d.Models.ToList() : null; // the list fetched last time, if any
             LlmModelBox.Text = d.Model;

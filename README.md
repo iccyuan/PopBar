@@ -105,7 +105,7 @@ public sealed class HelloPlugin : IPopBarPlugin
 }
 ```
 
-`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`，按用途分为 `IHostDialogs` 对话框、`IHostInputs` 按键 / 程序 / 窗口 / 文件选择、`IHostVisuals` 图标、`ILlmUi` 服务商与模型下拉，代码里只依赖用得到的那一个）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、网络（`Http` 跟随主程序；`HttpFor(ProxyRoute)` 可选直连或走「代理」页设置的代理，`Ui.ProxyPicker` 是现成的选择下拉）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`，按用途分为 `IHostDialogs` 对话框、`IHostInputs` 按键 / 程序 / 窗口 / 文件选择、`IHostVisuals` 图标、`ILlmUi` 服务商与模型下拉，代码里只依赖用得到的那一个）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
 
 线程：`IPluginHost` 的成员都能在任意线程调用。`ShowPanel`、`RegisterHotkey` 会等 UI 线程执行完再返回，所以不要在持有锁、或 UI 线程正等着你的时候从工作线程调用它们；异步代码里用 `ShowPanelAsync`。`Execute` 在线程池上运行，`IHostUi` 只能在 UI 线程用。
 

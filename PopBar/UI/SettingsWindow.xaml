@@ -34,6 +34,7 @@
                     <RadioButton x:Name="NavApps" Style="{StaticResource NavItem}" Content="应用" Tag="app-window" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavPlugins" Style="{StaticResource NavItem}" Content="插件" Tag="puzzle" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavServices" Style="{StaticResource NavItem}" Content="服务" Tag="server" Checked="Nav_Checked"/>
+                    <RadioButton x:Name="NavProxy" Style="{StaticResource NavItem}" Content="代理" Tag="globe" Checked="Nav_Checked"/>
                     <RadioButton x:Name="NavAbout" Style="{StaticResource NavItem}" Content="关于" Tag="info" Checked="Nav_Checked"/>
                 </StackPanel>
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Bottom" VerticalAlignment="Bottom" Style="{StaticResource Muted}" Margin="10,0,0,0" Text=""/>
@@ -63,6 +64,9 @@
 
                 <!-- ===== Services: capabilities shared by plugins ===== -->
                 <ui:ServicesPage x:Name="PanelServices" Visibility="Collapsed"/>
+
+                <!-- ===== Proxy ===== -->
+                <ui:ProxyPage x:Name="PanelProxy" Visibility="Collapsed"/>
 
                 <!-- ===== About ===== -->
                 <ui:AboutPage x:Name="PanelAbout" Visibility="Collapsed"/>

@@ -219,4 +219,25 @@ internal sealed class HostUi : IHostUi
     }
 
     public IReadOnlyList<RunningApp> RunningApps() => Core.RunningApps.List();
+
+    /// <summary>The <see cref="ProxyRoute"/> choices as the pickers word them (plugins' and the 服务 page's alike).</summary>
+    internal static readonly (ProxyRoute Route, string Label)[] ProxyRoutes =
+    [
+        (ProxyRoute.Default, "跟随主程序"),
+        (ProxyRoute.Direct, "不使用代理"),
+        (ProxyRoute.Proxy, "使用代理"),
+    ];
+
+    internal const string ProxyRouteTip = "跟随主程序：按「代理」页里 PopBar 的联网方式；使用代理：走「代理」页设置的代理地址（没填则用系统代理）";
+
+    public FrameworkElement ProxyPicker(ProxyRoute current, Action<ProxyRoute> onChanged, double width = 160)
+    {
+        var combo = new ComboBox
+        {
+            Width = width, ItemsSource = ProxyRoutes.Select(r => new KeyValuePair<ProxyRoute, string>(r.Route, r.Label)).ToList(),
+            DisplayMemberPath = "Value", SelectedValuePath = "Key", SelectedValue = current, ToolTip = ProxyRouteTip,
+        };
+        combo.SelectionChanged += (_, _) => { if (combo.SelectedValue is ProxyRoute r) onChanged(r); };
+        return combo;
+    }
 }

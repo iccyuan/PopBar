@@ -17,7 +17,8 @@ internal sealed class HostServices
     public required ConfigStore Store { get; init; }
     public required Dispatcher Dispatcher { get; init; }
     public required ILlmService Llm { get; init; }
-    public required HttpClient Http { get; init; }
+    /// <summary>The HttpClients by proxy route: PopBar's way, direct, through the proxy; and one per AI service.</summary>
+    public required ProxyManager Proxies { get; init; }
     public required HotkeyManager Hotkeys { get; init; }
     /// <summary>Registers a plugin's tray entry under its full id ("plugin:item").</summary>
     public required Action<string, TrayItem> AddTrayItem { get; init; }
@@ -30,50 +31,6 @@ internal sealed class HostServices
     public required PanelRegistry Panels { get; init; }
     public ServiceRegistry Services { get; } = new();
     public SettingsHub SettingsHub { get; } = new();
-
-    public static HttpClient CreateHttp()
-    {
-        var handler = new SocketsHttpHandler
-        {
-            Proxy = WebRequest.GetSystemWebProxy(), UseProxy = true,
-            AutomaticDecompression = DecompressionMethods.All,
-            ConnectCallback = ConnectAsync,
-        };
-        var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd($"PopBar/{typeof(PluginHost).Assembly.GetName().Version?.ToString(3)} (+https://github.com/iccyuan/PopBar)");
-        return http;
-    }
-
-    /// <summary>
-    /// .NET connects through a dual-mode IPv6 socket by default, i.e. to "::ffff:a.b.c.d" for IPv4 hosts. Some
-    /// machines (VPN / TUN adapters, filtering drivers) reject exactly that with WSAEACCES (10013) while plain IPv4
-    /// sockets work - curl and browsers are fine, PopBar is not. Connect with a socket of the address's own family.
-    /// </summary>
-    private static async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext ctx, CancellationToken ct)
-    {
-        var addresses = await Dns.GetHostAddressesAsync(ctx.DnsEndPoint.Host, ct);
-        Exception? last = null;
-        foreach (var ip in addresses.OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1))
-        {
-            var socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-            try
-            {
-                await socket.ConnectAsync(new IPEndPoint(ip, ctx.DnsEndPoint.Port), ct);
-                return new NetworkStream(socket, ownsSocket: true);
-            }
-            catch (SocketException ex)
-            {
-                socket.Dispose();
-                last = ex;
-            }
-            catch
-            {
-                socket.Dispose(); // cancelled: don't leak, don't try the next address
-                throw;
-            }
-        }
-        throw last ?? new SocketException((int)SocketError.HostNotFound);
-    }
 }
 
 /// <summary>Process-wide registry behind <see cref="IPluginHost.Services"/>: one implementation per contract type.</summary>
@@ -195,7 +152,8 @@ internal sealed class PluginHost : IPluginHost
 
     public IPluginLogger Log => _log;
     public IPluginStorage Storage => _storage;
-    public HttpClient Http => _s.Http;
+    public HttpClient Http => _s.Proxies.Main;
+    public HttpClient HttpFor(ProxyRoute route) => _s.Proxies.For(route);
     public ILlmService Llm => _s.Llm;
     public Dispatcher Dispatcher => _s.Dispatcher;
     public IHostUi Ui { get; }

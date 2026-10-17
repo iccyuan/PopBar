@@ -23,6 +23,8 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         public string LlmProvider { get; set; } = "";
         /// <summary>AI mode: model override; empty = the service's default model.</summary>
         public string Model { get; set; } = "";
+        /// <summary>How Google Translate is reached (AI mode goes by the service's own setting on the 服务 page).</summary>
+        public ProxyRoute Proxy { get; set; } = ProxyRoute.Default;
     }
 
     private IPluginHost _host = null!;
@@ -198,7 +200,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
     private async Task<(string Text, string Detected)> GoogleAsync(string text, string target, CancellationToken ct)
     {
         var url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl={Uri.EscapeDataString(target)}&dt=t&q={Uri.EscapeDataString(text)}";
-        using var resp = await _host.Http.GetAsync(url, ct);
+        using var resp = await _host.HttpFor(_cfg.Proxy).GetAsync(url, ct);
         resp.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
         var root = doc.RootElement;
@@ -233,15 +235,19 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         var serviceRow = Form.Row("服务商", _host.Ui.ProviderPicker(d.LlmProvider, v => { d.LlmProvider = v; d.Model = ""; BuildModel(); Changed(); }), "「服务」页里配置的服务商");
         var modelRow = Form.Row("模型", modelHost, "初始为该服务商在「服务」页的模型；可改，清空即恢复");
         var streamRow = Form.Row("流式输出", Form.Toggle(d.Stream, v => { d.Stream = v; Changed(); }), "边生成边显示");
+        // Google is reached by this plugin itself; the AI model by its service's own proxy setting (服务 page)
+        var proxyRow = Form.Row("代理", _host.Ui.ProxyPicker(d.Proxy, v => { d.Proxy = v; Changed(); }), "Google 翻译怎么连网；国内一般要「使用代理」");
         void SyncStream()
         {
             bool llm = d.Provider == "llm";
             foreach (var row in new[] { serviceRow, modelRow, streamRow }) { row.IsEnabled = llm; row.Opacity = llm ? 1 : 0.45; }
+            proxyRow.IsEnabled = !llm; proxyRow.Opacity = llm ? 0.45 : 1;
         }
         SyncStream();
         return Form.Stack(
             Form.Card(
                 Form.Row("翻译服务", Form.Combo(new[] { ("google", "Google 翻译（免费）"), ("llm", "AI 模型（「服务」页配置）") }, d.Provider, v => { d.Provider = v; SyncStream(); Changed(); }, 260), "Google 需要代理"),
+                proxyRow,
                 serviceRow,
                 modelRow,
                 streamRow,

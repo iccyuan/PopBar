@@ -31,6 +31,7 @@ public partial class App : Application
     private PluginManager? _plugins;
     private HotkeyManager? _hotkeys;
     private HttpClient? _http;
+    private ProxyManager? _proxies;
     private LlmService? _llm;
     private SettingsHub? _settingsHub;
     private readonly PanelRegistry _panels = new();
@@ -85,15 +86,16 @@ public partial class App : Application
         _popup.Preload();
 
         // Plugin infrastructure.
-        _http = HostServices.CreateHttp();
-        _llm = new LlmService(_store, _http);
+        _proxies = new ProxyManager(_store);
+        _http = _proxies.Main;
+        _llm = new LlmService(_store, _proxies);
         _hotkeys = new HotkeyManager();
         var services = new HostServices
         {
             Store = _store,
             Dispatcher = Dispatcher,
             Llm = _llm,
-            Http = _http,
+            Proxies = _proxies,
             Hotkeys = _hotkeys,
             Panels = _panels,
             AddTrayItem = (id, item) => _pluginTrayItems.Add((id, item)),

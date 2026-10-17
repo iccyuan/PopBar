@@ -73,6 +73,12 @@ public sealed class AppConfig
     /// <summary>Pre-v7 single service; moved into <see cref="LlmServices"/> on load and left null.</summary>
     public LlmConfig? Llm { get; set; }
 
+    /// <summary>
+    /// The proxy (<see cref="ProxyConfig.Address"/>) plugins and AI services can choose (<see cref="Sdk.ProxyRoute.Proxy"/>),
+    /// and how PopBar itself connects (<see cref="ProxyConfig.Mode"/>), which <see cref="Sdk.ProxyRoute.Default"/> follows.
+    /// </summary>
+    public ProxyConfig Proxy { get; set; } = new();
+
     /// <summary>The service for a provider id (null / empty = the default one), or null when it is not set up.</summary>
     public LlmConfig? LlmServiceFor(string? providerId)
     {
@@ -140,6 +146,26 @@ public sealed class LlmConfig
     public string Effort { get; set; } = Sdk.LlmEffort.Medium;
     /// <summary>Model ids the service returned the last time its list was fetched; shown in the model pickers until the next fetch.</summary>
     public List<string> Models { get; set; } = new();
+    /// <summary>How requests to this service connect, whichever plugin asks.</summary>
+    public Sdk.ProxyRoute Proxy { get; set; } = Sdk.ProxyRoute.Default;
+}
+
+/// <summary>Values of <see cref="ProxyConfig.Mode"/>: how PopBar itself connects.</summary>
+public static class ProxyModes
+{
+    /// <summary>Windows' proxy settings (what browsers use).</summary>
+    public const string System = "system";
+    /// <summary>Connect directly.</summary>
+    public const string None = "none";
+    /// <summary>The proxy at <see cref="ProxyConfig.Address"/>.</summary>
+    public const string Custom = "custom";
+}
+
+/// <summary>The proxy PopBar knows ("127.0.0.1:7890", "socks5://host:port"), and how PopBar itself connects.</summary>
+public sealed class ProxyConfig
+{
+    public string Mode { get; set; } = ProxyModes.System;
+    public string Address { get; set; } = "";
 }
 
 /// <summary>DPAPI (current user) wrapping for secrets kept in config files: "dpapi:" + base64.</summary>

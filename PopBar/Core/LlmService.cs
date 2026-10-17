@@ -13,16 +13,16 @@ namespace PopBar.Core;
 internal sealed class LlmService : ILlmService
 {
     private readonly ConfigStore _store;
-    private readonly HttpClient _http;
+    private readonly ProxyManager _proxies;
     private readonly List<ILlmProvider> _providers = new();
     private readonly object _gate = new();
 
-    public LlmService(ConfigStore store, HttpClient http)
+    public LlmService(ConfigStore store, ProxyManager proxies)
     {
         _store = store;
-        _http = http;
+        _proxies = proxies;
         foreach (var p in BuiltinProviders.Create()) RegisterProvider(p);
-        Catalog = new ModelCatalog(http, System.IO.Path.Combine(ConfigStore.Dir, "model-catalog.json"));
+        Catalog = new ModelCatalog(proxies.Main, System.IO.Path.Combine(ConfigStore.Dir, "model-catalog.json"));
         _ = Task.Run(() => Catalog.EnsureFreshAsync()); // at most daily, in the background
     }
 
@@ -95,11 +95,12 @@ internal sealed class LlmService : ILlmService
     /// <summary>Config + provider defaults → concrete connection. <paramref name="model"/> (a per-request override) wins over the service's default.</summary>
     private LlmConnection Resolve(string? providerId = null, string? model = null)
     {
-        var (_, cfg, p) = Service(providerId);
+        var (id, cfg, p) = Service(providerId);
         cfg ??= new LlmConfig();
         var baseUrl = string.IsNullOrWhiteSpace(cfg.BaseUrl) ? (p?.DefaultBaseUrl ?? "") : cfg.BaseUrl.Trim();
         if (string.IsNullOrWhiteSpace(model)) model = string.IsNullOrWhiteSpace(cfg.Model) ? (p?.DefaultModel ?? "") : cfg.Model.Trim();
-        return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model.Trim(), _http);
+        // the service's own proxy setting (else PopBar's), whichever plugin is asking
+        return new LlmConnection(baseUrl, cfg.ApiKey?.Trim() ?? "", model.Trim(), _proxies.ForService(id));
     }
 
     public IReadOnlyList<string> EffortLevels(string? providerId, string? model)

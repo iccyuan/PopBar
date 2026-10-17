@@ -14,8 +14,14 @@ public interface IPluginHost
     IPluginLogger Log { get; }
     /// <summary>Per-plugin JSON settings (%AppData%\PopBar\plugins\{id}.json).</summary>
     IPluginStorage Storage { get; }
-    /// <summary>Shared HttpClient (proxy-aware, 60 s default timeout).</summary>
+    /// <summary>Shared HttpClient (60 s default timeout) that connects the way PopBar does: <c>HttpFor(ProxyRoute.Default)</c>.</summary>
     HttpClient Http { get; }
+    /// <summary>
+    /// An HttpClient for a <see cref="ProxyRoute"/>: the way PopBar connects, directly, or through the proxy set on the
+    /// "代理" page. Let the user choose with <see cref="IHostInputs.ProxyPicker"/> and keep the choice in your settings;
+    /// a later change of the proxy itself applies to the client you already have. Local and LAN hosts are always direct.
+    /// </summary>
+    HttpClient HttpFor(ProxyRoute route);
     /// <summary>Access to the LLM configured in PopBar settings (may be unconfigured: check <see cref="ILlmService.IsConfigured"/>).</summary>
     ILlmService Llm { get; }
     /// <summary>UI thread dispatcher for building WPF elements.</summary>
@@ -137,4 +143,15 @@ public sealed class PanelOptions
     /// Empty areas of your content drag the panel. Text / status / buttons / error have nowhere to show here.
     /// </summary>
     public bool Bare { get; init; }
+}
+
+/// <summary>How a plugin's requests reach the internet (see <see cref="IPluginHost.HttpFor"/>).</summary>
+public enum ProxyRoute
+{
+    /// <summary>As PopBar itself connects (the choice on the "代理" page).</summary>
+    Default,
+    /// <summary>Directly, never through a proxy.</summary>
+    Direct,
+    /// <summary>Through the proxy set on the "代理" page (Windows' proxy when none is set).</summary>
+    Proxy,
 }

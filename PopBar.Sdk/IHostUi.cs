@@ -66,6 +66,9 @@ public interface IHostInputs
     /// <summary>Button opening a folder dialog; <paramref name="initial"/> supplies the folder to start in.</summary>
     FrameworkElement FolderBrowse(string label, Func<string?> initial, Action<string> onPicked);
 
+    /// <summary>Drop-down for a <see cref="ProxyRoute"/>: 跟随主程序 / 不使用代理 / 使用代理. Calls back on every change.</summary>
+    FrameworkElement ProxyPicker(ProxyRoute current, Action<ProxyRoute> onChanged, double width = 160);
+
     /// <summary>Programs the user would call running: one per exe with an application window on screen or hidden in the tray. Shell hosts and helper windows are filtered out; the label is the program's own description.</summary>
     IReadOnlyList<RunningApp> RunningApps();
 }

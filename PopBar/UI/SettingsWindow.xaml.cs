@@ -26,7 +26,7 @@ public partial class SettingsWindow : Window
         _store = store;
         _pluginDrafts = pluginDrafts;
         InitializeComponent();
-        _pages = new SettingsPage[] { PanelGeneral, PanelActions, PanelApps, PanelPlugins, PanelServices };
+        _pages = new SettingsPage[] { PanelGeneral, PanelActions, PanelApps, PanelPlugins, PanelServices, PanelProxy };
 
         var ctx = new SettingsContext
         {
@@ -164,6 +164,7 @@ public partial class SettingsWindow : Window
         PanelApps.Visibility = NavApps.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelPlugins.Visibility = NavPlugins.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelServices.Visibility = NavServices.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PanelProxy.Visibility = NavProxy.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         PanelAbout.Visibility = NavAbout.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
     }
 

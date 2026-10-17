@@ -14,11 +14,8 @@
         <WrapPanel x:Name="LlmServiceList"/>
         <TextBlock x:Name="LlmEmptyHint" Style="{StaticResource Muted}" Margin="4,0,0,8" TextWrapping="Wrap"
                    Text="还没有配置服务商。点「添加服务商」选一家，填好地址、密钥和模型；可以添加多家，再指定一家为默认。"/>
-        <StackPanel x:Name="LlmFormHeader" Orientation="Horizontal" Margin="4,10,0,8">
-            <ui:IconImage x:Name="LlmFormLogo" Icon="bot" Size="16" Brush="{DynamicResource TextBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <TextBlock x:Name="LlmFormName" Style="{StaticResource H2}" Margin="0" VerticalAlignment="Center"/>
-        </StackPanel>
-        <Border x:Name="LlmFormCard" Style="{StaticResource Card}">
+        <!-- the form of the service whose chip is outlined above -->
+        <Border x:Name="LlmFormCard" Style="{StaticResource Card}" Margin="0,4,0,0">
             <StackPanel>
                 <Grid Style="{StaticResource Row}">
                     <Grid.ColumnDefinitions>
@@ -60,6 +57,19 @@
                             <ui:IconImage x:Name="LlmKeyEyeIcon" Icon="eye" Size="16" Brush="{DynamicResource MutedBrush}"/>
                         </Button>
                     </StackPanel>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="代理" VerticalAlignment="Center"/>
+                        <ui:InfoTip x:Name="LlmProxyTip"/>
+                    </StackPanel>
+                    <ComboBox x:Name="LlmProxyCombo" Grid.Column="1" Width="160" VerticalAlignment="Center"
+                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Llm_Changed"/>
                 </Grid>
                 <Rectangle Style="{StaticResource RowSep}"/>
                 <Grid Style="{StaticResource Row}">
