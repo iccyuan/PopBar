@@ -7,7 +7,7 @@ public sealed record TrayItem
     public required string Id { get; init; }
     public required string Label { get; init; }
     public required Action Callback { get; init; }
-    /// <summary>A name from <see cref="IHostVisuals.IconNames"/>.</summary>
+    /// <summary>An icon: see <see cref="IPopBarPlugin.Icon"/>.</summary>
     public string? Icon { get; init; }
 
     /// <summary>

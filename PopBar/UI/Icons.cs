@@ -3,7 +3,11 @@ using System.Windows.Media.Imaging;
 
 namespace PopBar.UI;
 
-/// <summary>Stroke icons (Lucide, 24x24 viewbox) as WPF path data, looked up by name.</summary>
+/// <summary>
+/// The icons everything in PopBar draws, by value: a built-in name (Lucide stroke icons, 24x24 viewbox, plus filled
+/// brand logos), a name a plugin registered (<see cref="Register"/>), inline SVG markup, or raw SVG path data (filled).
+/// All are drawn in one colour, so they follow the theme.
+/// </summary>
 public static class Icons
 {
     private static readonly Dictionary<string, string> Data = new(StringComparer.OrdinalIgnoreCase)
@@ -91,7 +95,7 @@ public static class Icons
 
     /// <summary>
     /// Brand logos (Simple Icons, CC0; 24x24 viewbox) drawn as filled shapes instead of strokes, for the model
-    /// provider pickers. A provider from a plugin may also pass raw path data as its logo; see <see cref="IsFilled"/>.
+    /// provider pickers. A provider from a plugin may also pass raw path data as its logo; drawn filled the same way.
     /// </summary>
     private static readonly Dictionary<string, string> Filled = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -104,42 +108,148 @@ public static class Icons
 
     /// <summary>Raw SVG path data handed in place of a name (long, starts with a move-to, has coordinates); drawn filled.</summary>
     private static bool IsPathData(string name) => name.Length > 10 && name[0] is 'M' or 'm' && !Data.ContainsKey(name) && name.Any(char.IsDigit);
-    /// <summary>Whether <paramref name="name"/> is drawn as a filled shape (a logo) rather than a stroked line icon.</summary>
-    public static bool IsFilled(string? name) => !string.IsNullOrWhiteSpace(name) && (Filled.ContainsKey(name) || IsPathData(name));
+
+    // ---- plugin icons ----
+
+    /// <summary>Icons plugins registered: name -> (SVG markup or path data, owning plugin id).</summary>
+    private static readonly Dictionary<string, (string Svg, string Owner)> Registered = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Make <paramref name="svg"/> (SVG markup or path data) available as <paramref name="name"/> everywhere an icon is
+    /// taken. Built-in names cannot be replaced, nor another plugin's; the same plugin may register a name again.
+    /// Returns the reason when refused (also for markup that does not draw), else null.
+    /// </summary>
+    public static string? Register(string name, string svg, string owner)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Trim() != name || SvgIcon.IsMarkup(name) || IsPathData(name))
+            return "图标名不能为空、不能以空白开头或结尾，也不能是 SVG 或 path 数据";
+        if (Data.ContainsKey(name) || Filled.ContainsKey(name)) return $"「{name}」是内置图标名";
+        try { if (PartsFor(svg, out bool known).Length == 0 || !known) return "不是 SVG 或 path 数据"; }
+        catch (FormatException ex) { return ex.Message; }
+        lock (Registered)
+        {
+            if (Registered.TryGetValue(name, out var had) && !string.Equals(had.Owner, owner, StringComparison.OrdinalIgnoreCase))
+                return $"「{name}」已被插件 {had.Owner} 注册";
+            Registered[name] = (svg, owner);
+        }
+        Forget(name);
+        return null;
+    }
+
+    /// <summary>Drop the icons a plugin registered (it was stopped or unloaded); things still showing them fall back to a circle.</summary>
+    public static void Unregister(string owner)
+    {
+        List<string> names;
+        lock (Registered)
+        {
+            names = Registered.Where(kv => string.Equals(kv.Value.Owner, owner, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToList();
+            foreach (var n in names) Registered.Remove(n);
+        }
+        foreach (var n in names) Forget(n);
+    }
+
+    /// <summary>Clear the caches of a name whose drawing changed.</summary>
+    private static void Forget(string name)
+    {
+        lock (Cache) { Cache.Remove(name); PartCache.Remove(name); }
+        lock (BitmapCache)
+            foreach (var k in BitmapCache.Keys.Where(k => k.StartsWith(name + "|", StringComparison.OrdinalIgnoreCase)).ToList()) BitmapCache.Remove(k);
+    }
 
     private static readonly Dictionary<string, Geometry> Cache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, IconPart[]> PartCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, BitmapSource> BitmapCache = new(StringComparer.Ordinal);
 
-    /// <summary>Rasterise an icon at an exact pixel size (cached). Stroke is scaled from icon units to pixels.</summary>
+    /// <summary>The shapes of an icon value, in 24x24 icon units; unknown or broken values draw a circle.</summary>
+    private static IconPart[] Parts(string? name)
+    {
+        name = string.IsNullOrWhiteSpace(name) ? "circle" : name;
+        lock (Cache)
+        {
+            if (PartCache.TryGetValue(name, out var cached)) return cached;
+            IconPart[] parts;
+            try
+            {
+                string? svg;
+                lock (Registered) svg = Registered.TryGetValue(name, out var r) ? r.Svg : null;
+                parts = PartsFor(svg ?? name, out bool known);
+                if (!known) parts = PartsFor("circle", out _);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"icon '{(name.Length > 60 ? name[..60] + "…" : name)}' failed to parse: {ex.Message}");
+                parts = PartsFor("circle", out _);
+            }
+            PartCache[name] = parts;
+            return parts;
+        }
+    }
+
+    /// <summary>Shapes of a built-in name, markup or path data; <paramref name="known"/> false for anything else.</summary>
+    private static IconPart[] PartsFor(string value, out bool known)
+    {
+        known = true;
+        if (Data.TryGetValue(value, out var d)) return [new IconPart(Frozen(Geometry.Parse(d)), false, 2)];
+        // Logos use the SVG default fill rule (nonzero, "F1"); the parser would otherwise default to even-odd and punch holes.
+        if (Filled.TryGetValue(value, out d)) return [new IconPart(Frozen(Geometry.Parse("F1 " + d)), true, 0)];
+        if (SvgIcon.IsMarkup(value)) return SvgIcon.Parse(value);
+        if (IsPathData(value))
+        {
+            try { return [new IconPart(Frozen(Geometry.Parse("F1 " + value)), true, 0)]; }
+            catch (Exception ex) { throw new FormatException("path 数据无法解析：" + ex.Message, ex); }
+        }
+        known = false;
+        return [];
+    }
+
+    private static Geometry Frozen(Geometry g) { g.Freeze(); return g; }
+
+    /// <summary>
+    /// Rasterise an icon at an exact pixel size (cached). Strokes are scaled from icon units to pixels;
+    /// <paramref name="thicknessUnits"/> is the width of a standard (2-unit) line, and other widths scale with it.
+    /// </summary>
     public static BitmapSource Render(string? name, int px, Color color, double thicknessUnits = 2.0)
     {
         name = string.IsNullOrWhiteSpace(name) ? "circle" : name;
         var key = $"{name}|{px}|{color}|{thicknessUnits}";
         lock (BitmapCache)
-        {
             if (BitmapCache.TryGetValue(key, out var cached)) return cached;
-            var geo = Get(name);
-            double s = px / 24.0;
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            var pen = new Pen(brush, thicknessUnits * s) { LineJoin = PenLineJoin.Round, StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round };
-            pen.Freeze();
-            var visual = new DrawingVisual();
-            using (var dc = visual.RenderOpen())
+        double s = px / 24.0;
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(s, s));
+            foreach (var part in Parts(name))
             {
-                dc.PushTransform(new ScaleTransform(s, s));
-                if (IsFilled(name)) dc.DrawGeometry(brush, null, geo); else dc.DrawGeometry(null, pen, geo);
-                dc.Pop();
+                if (part.Fill) dc.DrawGeometry(brush, null, part.Geometry);
+                if (part.Stroke > 0)
+                {
+                    var pen = new Pen(brush, part.Stroke * thicknessUnits / 2) { LineJoin = part.Join, StartLineCap = part.Cap, EndLineCap = part.Cap };
+                    pen.Freeze();
+                    dc.DrawGeometry(null, pen, part.Geometry);
+                }
             }
-            var rtb = new RenderTargetBitmap(px, px, 96, 96, PixelFormats.Pbgra32);
-            rtb.Render(visual);
-            rtb.Freeze();
-            BitmapCache[key] = rtb;
-            return rtb;
+            dc.Pop();
         }
+        var rtb = new RenderTargetBitmap(px, px, 96, 96, PixelFormats.Pbgra32);
+        rtb.Render(visual);
+        rtb.Freeze();
+        lock (BitmapCache) BitmapCache[key] = rtb;
+        return rtb;
     }
 
-    public static IEnumerable<string> Names => Data.Keys.OrderBy(k => k, StringComparer.Ordinal);
+    /// <summary>Names to offer in icon pickers: the built-in line icons, then the ones plugins registered.</summary>
+    public static IEnumerable<string> Names
+    {
+        get
+        {
+            List<string> plugins;
+            lock (Registered) plugins = Registered.Keys.OrderBy(k => k, StringComparer.Ordinal).ToList();
+            return Data.Keys.OrderBy(k => k, StringComparer.Ordinal).Concat(plugins).ToList();
+        }
+    }
 
     // Static accessors for XAML ({x:Static ui:Icons.Pencil}).
     public static Geometry ArrowUp => Get("arrow-up");
@@ -154,26 +264,15 @@ public static class Icons
     public static Geometry InfoGeometry => Get("info");
     public static Geometry AppWindowGeometry => Get("app-window");
 
+    /// <summary>An icon's outline as one geometry (for a Path in XAML); <see cref="Render"/> draws it properly.</summary>
     public static Geometry Get(string? name)
     {
         name = string.IsNullOrWhiteSpace(name) ? "circle" : name;
+        var parts = Parts(name);
         lock (Cache)
         {
             if (Cache.TryGetValue(name, out var g)) return g;
-            Geometry geo;
-            try
-            {
-                // Logos use the SVG default fill rule (nonzero, "F1"); the parser would otherwise default to even-odd and punch holes.
-                geo = Data.TryGetValue(name, out var d) ? Geometry.Parse(d)
-                    : Filled.TryGetValue(name, out d) ? Geometry.Parse("F1 " + d)
-                    : IsPathData(name) ? Geometry.Parse("F1 " + name)
-                    : Geometry.Parse(Data["circle"]);
-            }
-            catch (Exception ex)
-            {
-                Log.Warn($"icon '{name}' failed to parse: {ex.Message}");
-                geo = Geometry.Parse(Data["circle"]);
-            }
+            Geometry geo = parts.Length == 1 ? parts[0].Geometry : new GeometryGroup { Children = new GeometryCollection(parts.Select(p => p.Geometry)) };
             geo.Freeze();
             Cache[name] = geo;
             return geo;

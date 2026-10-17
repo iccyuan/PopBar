@@ -13,7 +13,11 @@ public interface IPopBarPlugin : IDisposable
     string Name { get; }
     string Description { get; }
     Version Version { get; }
-    /// <summary>Icon standing for the plugin as a whole (its card in settings, its group of actions). PopBar icon name.</summary>
+    /// <summary>
+    /// Icon standing for the plugin as a whole (its card in settings, its group of actions). Like every icon PopBar
+    /// takes: a built-in name (<see cref="IHostVisuals.IconNames"/>, Lucide names such as "languages"), a name
+    /// registered with <see cref="IPluginHost.RegisterIcon"/>, or SVG markup inline. Drawn in one colour that follows the theme.
+    /// </summary>
     string Icon => "puzzle";
 
     /// <summary>
@@ -40,7 +44,7 @@ public sealed class PluginAction
 {
     public required string Id { get; init; }
     public required string Label { get; init; }
-    /// <summary>Icon name from PopBar's built-in icon set (lucide names such as "languages", "sparkles").</summary>
+    /// <summary>An icon: see <see cref="IPopBarPlugin.Icon"/> (built-in name, registered name or inline SVG).</summary>
     public string Icon { get; init; } = "circle";
     /// <summary>One line shown under the action in settings, e.g. "粘贴到 notepad.exe". Optional.</summary>
     public string? Description { get; init; }

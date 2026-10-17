@@ -187,6 +187,13 @@ internal sealed class PluginHost : IPluginHost
     public IHostUi Ui { get; }
     public string Theme => ThemeManager.Effective;
 
+    public bool RegisterIcon(string name, string svg)
+    {
+        var why = Icons.Register(name, svg ?? "", _pluginId);
+        if (why != null) _log.Warn($"icon '{name}' not registered: {why}");
+        return why == null;
+    }
+
     private Action<string>? _themeChanged;
     private readonly object _themeGate = new();
 
@@ -320,7 +327,7 @@ internal sealed class PluginHost : IPluginHost
 
     /// <summary>
     /// Undo what the plugin registered through this host, after it was disposed (unload, or switched off): hotkeys,
-    /// tray entries, settings drafts, theme listeners, and services / model providers implemented in its assembly. UI thread.
+    /// tray entries, settings drafts, theme listeners, icons, and services / model providers implemented in its assembly. UI thread.
     /// </summary>
     public void Release(System.Reflection.Assembly pluginAssembly)
     {
@@ -330,6 +337,7 @@ internal sealed class PluginHost : IPluginHost
         _s.RemoveTrayItems(_pluginId);
         _s.SettingsHub.Remove(_pluginId);
         _s.Services.RemoveFrom(pluginAssembly);
+        Icons.Unregister(_pluginId);
         lock (_themeGate)
         {
             if (_themeChanged != null) ThemeManager.Changed -= OnThemeChanged;

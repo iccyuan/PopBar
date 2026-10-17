@@ -7,6 +7,7 @@ PopBar 的插件是一个 .NET 类库：引用 `PopBar.Sdk`，实现 `IPopBarPlu
 - [快速开始](#快速开始)
 - [插件的组成](#插件的组成)
 - [动作：操作条上的按钮](#动作操作条上的按钮)
+- [图标](#图标)
 - [结果面板](#结果面板)
 - [设置页](#设置页)
 - [宿主能力一览](#宿主能力一览)
@@ -124,7 +125,7 @@ PopBar.exe --dev-plugin bin\Debug\net10.0-windows10.0.19041.0
 | `CreateSettingsView()` | 可选的设置界面，显示在「插件」页该插件卡片的齿轮里；返回 `null` 表示没有设置 |
 | `Dispose()` | 插件被停用、卸载或 PopBar 退出时调用。停掉定时器、关闭自己的窗口、取消事件订阅 |
 
-图标名来自 PopBar 内置的图标集（Lucide 风格的线条图标，如 `copy`、`languages`、`sparkles`、`scan-text`、`qr-code`、`code`、`clock`、`image`）。完整列表可以在运行时用 `host.Ui.IconNames` 取得，设置页里也可以用 `host.Ui.IconPicker` 让用户挑选。
+图标可以用内置图标名，也可以用插件自己的 SVG，见[图标](#图标)。
 
 ## 动作：操作条上的按钮
 
@@ -178,6 +179,41 @@ public BarOptions Bar => new()
 ```
 
 只有一个动作适用于当前选区时，它仍以自己的按钮出现。小众插件可以设 `ShowByDefault = false`，让用户到「动作」页自己打开。
+
+## 图标
+
+凡是接受图标的地方——`IPopBarPlugin.Icon`、`PluginAction.Icon`、`BarOptions.MergeIcon`、`TrayItem.Icon`、`PanelOptions.Icon`、`ILlmProvider.Logo`、`host.Ui.Icon(...)`——都可以填以下任意一种：
+
+| 写法 | 例子 |
+|---|---|
+| 内置图标名 | `"languages"`、`"sparkles"`、`"scan-text"`、`"qr-code"`（Lucide 风格的线条图标；完整列表用 `host.Ui.IconNames` 取得） |
+| 插件注册的图标名 | `host.RegisterIcon("acme-logo", svg)` 之后写 `"acme-logo"` |
+| 内联 SVG | `"<svg viewBox=\"0 0 24 24\" ...>...</svg>"` |
+| SVG path 数据 | `"M12 2L2 22h20Z"`（画成填充图形） |
+
+```csharp
+// 插件自己的图标：直接写内联 SVG（Lucide 的 smile）
+private const string Smile = """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></svg>""";
+public string Icon => Smile;
+
+public void Initialize(IPluginHost host)
+{
+    // 注册后按名字使用，也会出现在图标选择器里（用户给自定义动作挑图标时能选到）
+    host.RegisterIcon("hello-card", """<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 15h6"/></svg>""");
+}
+
+// 动作里引用
+Icon = "hello-card",
+```
+
+要点：
+
+- **单色绘制，颜色跟随主题**：SVG 里的颜色会被忽略，只取形状，按 PopBar 当前主题的颜色画出来，所以在操作条上和内置图标风格一致，深色、浅色主题下都清楚。`fill="none"` 和 `stroke="none"` 仍然有效，用来区分描边和填充。
+- **按 24×24 设计效果最好**：任意 `viewBox` 都会等比缩放、居中放进图标区域；线宽按同样比例缩放，2 个单位的线和内置图标一样粗。Lucide、Tabler 等线条图标库的 SVG 可以直接用。
+- **支持的 SVG 内容**：`path`、`circle`、`ellipse`、`rect`、`line`、`polyline`、`polygon`、嵌套的 `g`；`fill`、`stroke`、`stroke-width`、`fill-rule`、`stroke-linecap`、`stroke-linejoin`（写成属性或内联 `style` 都行）；`transform`。渐变、滤镜、文字、`<use>` 会被忽略。
+- **注册的图标跟着插件走**：插件停用或卸载时，它注册的图标会被撤掉，还在用这个名字的地方显示成圆圈。所以**插件自己的 `Icon` 建议写内联 SVG**，这样插件停用时「插件」页的卡片仍能显示它；动作、托盘项这些只在插件运行时出现的地方，用注册的名字更省事。
+- **命名**：不能和内置图标重名，也不能和其他插件注册的重名，建议加上插件 id 前缀（如 `acme-logo`）。同一个插件可以重复注册同一个名字来更新图标。
+- `RegisterIcon` 被拒绝时（重名、SVG 画不出来）返回 `false`，原因写进日志。SVG 有问题时，用到它的地方显示成圆圈，日志里有解析错误。
 
 ## 结果面板
 
@@ -300,6 +336,7 @@ public FrameworkElement? CreateSettingsView()
 | 能力 | 成员 |
 |---|---|
 | 日志 | `Log.Info / Warn / Error`，写入 PopBar 日志并带插件 id 前缀 |
+| 图标 | `RegisterIcon(name, svg)`，见[图标](#图标) |
 | 设置存储 | `Storage.Get<T>()` / `Storage.Set(value)`，存在 `%AppData%\PopBar\plugins\{id}.json` |
 | 数据目录 | `DataDir`：`%AppData%\PopBar\plugins\.data\{id}\`（可能还不存在，用前先创建），更新插件不会删除 |
 | 面板 | `ShowPanel` / `ShowPanelAsync` |
@@ -471,7 +508,7 @@ PopBar.exe --dev-plugin <构建输出目录>
 
 ## SDK 版本与兼容性
 
-`PopBar.Sdk` 的程序集版本就是插件 API 版本，与 PopBar 的程序版本无关，当前为 **1.0**。
+`PopBar.Sdk` 的程序集版本就是插件 API 版本，与 PopBar 的程序版本无关，当前为 **1.1**。
 
 - **新增**接口时次版本 +1（1.0 → 1.1）：旧插件在新 PopBar 上照常运行。
 - **破坏性改动**时主版本 +1（1.x → 2.0）。
@@ -484,6 +521,11 @@ PopBar.exe --dev-plugin <构建输出目录>
 不满足时，「插件」页会说明原因（如「插件需要更新版本的 PopBar（插件基于 SDK 1.2，当前 PopBar 提供 SDK 1.0）」）。更新插件时如果新版本不兼容，会在替换之前就拒绝，已安装的旧版本不受影响。
 
 因此，想让插件支持尽可能多的 PopBar 版本，就引用你实际需要的最低版本的 SDK。
+
+| SDK 版本 | 新增 |
+|---|---|
+| 1.0 | 首个独立版本 |
+| 1.1 | `IPluginHost.RegisterIcon`；所有图标参数都可以直接写 SVG |
 
 ## 常见问题
 

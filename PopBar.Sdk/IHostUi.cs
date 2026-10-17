@@ -76,13 +76,13 @@ public interface IHostInputs
 /// <summary>PopBar's icon set and visual helpers.</summary>
 public interface IHostVisuals
 {
-    /// <summary>Crisp line icon from PopBar's icon set (same control the bar uses).</summary>
+    /// <summary>Crisp icon, drawn like the bar's (any icon value: see <see cref="IPopBarPlugin.Icon"/>).</summary>
     FrameworkElement Icon(string name, double size = 16, Brush? brush = null);
 
     /// <summary>Drop-down of all available icon names with previews; calls back with the chosen name.</summary>
     FrameworkElement IconPicker(string? current, Action<string> onChanged, double width = 200);
 
-    /// <summary>Names accepted by <see cref="Icon"/>, by <c>PluginAction.Icon</c> and by <c>IPopBarPlugin.Icon</c>.</summary>
+    /// <summary>The icon names on offer: the built-in ones, then those plugins registered (<see cref="IPluginHost.RegisterIcon"/>).</summary>
     IReadOnlyList<string> IconNames { get; }
 
     /// <summary>

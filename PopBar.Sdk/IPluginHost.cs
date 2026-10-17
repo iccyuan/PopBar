@@ -28,6 +28,16 @@ public interface IPluginHost
     Dispatcher Dispatcher { get; }
     /// <summary>Host-styled dialogs, inputs, icons and model pickers (UI thread only). See <see cref="IHostUi"/>.</summary>
     IHostUi Ui { get; }
+    /// <summary>
+    /// Add an icon of your own, usable by <paramref name="name"/> wherever PopBar takes an icon (actions, the plugin's
+    /// <see cref="IPopBarPlugin.Icon"/>, tray entries, panels, <see cref="IHostVisuals.Icon"/>) and offered in icon
+    /// pickers. <paramref name="svg"/> is SVG markup - e.g. a 24x24 line icon with <c>fill="none" stroke="currentColor"</c>,
+    /// as Lucide draws them - or bare path data (drawn filled). Only the shapes count: icons are drawn in one colour that
+    /// follows the theme, like PopBar's own. Choose names unlikely to clash, e.g. prefixed with your plugin id.
+    /// Returns false (the reason goes to the log) for a built-in name, another plugin's name, or SVG that cannot be
+    /// drawn. Removed when the plugin is stopped or unloaded. Any thread. Since SDK 1.1.
+    /// </summary>
+    bool RegisterIcon(string name, string svg);
     /// <summary>"dark" or "light" - current bar theme.</summary>
     string Theme { get; }
     /// <summary>
@@ -122,6 +132,7 @@ public sealed record RegionCapture(byte[] Png, int X, int Y, int Width, int Heig
 public sealed class PanelOptions
 {
     public string Title { get; init; } = "";
+    /// <summary>An icon: see <see cref="IPopBarPlugin.Icon"/>.</summary>
     public string Icon { get; init; } = "circle";
     /// <summary>Tag next to the title (provider / model). See <see cref="IPanel.SetBadge"/>.</summary>
     public string? Badge { get; init; }

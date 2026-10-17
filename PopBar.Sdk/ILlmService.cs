@@ -98,8 +98,9 @@ public interface ILlmProvider
     IReadOnlyList<string> EffortLevels(string model) => Features.HasFlag(LlmFeatures.Effort) ? LlmEffort.Standard : Array.Empty<string>();
     /// <summary>
     /// Logo drawn in front of <see cref="Name"/> in the provider pickers: a name from PopBar's icon set (built-in brand logos
-    /// "openai", "anthropic", "claude", "deepseek", "ollama", or any Lucide icon such as "bot"), or raw SVG path data in a
-    /// 24x24 viewbox (filled, single colour). Null = a generic robot.
+    /// "openai", "anthropic", "claude", "deepseek", "ollama", or any Lucide icon such as "bot"), a name registered with
+    /// <see cref="IPluginHost.RegisterIcon"/>, SVG markup, or raw SVG path data in a 24x24 viewbox (filled, single colour).
+    /// Null = a generic robot.
     /// </summary>
     string? Logo => null;
     /// <summary>One-line help shown next to the provider.</summary>
