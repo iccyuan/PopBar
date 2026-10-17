@@ -71,6 +71,9 @@
     </Window.Resources>
 
     <Grid x:Name="Root" Margin="14" RenderOptions.ClearTypeHint="Enabled">
+      <!-- the card sits at the top: while text streams in, Root reserves transparent room below it so the card can grow
+           smoothly without the (layered, costly) window being resized every frame -->
+      <Grid x:Name="Card" VerticalAlignment="Top">
         <!-- shadow caster: hidden under the opaque glass snapshot, only its shadow shows -->
         <Border x:Name="Shadow" CornerRadius="12" Background="#FF1E232D">
             <Border.Effect>
@@ -205,19 +208,19 @@
                             <ui:IconImage x:Name="ThinkChevron" Icon="chevron-down" Size="13" Brush="{DynamicResource PMuted}" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Button>
-                    <Border x:Name="ThinkBody" BorderBrush="{DynamicResource PSource}" BorderThickness="2,0,0,0" Padding="10,0,0,0" Margin="1,4,0,0">
-                        <TextBox x:Name="ThinkText" MaxHeight="160" FontSize="12" Background="Transparent" BorderThickness="0" Padding="0"
-                                 Foreground="{DynamicResource PMuted}" SelectionBrush="{DynamicResource PAccent}" TextWrapping="Wrap" IsReadOnly="True"
-                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <TextBox.Template>
-                                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="ThinkBody" ClipToBounds="True" BorderBrush="{DynamicResource PSource}" BorderThickness="2,0,0,0" Padding="10,0,0,0" Margin="1,4,0,0">
+                        <RichTextBox x:Name="ThinkText" MaxHeight="160" FontSize="12" Background="Transparent" BorderThickness="0" Padding="0"
+                                     Foreground="{DynamicResource PMuted}" SelectionBrush="{DynamicResource PAccent}" IsReadOnly="True"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <RichTextBox.Template>
+                                <ControlTemplate TargetType="RichTextBox">
                                     <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" Style="{StaticResource PBodyScroll}"/>
                                 </ControlTemplate>
-                            </TextBox.Template>
-                        </TextBox>
+                            </RichTextBox.Template>
+                        </RichTextBox>
                     </Border>
                 </StackPanel>
-                <Grid x:Name="TextArea">
+                <Grid x:Name="TextArea" ClipToBounds="True">
                     <TextBox x:Name="ResultBox" MinHeight="60" MaxHeight="420" FontSize="13.5"
                              Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
                              CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}"
@@ -235,6 +238,17 @@
                             </Style>
                         </TextBox.Style>
                     </TextBox>
+                    <!-- read-only panels: the same look, but streamed text fades in piece by piece -->
+                    <RichTextBox x:Name="StreamBox" Visibility="Collapsed" MinHeight="60" MaxHeight="420" FontSize="13.5"
+                                 Background="Transparent" BorderThickness="0" Padding="0" Foreground="{DynamicResource PFg}"
+                                 CaretBrush="{DynamicResource PFg}" SelectionBrush="{DynamicResource PAccent}" IsReadOnly="True" IsReadOnlyCaretVisible="True"
+                                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <RichTextBox.Template>
+                            <ControlTemplate TargetType="RichTextBox">
+                                <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" Style="{StaticResource PBodyScroll}"/>
+                            </ControlTemplate>
+                        </RichTextBox.Template>
+                    </RichTextBox>
                 </Grid>
                 <!-- failures stand out instead of hiding in the grey status line -->
                 <Border x:Name="ErrorBox" CornerRadius="8" Background="{DynamicResource PErrBg}" Padding="10,8" Margin="0,4,0,2" Visibility="Collapsed">
@@ -254,5 +268,6 @@
         </DockPanel>
       </Grid>
     </Border>
+      </Grid>
     </Grid>
 </Window>

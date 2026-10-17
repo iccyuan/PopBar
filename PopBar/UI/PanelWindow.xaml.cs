@@ -20,6 +20,10 @@ public partial class PanelWindow : Window, IPanel
     private bool _closed;
     private bool _dark;
     private IntPtr _hwnd;
+    /// <summary>Streamed answer / reasoning, revealed smoothly instead of in bursts.</summary>
+    private readonly StreamReveal _answer, _think;
+    /// <summary>Where the answer shows: <see cref="ResultBox"/> for editable panels, else <see cref="StreamBox"/>, which fades text in.</summary>
+    private readonly System.Windows.Controls.Primitives.TextBoxBase _view;
 
     /// <summary>Raised once when the panel goes away (distinct from Window.Closed, which is EventHandler-typed).</summary>
     public event Action? PanelClosed;
@@ -32,12 +36,21 @@ public partial class PanelWindow : Window, IPanel
         get => _pinned;
         set => Ui(() => { _pinned = value; PinIcon.Brush = _pinned ? (Brush)Resources["PAccent"] : (Brush)Resources["PMuted"]; });
     }
-    public string Text => Dispatcher.CheckAccess() ? ResultBox.Text : Dispatcher.Invoke(() => ResultBox.Text);
+    public string Text => Dispatcher.CheckAccess() ? _answer.Text : Dispatcher.Invoke(() => _answer.Text);
 
     public PanelWindow(PanelOptions opt, string theme)
     {
         _opt = opt;
         InitializeComponent();
+        if (opt.Editable) { ResultBox.IsReadOnly = false; _view = ResultBox; }
+        else
+        {
+            ResultBox.Visibility = Visibility.Collapsed;
+            StreamBox.Visibility = Visibility.Visible;
+            _view = StreamBox;
+        }
+        _answer = new StreamReveal(_view, TextArea, NeedRoom, ReleaseRoom);
+        _think = new StreamReveal(ThinkText, ThinkBody, NeedRoom, ReleaseRoom);
         Width = opt.Width;
         ApplyTheme(theme);
         TitleText.Text = opt.Title;
@@ -50,8 +63,7 @@ public partial class PanelWindow : Window, IPanel
             ApplySource();
             SourceBox.Visibility = Visibility.Visible;
         }
-        ResultBox.IsReadOnly = !opt.Editable;
-        ResultBox.MaxHeight = opt.MaxBodyHeight;
+        _view.MaxHeight = opt.MaxBodyHeight;
         TextArea.Visibility = opt.ShowTextArea ? Visibility.Visible : Visibility.Collapsed;
         if (opt.Pinned) { _pinned = true; PinIcon.Brush = (Brush)Resources["PAccent"]; }
         if (!opt.CloseOnOutsideClick) PinBtn.Visibility = Visibility.Collapsed;
@@ -179,20 +191,45 @@ public partial class PanelWindow : Window, IPanel
         }
         if (maxBodyHeight is double h && h > 0)
         {
-            ResultBox.MaxHeight = h;
+            _view.MaxHeight = h;
             if (CustomHost.Content is ScrollViewer sv) sv.MaxHeight = h;
             else if (_opt.Bare) CustomHost.MaxHeight = h;
         }
         KeepOnScreen();
     });
 
-    /// <summary>After growing, slide the window so it stays inside the work area (the shadow margin may hang over).</summary>
+    /// <summary>Extra transparent room reserved at a time, so the window is resized once per few lines, not per frame.</summary>
+    private const double RoomStep = 120;
+
+    /// <summary>The card is about to grow by <paramref name="more"/>: make sure the window already has room for it.</summary>
+    private void NeedRoom(double more)
+    {
+        double need = Card.ActualHeight + more;
+        if (_closed || need <= Root.MinHeight) return;
+        // the spare room never reaches past the work area: it would only push the window up for nothing
+        double avail = _hwnd != IntPtr.Zero && _work.Bottom != 0 && GetWindowRect(_hwnd, out var r)
+            ? (_work.Bottom - r.Top) / _scale - Root.Margin.Top
+            : double.PositiveInfinity;
+        Root.MinHeight = Math.Max(need, Math.Min(need + RoomStep, avail));
+    }
+
+    /// <summary>Streaming settled: give back the spare room (it is transparent, so the window shrinking is not seen).</summary>
+    private void ReleaseRoom()
+    {
+        if (!_answer.IsRunning && !_think.IsRunning) Root.MinHeight = 0;
+    }
+
+    /// <summary>The card's bottom edge in physical pixels (the window may extend below it with reserved room).</summary>
+    private int CardBottom(RECT r) => r.Top + (int)Math.Round((Root.Margin.Top + Card.ActualHeight) * _scale);
+
+    /// <summary>After growing, slide the window so the card stays inside the work area (the shadow margin may hang over).</summary>
     private void KeepOnScreen()
     {
         if (_hwnd == IntPtr.Zero || _work.Bottom == 0 || !GetWindowRect(_hwnd, out var r)) return;
         int m = (int)Math.Round(Root.Margin.Left * _scale);
         int x = r.Left, y = r.Top;
-        if (r.Bottom - m > _work.Bottom) y = Math.Max(_work.Top - m, _work.Bottom - (r.Bottom - r.Top) + m);
+        int bottom = CardBottom(r);
+        if (bottom > _work.Bottom) y = Math.Max(_work.Top - m, r.Top - (bottom - _work.Bottom));
         if (r.Right - m > _work.Right) x = Math.Max(_work.Left - m, _work.Right - (r.Right - r.Left) + m);
         if (x == r.Left && y == r.Top) return;
         SetWindowPos(_hwnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
@@ -225,8 +262,8 @@ public partial class PanelWindow : Window, IPanel
         int m = (int)Math.Round(Root.Margin.Left * _scale);
         double gx = (r.Left + m - _glassX) * GlassDownscale;
         double gy = (r.Top + m - _glassY) * GlassDownscale;
-        double gw = Math.Max(1, (r.Width - 2 * m) * GlassDownscale);
-        double gh = Math.Max(1, (r.Height - 2 * m) * GlassDownscale);
+        double gw = Math.Max(1, Glass.ActualWidth * _scale * GlassDownscale);
+        double gh = Math.Max(1, Glass.ActualHeight * _scale * GlassDownscale);
         var brush = new ImageBrush(_glassImage)
         {
             Stretch = Stretch.Fill,
@@ -249,6 +286,7 @@ public partial class PanelWindow : Window, IPanel
         // Hook coordinates are physical pixels; compare against the physical window rect (no DIP conversion).
         if (_closed || _hwnd == IntPtr.Zero || !IsVisible) return false;
         if (!GetWindowRect(_hwnd, out var r)) return false;
+        r.Bottom = Math.Min(r.Bottom, CardBottom(r) + (int)Math.Round(Root.Margin.Bottom * _scale));   // not the reserved room below the card
         return r.Contains(x, y);
     }
 
@@ -292,8 +330,8 @@ public partial class PanelWindow : Window, IPanel
         BadgeBox.Visibility = string.IsNullOrWhiteSpace(badge) ? Visibility.Collapsed : Visibility.Visible;
         BadgeBox.ToolTip = badge;
     }
-    public void SetText(string text) => Ui(() => { ResultBox.Text = text; ResultBox.ScrollToEnd(); ShowTextArea(); if (text.Length > 0) EndThinking(); });
-    public void AppendText(string text) => Ui(() => { ResultBox.AppendText(text); ResultBox.ScrollToEnd(); ShowTextArea(); if (text.Length > 0) EndThinking(); });
+    public void SetText(string text) => Ui(() => { _answer.Set(text); ShowTextArea(); if (text.Length > 0) EndThinking(); });
+    public void AppendText(string text) => Ui(() => { _answer.Append(text); ShowTextArea(); if (text.Length > 0) EndThinking(); });
 
     public void AppendThinking(string text) => Ui(() =>
     {
@@ -305,8 +343,7 @@ public partial class PanelWindow : Window, IPanel
             _thinking = true;
             SetThinkOpen(true);
         }
-        ThinkText.AppendText(text);
-        ThinkText.ScrollToEnd();
+        _think.Append(text);
     });
 
     private bool _thinking, _thinkToggled;
@@ -317,6 +354,7 @@ public partial class PanelWindow : Window, IPanel
     {
         if (!_thinking) return;
         _thinking = false;
+        _think.Flush();
         var secs = Math.Max(1, (int)Math.Round((DateTime.UtcNow - _thinkStarted).TotalSeconds));
         ThinkHeader.Text = $"已思考 {secs} 秒";
         if (!_thinkToggled) SetThinkOpen(false);
@@ -324,6 +362,7 @@ public partial class PanelWindow : Window, IPanel
 
     private void SetThinkOpen(bool open)
     {
+        if (!open) _think.Flush();
         ThinkBody.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
         ThinkChevron.Icon = open ? "chevron-down" : "chevron-right";
         ThinkToggle.ToolTip = open ? "收起思考过程" : "展开思考过程";
@@ -338,7 +377,7 @@ public partial class PanelWindow : Window, IPanel
     /// <summary>The text area hides while an error is the only content (no blank block above the red box) and returns with text.</summary>
     private void ShowTextArea()
     {
-        if (_opt.ShowTextArea && CustomHost.Visibility != Visibility.Visible && TextArea.Visibility != Visibility.Visible && ResultBox.Text.Length > 0)
+        if (_opt.ShowTextArea && CustomHost.Visibility != Visibility.Visible && TextArea.Visibility != Visibility.Visible && _answer.Text.Length > 0)
             TextArea.Visibility = Visibility.Visible;
     }
     public void SetStatus(string status) => Ui(() => StatusText.Text = status);
@@ -352,7 +391,7 @@ public partial class PanelWindow : Window, IPanel
             SetBusyCore(false);
             EndThinking();
             StatusText.Text = "";
-            if (ResultBox.Text.Length == 0 && TextArea.Visibility == Visibility.Visible) TextArea.Visibility = Visibility.Collapsed;
+            if (_answer.Text.Length == 0 && TextArea.Visibility == Visibility.Visible) TextArea.Visibility = Visibility.Collapsed;
         }
         else ShowTextArea();
     });
@@ -408,7 +447,7 @@ public partial class PanelWindow : Window, IPanel
             Style = (Style)Resources["PFooterBtn"],
             Content = new TextBlock { Text = label, Foreground = (Brush)Resources["PFg"], FontSize = 12.5 },
         };
-        b.Click += (_, _) => { try { onClick(ResultBox.Text); } catch (Exception ex) { Log.Error("panel button", ex); } };
+        b.Click += (_, _) => { try { onClick(_answer.Text); } catch (Exception ex) { Log.Error("panel button", ex); } };
         FooterButtons.Children.Add(b);
     });
 
@@ -417,6 +456,8 @@ public partial class PanelWindow : Window, IPanel
         if (_closed) return;
         _closed = true;
         _cts.Cancel();
+        _answer.Flush();
+        _think.Flush();
         try { base.Close(); } catch { }
         PanelClosed?.Invoke();
     }
@@ -425,6 +466,8 @@ public partial class PanelWindow : Window, IPanel
     {
         base.OnClosed(e);
         if (!_closed) { _closed = true; _cts.Cancel(); PanelClosed?.Invoke(); }
+        _answer.Flush();
+        _think.Flush();
     }
 
     // ------------------------------------------------------------------ handlers
