@@ -12,6 +12,10 @@ internal sealed class InputHook : IDisposable
     public event Action<int, int, int>? Mouse;
     /// <summary>Virtual-key code of a physical (non-injected) key press.</summary>
     public event Action<uint>? KeyDown;
+    /// <summary>Virtual-key code of a physical (non-injected) key release.</summary>
+    public event Action<uint>? KeyUp;
+    /// <summary>Asked first for every physical key event (vk, is key-down): true swallows it, the target app never sees it.</summary>
+    public Func<uint, bool, bool>? Swallow { get; set; }
 
     private readonly HookProc _mouseProc;
     private readonly HookProc _kbdProc;
@@ -72,13 +76,20 @@ internal sealed class InputHook : IDisposable
         if (code >= 0)
         {
             int msg = (int)wParam;
-            if (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN)
+            bool down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+            if (down || msg == WM_KEYUP || msg == WM_SYSKEYUP)
             {
                 var s = (KBDLLHOOKSTRUCT*)lParam.ToPointer();
                 if (s->dwExtraInfo != InputSender.Tag)
                 {
-                    try { KeyDown?.Invoke(s->vkCode); }
+                    bool swallow = false;
+                    try
+                    {
+                        swallow = Swallow?.Invoke(s->vkCode, down) == true;
+                        (down ? KeyDown : KeyUp)?.Invoke(s->vkCode);
+                    }
                     catch (Exception ex) { Log.Error("key handler", ex); }
+                    if (swallow) return (IntPtr)1;
                 }
             }
         }

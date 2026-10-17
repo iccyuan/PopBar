@@ -34,12 +34,16 @@ public partial class PopupWindow : Window, IPopupPresenter
     private bool _showLabels, _above;
     /// <summary>DIP between the bar and the selected text.</summary>
     private const double TextGap = 6;
+    /// <summary>How far (DIP) the bar starts before the first selected character.</summary>
+    private const double StartInset = 8;
     /// <summary>Half a text line (DIP), for estimating the text around the mouse when the app does not report it.</summary>
     private const double HalfLine = 12;
     /// <summary>DIP below the mouse hotspot the cursor arrow covers.</summary>
     private const double CursorHeight = 28;
 
     private int _anchorX, _barBottom, _py, _m;
+    /// <summary>Where the bar's visible left edge goes (px): just before the selected text; null = centred on <see cref="_anchorX"/>.</summary>
+    private int? _startX;
     private double _scale = 1;
     private RECT _work;
     /// <summary>The bar button whose drop-down is open, if any.</summary>
@@ -103,11 +107,15 @@ public partial class PopupWindow : Window, IPopupPresenter
         int w = (int)Math.Ceiling(size.Width * scale);
         int h = (int)Math.Ceiling(size.Height * scale);
         int m = (int)Math.Round(margin * scale);
-        int px = Math.Clamp(x - w / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
+        // The bar starts where the selected text does (a little before it), centred on the mouse when that is unknown.
+        int half = sel.LineHeight is { } lineH ? (lineH + 1) / 2 : (int)Math.Round(HalfLine * scale);
+        _startX = sel.TextStartX(half) is { } sx ? sx - (int)Math.Round(StartInset * scale) : null;
+        _anchorX = x;
+        int px = Math.Clamp(BarLeft(w, m), work.Left - m, Math.Max(work.Left - m, work.Right - w + m));
         var (above, barTop) = PlaceVertically(sel, h - 2 * m, work, scale);
         int py = Math.Clamp(barTop - m, work.Top - m, Math.Max(work.Top - m, work.Bottom - h + m));
 
-        _anchorX = x; _barBottom = barTop + h - 2 * m; _above = above; _py = py; _m = m; _scale = scale; _work = work;
+        _barBottom = barTop + h - 2 * m; _above = above; _py = py; _m = m; _scale = scale; _work = work;
 
         // Frosted glass: blur what is on screen under the bar (window is still hidden / elsewhere).
         if (_hwnd != IntPtr.Zero && IsVisible) ShowWindow(_hwnd, SW_HIDE);
@@ -128,7 +136,7 @@ public partial class PopupWindow : Window, IPopupPresenter
             int h2 = (int)Math.Ceiling(Root.DesiredSize.Height * scale);
             if (w2 != w || h2 != h)
             {
-                int px2 = Math.Clamp(x - w2 / 2, work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
+                int px2 = Math.Clamp(BarLeft(w2, m), work.Left - m, Math.Max(work.Left - m, work.Right - w2 + m));
                 int py2 = above ? _barBottom - h2 + m : py;
                 SetWindowPos(_hwnd, HWND_TOPMOST, px2, py2, w2, h2, SWP_NOACTIVATE | SWP_SHOWWINDOW);
                 Shown?.Invoke(new RECT { Left = px2 + m, Top = py2 + m, Right = px2 + w2 - m, Bottom = py2 + h2 - m });
@@ -136,6 +144,9 @@ public partial class PopupWindow : Window, IPopupPresenter
             Animate(above);
         }, DispatcherPriority.Loaded);
     }
+
+    /// <summary>Window left (px) for a window <paramref name="w"/> wide including the shadow margin <paramref name="m"/>.</summary>
+    private int BarLeft(int w, int m) => _startX is { } sx ? sx - m : _anchorX - w / 2;
 
     /// <summary>
     /// The bar's visible top edge (px) for a bar <paramref name="barH"/> tall, and whether it sits above the text: above the
@@ -411,7 +422,7 @@ public partial class PopupWindow : Window, IPopupPresenter
         int h = (int)Math.Ceiling(size.Height * _scale);
         int barW = (int)Math.Ceiling(BarBox.DesiredSize.Width * _scale) + 2 * m;
         int barH = (int)Math.Ceiling(BarBox.DesiredSize.Height * _scale);
-        int px = Math.Clamp(_anchorX - barW / 2, _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
+        int px = Math.Clamp(BarLeft(barW, m), _work.Left - m, Math.Max(_work.Left - m, _work.Right - w + m));
         // The bar stays where it was shown; the window grows downwards for a list below it, upwards for one above.
         int barTop = BarTopPx(barH);
         int py = _menuAbove ? barTop + barH - h + m : barTop - m;

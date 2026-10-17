@@ -24,6 +24,19 @@ internal static class InputSender
         SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
     }
 
+    /// <summary>An unassigned virtual key: pressing it does nothing anywhere.</summary>
+    private const ushort VK_MASK = 0xE8;
+
+    /// <summary>
+    /// Press and release <see cref="VK_MASK"/> while Alt / Win is held, so releasing it is no longer a lone tap: no menu
+    /// bar activation, no Start menu (the technique AutoHotkey calls the menu mask key).
+    /// </summary>
+    public static void SendMaskKey()
+    {
+        var inputs = new[] { Key(VK_MASK, false), Key(VK_MASK, true) };
+        SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>());
+    }
+
     /// <summary>Wait for Shift/Alt/Win to be physically released so Ctrl+C is not turned into Ctrl+Shift+C.</summary>
     public static bool WaitModifiersReleased(int timeoutMs)
     {

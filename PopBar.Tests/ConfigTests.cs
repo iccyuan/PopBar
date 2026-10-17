@@ -58,6 +58,15 @@ public class ConfigMigrationTests
     }
 
     [Fact]
+    public void Old_default_reveal_keys_become_alt_but_other_choices_stay()
+    {
+        Assert.Equal("alt", ConfigStore.Parse("""{ "configVersion": 8, "showKey": "ctrl" }""", out _).ShowKey);
+        Assert.Equal("alt", ConfigStore.Parse("""{ "configVersion": 9, "showKey": "shift" }""", out _).ShowKey);
+        Assert.Equal("win", ConfigStore.Parse("""{ "configVersion": 8, "showKey": "win" }""", out _).ShowKey);
+        Assert.Equal("alt", new AppConfig().ShowKey);
+    }
+
+    [Fact]
     public void V8_drops_builtin_no_clipboard_apps_and_keeps_the_users()
     {
         var cfg = ConfigStore.Parse("""{ "configVersion": 7, "noClipboardApps": [ "WindowsTerminal.exe", "mstsc.exe", "myapp.exe" ] }""", out bool migrated);

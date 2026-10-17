@@ -15,7 +15,7 @@ internal partial class GeneralPage : SettingsPage
     /// <summary>A choice of <see cref="AppConfig.ClipboardFallback"/>; Key / Value as in the other combos.</summary>
     private sealed record FallbackOption(string Key, string Value, string Tip);
 
-    private string _showKey = "ctrl";
+    private string _showKey = "alt";
     /// <summary>Draft of <see cref="AppConfig.TrayMenuItems"/>; null = never customised.</summary>
     private List<string>? _trayMenu;
     private DispatcherTimer? _appearanceTimer;
@@ -46,7 +46,16 @@ internal partial class GeneralPage : SettingsPage
             new("light", "浅色"),
         };
         MaxItemsCombo.ItemsSource = new[] { 4, 5, 6, 7, 8, 10, 12 }.Select(n => new KeyValuePair<string, string>(n.ToString(), $"{n} 个")).Append(new("0", "不限制")).ToList();
-        ShowKeyBox.GestureChanged += g => { _showKey = g; RaiseEdited(); };
+        // A reveal key is tapped alone, so it must be one that does nothing while typing: modifiers, F-keys and the
+        // lock / toggle keys (whose own effect is held back while a bar waits). Letters, Space, Enter... would eat input.
+        ShowKeyBox.AcceptKey = Core.SelectionEngine.IsAllowedRevealKey;
+        ShowKeyBox.RejectHint = "请按 Alt / Shift / Ctrl / Win、F1–F24、CapsLock 等";
+        ShowKeyBox.GestureChanged += g =>
+        {
+            _showKey = string.IsNullOrWhiteSpace(g) ? "alt" : g; // cleared: back to the default
+            ShowKeyBox.Gesture = _showKey;
+            RaiseEdited();
+        };
     }
 
     protected override void OnAttach()
@@ -65,7 +74,7 @@ internal partial class GeneralPage : SettingsPage
         if (TrayClickCombo.SelectedIndex < 0) TrayClickCombo.SelectedIndex = 0;
         ShowModeCombo.SelectedValue = c.ShowMode;
         if (ShowModeCombo.SelectedIndex < 0) ShowModeCombo.SelectedIndex = 0;
-        _showKey = string.IsNullOrWhiteSpace(c.ShowKey) ? "ctrl" : c.ShowKey;
+        _showKey = string.IsNullOrWhiteSpace(c.ShowKey) ? "alt" : c.ShowKey;
         ShowKeyBox.Gesture = _showKey;
         ShowKeyBox.IsEnabled = c.ShowMode == "key";
         DragSw.IsChecked = c.TriggerOnDrag;

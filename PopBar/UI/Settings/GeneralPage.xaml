@@ -59,7 +59,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
                         <TextBlock Text="显示方式" VerticalAlignment="Center"/>
-                        <ui:InfoTip Text="按键后显示：选中后按一下该键才弹出"/>
+                        <ui:InfoTip Text="按键后显示：选中文字后 4 秒内单独轻按一下右边的键（或选的时候一直按住）才弹出；Ctrl+C、Shift+字母这类组合键不会触发。"/>
                         </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <ComboBox x:Name="ShowModeCombo" Width="150" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="ShowMode_Changed"/>

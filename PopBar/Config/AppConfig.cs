@@ -7,7 +7,7 @@ namespace PopBar.Config;
 public sealed class AppConfig
 {
     /// <summary>Bumped when defaults change; ConfigStore migrates older files on load.</summary>
-    public int ConfigVersion { get; set; } = 8;
+    public int ConfigVersion { get; set; } = 10;
 
     public bool Enabled { get; set; } = true;
     public bool AutoStart { get; set; } = false;
@@ -25,10 +25,10 @@ public sealed class AppConfig
     /// </summary>
     public List<string>? TrayMenuItems { get; set; }
 
-    /// <summary>"key" (default) = bar appears only after pressing <see cref="ShowKey"/> (held during the selection or tapped within a few seconds); "auto" = right after a selection.</summary>
+    /// <summary>"key" (default) = bar appears only after pressing <see cref="ShowKey"/> (held during the selection, or tapped alone within a few seconds); "auto" = right after a selection.</summary>
     public string ShowMode { get; set; } = "key";
-    /// <summary>ctrl | alt | win — the key that reveals the bar in "key" mode.</summary>
-    public string ShowKey { get; set; } = "ctrl";
+    /// <summary>alt | shift | ctrl | win (or a key name) — the key whose tap reveals the bar in "key" mode.</summary>
+    public string ShowKey { get; set; } = "alt";
 
     public bool TriggerOnDrag { get; set; } = true;
     public bool TriggerOnDoubleClick { get; set; } = true;

@@ -137,6 +137,20 @@ public sealed class ConfigStore
             cfg.ConfigVersion = 8;
             migrated = true;
         }
+        if (cfg.ConfigVersion < 9)
+        {
+            // config v9: the bar is revealed by tapping Shift; Ctrl (the old default) begins every Ctrl+C.
+            if (string.IsNullOrWhiteSpace(cfg.ShowKey) || string.Equals(cfg.ShowKey, "ctrl", StringComparison.OrdinalIgnoreCase)) cfg.ShowKey = "shift";
+            cfg.ConfigVersion = 9;
+            migrated = true;
+        }
+        if (cfg.ConfigVersion < 10)
+        {
+            // config v10: Alt is the default reveal key (Shift begins capital letters and Shift+arrow selections).
+            if (string.Equals(cfg.ShowKey, "shift", StringComparison.OrdinalIgnoreCase)) cfg.ShowKey = "alt";
+            cfg.ConfigVersion = 10;
+            migrated = true;
+        }
         // Keys from files written before they were encrypted: re-save once so the plain text leaves the disk.
         if (cfg.LlmServices.Any(l => l.ApiKeyNeedsProtecting)) migrated = true;
         return cfg;

@@ -24,6 +24,10 @@ public sealed class KeyCaptureBox : Button
     /// <summary>Raised after the user recorded a new gesture.</summary>
     public event Action<string>? GestureChanged;
 
+    /// <summary>Single mode: which keys may be recorded (null = any); a refused key leaves the box waiting and shows <see cref="RejectHint"/>.</summary>
+    public Func<Key, bool>? AcceptKey { get; set; }
+    public string RejectHint { get; set; } = "这个键不能用，换一个";
+
     private bool _capturing;
 
     public KeyCaptureBox()
@@ -81,6 +85,7 @@ public sealed class KeyCaptureBox : Button
         string result;
         if (Mode == CaptureMode.Single)
         {
+            if (AcceptKey != null && !AcceptKey(key)) { Content = RejectHint; return; }
             result = key switch
             {
                 Key.LeftCtrl or Key.RightCtrl => "ctrl",

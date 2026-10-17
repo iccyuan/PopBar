@@ -61,6 +61,8 @@ internal sealed class SelectionEngine : IDisposable
         _runner = new ActionRunner(plugins);
         _hook.Mouse += OnMouse;
         _hook.KeyDown += OnKey;
+        _hook.KeyUp += OnKeyUp;
+        _hook.Swallow = SwallowKey;
         // Actions run off the capture thread (see ActionRunner), so the next selection is never queued behind one.
         _popup.ActionClicked += (a, sel) => _runner.Start(a, sel);
         _popup.Shown += r => { _popupRect = r; _popupVisible = true; };
@@ -93,6 +95,15 @@ internal sealed class SelectionEngine : IDisposable
     private void OnMouse(int msg, int x, int y)
     {
         long now = Environment.TickCount64;
+        if (msg is WM_LBUTTONDOWN or WM_RBUTTONDOWN or WM_MBUTTONDOWN)
+        {
+            Volatile.Write(ref _tapDownTicks, 0); // Shift+click is not a tap
+            // Selecting with the reveal modifier held: a click does not stop its release from counting as a lone tap
+            // (menu bar, Start menu, IME switch), so mask it here too.
+            var c = _store.Current;
+            int reveal = RevealKeyVk(c.ShowKey);
+            if (c.ShowMode == "key" && IsModifierReveal(reveal) && IsRevealHeld(reveal)) MaskModifier();
+        }
         switch (msg)
         {
             case WM_LBUTTONDOWN:
@@ -138,8 +149,8 @@ internal sealed class SelectionEngine : IDisposable
 
                 _lastUpTriggered = true;
                 int seq = Volatile.Read(ref _seq);
-                int? startY = drag ? _downY : null;
-                Enqueue(() => CaptureJob(seq, x, y, startY, dbl, now, cfg, chain));
+                (int X, int Y)? start = drag ? (_downX, _downY) : null;
+                Enqueue(() => CaptureJob(seq, x, y, start, dbl, now, cfg, chain));
                 break;
             }
 
@@ -160,15 +171,26 @@ internal sealed class SelectionEngine : IDisposable
     /// <summary>Virtual key for a configured reveal key: "ctrl"/"alt"/"shift"/"win" or any WPF Key name (e.g. "F8", "CapsLock").</summary>
     public static int RevealKeyVk(string? key)
     {
-        switch ((key ?? "ctrl").ToLowerInvariant())
+        switch ((key ?? "alt").ToLowerInvariant())
         {
             case "ctrl": return VK_CONTROL;
             case "alt": return VK_MENU;
             case "shift": return VK_SHIFT;
             case "win": return VK_LWIN;
         }
-        return Enum.TryParse<System.Windows.Input.Key>(key, true, out var k) ? System.Windows.Input.KeyInterop.VirtualKeyFromKey(k) : VK_CONTROL;
+        return Enum.TryParse<System.Windows.Input.Key>(key, true, out var k) && IsAllowedRevealKey(k) ? System.Windows.Input.KeyInterop.VirtualKeyFromKey(k) : VK_MENU;
     }
+
+    /// <summary>
+    /// Keys that may reveal the bar. It is tapped alone, so it must do nothing while typing: the modifiers, F-keys and
+    /// the lock / toggle keys (whose own effect is held back while a bar waits, see <see cref="SwallowKey"/>). Letters,
+    /// digits, Space, Enter, arrows... would eat input; anything else in a config falls back to Alt.
+    /// </summary>
+    public static bool IsAllowedRevealKey(System.Windows.Input.Key k) => k is
+        System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+        or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift or System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin
+        or (>= System.Windows.Input.Key.F1 and <= System.Windows.Input.Key.F24)
+        or System.Windows.Input.Key.CapsLock or System.Windows.Input.Key.Scroll or System.Windows.Input.Key.Pause or System.Windows.Input.Key.Insert or System.Windows.Input.Key.Apps;
 
     private static bool IsRevealKey(uint vk, int configured) => configured switch
     {
@@ -182,27 +204,87 @@ internal sealed class SelectionEngine : IDisposable
     private static bool IsModifier(uint vk) =>
         vk is VK_SHIFT or VK_CONTROL or VK_MENU or VK_LWIN or VK_RWIN or (>= 0xA0 and <= 0xA5);
 
+    /// <summary>Whether a configured reveal key is one of the modifiers (it may begin a chord, so it is never swallowed).</summary>
+    private static bool IsModifierReveal(int reveal) => reveal is VK_CONTROL or VK_MENU or VK_SHIFT or VK_LWIN;
+
+    /// <summary>The reveal key is physically down (either Win key for "win").</summary>
+    private static bool IsRevealHeld(int reveal) => IsKeyDown(reveal) || (reveal == VK_LWIN && IsKeyDown(VK_RWIN));
+
+    private bool PendingAlive() => Volatile.Read(ref _pending) is { } p && Environment.TickCount64 - p.Ticks <= PendingWindowMs;
+
+    /// <summary>
+    /// When the reveal key went down for a tap that may reveal the pending bar; 0 = no tap in progress. Any other key
+    /// or a mouse button in between cancels it, so a chord (Ctrl+C, Shift+A, Shift+→) never reveals.
+    /// </summary>
+    private long _tapDownTicks;
+    /// <summary>A press held longer than this is not a tap.</summary>
+    private const int TapMaxMs = 600;
+    /// <summary>The non-modifier reveal key's current press is being kept from the app (so is its release).</summary>
+    private bool _swallowing;
+
+    /// <summary>
+    /// A lone tap of a modifier has a meaning of its own: Alt opens the menu bar, Win the Start menu, Shift / Ctrl switch
+    /// a Chinese IME between 中 / 英. A no-op key pressed while it is down makes the release a chord, which none of them
+    /// act on. Sent off the hook callback, still long before a human releases the key.
+    /// </summary>
+    private static void MaskModifier() => Task.Run(InputSender.SendMaskKey);
+
+    /// <summary>
+    /// Hook filter: a non-modifier reveal key (F8, CapsLock, Insert...) pressed while a bar waits for it is kept from
+    /// the app, so the tap only reveals - no Caps Lock toggle, no F-key command, no overwrite mode. Any other time it
+    /// passes through. Modifiers always pass (they are masked instead, see <see cref="MaskModifier"/>).
+    /// </summary>
+    private bool SwallowKey(uint vk, bool down)
+    {
+        var cfg = _store.Current;
+        int reveal = RevealKeyVk(cfg.ShowKey);
+        if (cfg.ShowMode != "key" || IsModifierReveal(reveal) || !IsRevealKey(vk, reveal)) return false;
+        if (down)
+        {
+            // auto-repeat: decided by the first key-down of the press
+            if (Volatile.Read(ref _tapDownTicks) == 0) _swallowing = PendingAlive();
+            return _swallowing;
+        }
+        bool swallowed = _swallowing;
+        _swallowing = false;
+        return swallowed;
+    }
+
     private void OnKey(uint vk)
     {
         var cfg = _store.Current;
-        if (cfg.ShowMode == "key" && Volatile.Read(ref _pending) != null && IsRevealKey(vk, RevealKeyVk(cfg.ShowKey))
-            && Interlocked.Exchange(ref _pending, null) is { } p)
+        int reveal = RevealKeyVk(cfg.ShowKey);
+        if (cfg.ShowMode == "key" && IsRevealKey(vk, reveal))
         {
-            if (Environment.TickCount64 - p.Ticks <= PendingWindowMs)
+            // auto-repeat while held sends more key-downs: the tap is timed from the first
+            if (Volatile.Read(ref _tapDownTicks) == 0)
             {
-                _ui.InvokeAsync(() =>
-                {
-                    try { _popup.ShowFor(p.Selection, p.Actions, cfg); }
-                    catch (Exception ex) { Log.Error("popup show failed", ex); }
-                }, DispatcherPriority.Send);
-                return; // the reveal key must not hide what it just revealed
+                Volatile.Write(ref _tapDownTicks, Environment.TickCount64);
+                if (IsModifierReveal(reveal) && PendingAlive()) MaskModifier();
             }
+            return; // the reveal key never dismisses the bar it may be about to reveal
         }
+        Volatile.Write(ref _tapDownTicks, 0);
         // Bare modifiers never dismiss: holding Ctrl auto-repeats key-downs, which would hide the bar
         // right after a Ctrl+double-click shows it.
         if (IsModifier(vk)) return;
         if (_popupVisible) RequestHide();
         Interlocked.Increment(ref _seq);
+    }
+
+    /// <summary>The reveal key released after a clean tap: show the bar waiting for it.</summary>
+    private void OnKeyUp(uint vk)
+    {
+        var cfg = _store.Current;
+        if (cfg.ShowMode != "key" || !IsRevealKey(vk, RevealKeyVk(cfg.ShowKey))) return;
+        long down = Interlocked.Exchange(ref _tapDownTicks, 0);
+        if (down == 0 || Environment.TickCount64 - down > TapMaxMs) return;
+        if (Interlocked.Exchange(ref _pending, null) is not { } p || Environment.TickCount64 - p.Ticks > PendingWindowMs) return;
+        _ui.InvokeAsync(() =>
+        {
+            try { _popup.ShowFor(p.Selection, p.Actions, cfg); }
+            catch (Exception ex) { Log.Error("popup show failed", ex); }
+        }, DispatcherPriority.Send);
     }
 
     private static int Dist(int x1, int y1, int x2, int y2) => Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2));
@@ -217,9 +299,9 @@ internal sealed class SelectionEngine : IDisposable
 
     // ------------------------------------------------------------------ worker
 
-    private void CaptureJob(int seq, int x, int y, int? startY, bool dbl, long upTicks, AppConfig cfg, bool update = false)
+    private void CaptureJob(int seq, int x, int y, (int X, int Y)? start, bool dbl, long upTicks, AppConfig cfg, bool update = false)
     {
-        if (CaptureAndShow(seq, x, y, startY, dbl, upTicks, cfg, update) || !update) return;
+        if (CaptureAndShow(seq, x, y, start, dbl, upTicks, cfg, update) || !update) return;
         // A chain click that selected nothing (many apps restart the count after a triple click, collapsing the
         // selection) must not leave the bar up with stale text. But hiding at once makes the bar flicker when the
         // next click of the chain selects again, so wait out the double-click window first; any further click
@@ -232,7 +314,7 @@ internal sealed class SelectionEngine : IDisposable
     }
 
     /// <summary>False when nothing was shown (no text, no actions, superseded...).</summary>
-    private bool CaptureAndShow(int seq, int x, int y, int? startY, bool dbl, long upTicks, AppConfig cfg, bool update)
+    private bool CaptureAndShow(int seq, int x, int y, (int X, int Y)? start, bool dbl, long upTicks, AppConfig cfg, bool update)
     {
         long wait = upTicks + cfg.ShowDelayMs - Environment.TickCount64;
         if (wait > 0) Thread.Sleep((int)wait);
@@ -260,7 +342,8 @@ internal sealed class SelectionEngine : IDisposable
         var sel = new Selection(text, source, x, y)
         {
             Bounds = captured!.Bounds,
-            StartY = startY,
+            StartX = start?.X,
+            StartY = start?.Y,
             LineHeight = captured.Bounds == null ? CaretProbe.LineHeight(source) : null,
         };
         var actions = ResolveActions(sel, cfg);
@@ -268,7 +351,7 @@ internal sealed class SelectionEngine : IDisposable
         Log.Info($"captured {text.Length} chars via {method} from {GetWindowProcessName(source)} in {sw.ElapsedMilliseconds}ms"
             + (sel.Bounds is { } b ? $", text at {b.Left},{b.Top} {b.Width}x{b.Height}" : sel.LineHeight is { } lh ? $", line {lh}px" : ""));
 
-        if (cfg.ShowMode == "key" && !IsKeyDown(RevealKeyVk(cfg.ShowKey)))
+        if (cfg.ShowMode == "key" && !IsRevealHeld(RevealKeyVk(cfg.ShowKey)))
         {
             // Wait for the reveal key (see OnKey) instead of popping up right away.
             Volatile.Write(ref _pending, new PendingShow(sel, actions, Environment.TickCount64));
