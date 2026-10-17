@@ -26,6 +26,7 @@ public sealed class QrPlugin : IPopBarPlugin
     private int _scanning;
 
     public string Id => "qr";
+    public string Icon => "qr-code";
     public string Name => "二维码";
     public string Description => "选中内容生成二维码；框选或整屏识别二维码、条形码。";
     public Version Version => new(0, 1, 0);

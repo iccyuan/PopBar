@@ -13,6 +13,8 @@ public interface IPopBarPlugin : IDisposable
     string Name { get; }
     string Description { get; }
     Version Version { get; }
+    /// <summary>Icon standing for the plugin as a whole (its card in settings, its group of actions). PopBar icon name.</summary>
+    string Icon => "puzzle";
 
     /// <summary>Called once after loading. Keep the host; register hotkeys / tray items here.</summary>
     void Initialize(IPluginHost host);
@@ -44,6 +46,13 @@ public sealed class PluginAction
     /// </summary>
     public string? Group { get; init; }
     public string GroupIcon { get; init; } = "circle";
+    /// <summary>
+    /// Where the action lands the first time it is added to the bar: right after the action with this id, either a
+    /// stock action ("search", "copy") or a full plugin action id ("translate:panel"). When unset, or that action is
+    /// not on the bar, it joins its plugin's other actions, else goes last. Only the first placement: after that the
+    /// user's order is kept.
+    /// </summary>
+    public string? PlaceAfter { get; init; }
     /// <summary>Return false to hide the button for this selection. Must be fast (runs on the capture thread).</summary>
     public Func<SelectionContext, bool>? IsApplicable { get; init; }
     /// <summary>Runs on a worker thread. Use <see cref="IPluginHost"/> for anything UI related.</summary>

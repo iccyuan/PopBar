@@ -93,7 +93,6 @@ public partial class PopupWindow : Window, IPopupPresenter
         _actions = actions;
         _showLabels = cfg.ShowLabels;
         _maxItems = cfg.MaxBarItems;
-        _foldKey = FoldKey(cfg);
         BuildButtons();
 
         var (work, dpi) = GetMonitorAt(x, y);
@@ -164,11 +163,10 @@ public partial class PopupWindow : Window, IPopupPresenter
         if (!_visible) { ShowFor(sel, actions, cfg); return; }
         _selection = sel;
         // Same buttons (the usual case): nothing on screen changes, the actions just act on the new text.
-        if (cfg.ShowLabels == _showLabels && cfg.MaxBarItems == _maxItems && FoldKey(cfg) == _foldKey && actions.SequenceEqual(_actions)) return;
+        if (cfg.ShowLabels == _showLabels && cfg.MaxBarItems == _maxItems && actions.SequenceEqual(_actions)) return;
         _actions = actions;
         _showLabels = cfg.ShowLabels;
         _maxItems = cfg.MaxBarItems;
-        _foldKey = FoldKey(cfg);
         BuildButtons();
         Relayout(fadeBar: true);
     }
@@ -247,9 +245,6 @@ public partial class PopupWindow : Window, IPopupPresenter
     }
 
     private int _maxItems;
-    /// <summary>Which plugins are folded (from config): a change regroups the same actions differently.</summary>
-    private string _foldKey = "";
-    private static string FoldKey(AppConfig cfg) => string.Join(",", cfg.FoldedPlugins);
 
     /// <summary>
     /// The bar: every action, with each plugin group of two or more members folded into one button, and everything

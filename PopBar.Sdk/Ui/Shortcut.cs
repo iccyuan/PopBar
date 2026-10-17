@@ -4,7 +4,7 @@ namespace PopBar.Sdk.Ui;
 
 /// <summary>
 /// In-window keyboard shortcuts stored as user-editable gestures ("Ctrl+S", "Space", "C") — the same format that
-/// <see cref="IHostUi.HotkeyBox"/> records. Use it so every shortcut a plugin window handles can be customised.
+/// <see cref="IHostInputs.HotkeyBox"/> records. Use it so every shortcut a plugin window handles can be customised.
 /// </summary>
 public static class Shortcut
 {

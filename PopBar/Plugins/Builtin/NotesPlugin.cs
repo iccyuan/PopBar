@@ -52,6 +52,7 @@ public sealed class NotesPlugin : IPopBarPlugin
     private readonly Dictionary<string, NoteWindow> _open = new();
 
     public string Id => "notes";
+    public string Icon => "sticky-note";
     public string Name => "便签";
     public string Description => "把选中的文字贴成桌面便签，重启后自动恢复。";
     public Version Version => new(0, 1, 0);

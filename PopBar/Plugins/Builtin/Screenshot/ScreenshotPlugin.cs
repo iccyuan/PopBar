@@ -50,6 +50,7 @@ public sealed class ScreenshotPlugin : IPopBarPlugin
     private CaptureOverlay? _overlay;
 
     public string Id => "screenshot";
+    public string Icon => "crop";
     public string Name => "截图";
     public string Description => "框选、识别窗口、标注，复制、保存或贴到屏幕。";
     public Version Version => new(0, 3, 0);

@@ -104,13 +104,13 @@ public class MergeEditsTests
 
         var target = ConfigStore.Clone(loaded);        // meanwhile something else wrote the store
         target.TrayClick = "menu";
-        target.FoldedPlugins.Add("ai");
+        target.DisabledPlugins.Add("ai");
 
         UI.SettingsWindow.MergeEdits(target, edited, loaded);
 
         Assert.Equal(edited.TriggerOnShiftClick, target.TriggerOnShiftClick);
         Assert.Equal("menu", target.TrayClick);
-        Assert.Contains("ai", target.FoldedPlugins);
+        Assert.Contains("ai", target.DisabledPlugins);
     }
 
     [Fact]

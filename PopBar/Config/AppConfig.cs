@@ -63,8 +63,6 @@ public sealed class AppConfig
 
     /// <summary>Plugin ids the user switched off.</summary>
     public List<string> DisabledPlugins { get; set; } = new();
-    /// <summary>Plugins whose actions fold into one bar button (the plugin's name) that expands in place; set on the "动作" page.</summary>
-    public List<string> FoldedPlugins { get; set; } = new();
 
     /// <summary>Model services shared by AI-powered plugins, one per provider (<see cref="LlmConfig.Protocol"/> is the key).</summary>
     public List<LlmConfig> LlmServices { get; set; } = new();
@@ -87,7 +85,6 @@ public sealed class AppConfig
         : LlmServices.FirstOrDefault()?.Protocol ?? Core.Llm.LlmProviderIds.Anthropic;
 
     public bool IsPluginEnabled(string id) => !DisabledPlugins.Contains(id, StringComparer.OrdinalIgnoreCase);
-    public bool IsPluginFolded(string id) => FoldedPlugins.Contains(id, StringComparer.OrdinalIgnoreCase);
 
     [JsonIgnore]
     public bool ClipboardFallbackOff => string.Equals(ClipboardFallback, "off", StringComparison.OrdinalIgnoreCase);

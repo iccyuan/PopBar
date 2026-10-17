@@ -44,6 +44,7 @@ public sealed class AiPlugin : IPopBarPlugin
     private Settings _cfg = new();
 
     public string Id => "ai";
+    public string Icon => "sparkles";
     public string Name => "AI 助手";
     public string Description => "解释、总结、润色选中内容，按钮可自定义。";
     public Version Version => new(0, 2, 0);
@@ -66,6 +67,7 @@ public sealed class AiPlugin : IPopBarPlugin
     {
         Id = p.Id, Label = p.Label, Icon = p.Icon,
         Description = Describe(p),
+        PlaceAfter = "translate:panel",
         IsApplicable = ctx => ctx.Text.Trim().Length > 0 && ctx.Text.Length <= 20000,
         Execute = (ctx, ct) => RunAsync(p, ctx, ct),
     }).ToList();
@@ -83,7 +85,7 @@ public sealed class AiPlugin : IPopBarPlugin
     private async Task RunAsync(Prompt prompt, SelectionContext ctx, CancellationToken ct)
     {
         var text = ctx.Text.Trim();
-        var panel = _host.ShowPanel(new PanelOptions
+        var panel = await _host.ShowPanelAsync(new PanelOptions
         {
             Title = prompt.Label, Icon = prompt.Icon, AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
             Badge = _host.Llm.ModelNameFor(_cfg.Provider, _cfg.Model),

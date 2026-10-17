@@ -1,0 +1,161 @@
+<ui:SettingsPage x:Class="PopBar.UI.GeneralPage" x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:PopBar.UI">
+    <StackPanel>
+
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <Grid Style="{StaticResource Row}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="启用 PopBar" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="关闭后不再弹出操作条"/>
+                        </StackPanel>
+                    <CheckBox x:Name="EnabledSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="开机自动启动" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="AutoStartSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="托盘图标左键" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="双击总是打开设置，右键是菜单"/>
+                    </StackPanel>
+                    <ComboBox x:Name="TrayClickCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
+                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="托盘右键菜单" VerticalAlignment="Center"/>
+                        <ui:InfoTip x:Name="TrayMenuTip"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TrayMenuSummary" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Content="自定义" Click="TrayMenu_Click"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Style="{StaticResource H2}" Text="触发方式"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="显示方式" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="按键后显示：选中后按一下该键才弹出"/>
+                        </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ComboBox x:Name="ShowModeCombo" Width="150" DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="ShowMode_Changed"/>
+                        <ui:KeyCaptureBox x:Name="ShowKeyBox" Mode="Single" Margin="8,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="鼠标拖动选择文本" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="DragSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="双击 / 三击选中" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="DblSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="Shift + 点击扩展选择" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="ShiftSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Changed" Unchecked="Changed"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Style="{StaticResource H2}" Text="取词"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="剪贴板回退" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="读不到选区时用 Ctrl+C 取词，随后恢复剪贴板"/>
+                        </StackPanel>
+                    <ComboBox x:Name="FallbackCombo" Grid.Column="1" Width="230" VerticalAlignment="Center"
+                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="弹出延迟（毫秒）" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="太小可能取到上一次的选区"/>
+                        </StackPanel>
+                    <TextBox x:Name="DelayBox" Width="90" HorizontalAlignment="Right" VerticalAlignment="Center" TextChanged="Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="最大文本长度（超过不弹出）" VerticalAlignment="Center"/>
+                    <TextBox x:Name="MaxLenBox" Width="90" HorizontalAlignment="Right" VerticalAlignment="Center" TextChanged="Changed"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Style="{StaticResource H2}" Text="外观"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <Grid Style="{StaticResource Row}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="主题" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="跟随系统时随 Windows 深浅色切换"/>
+                        </StackPanel>
+                    <ComboBox x:Name="ThemeCombo" Width="160" HorizontalAlignment="Right" VerticalAlignment="Center"
+                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Instant_Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <TextBlock Text="按钮显示文字标签" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="LabelsSw" Style="{StaticResource Switch}" HorizontalAlignment="Right" VerticalAlignment="Center" Checked="Instant_Changed" Unchecked="Instant_Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="最多显示按钮数" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="超出的折叠进「更多」"/>
+                    </StackPanel>
+                    <ComboBox x:Name="MaxItemsCombo" Width="160" HorizontalAlignment="Right" VerticalAlignment="Center"
+                              DisplayMemberPath="Value" SelectedValuePath="Key" SelectionChanged="Instant_Changed"/>
+                </Grid>
+                <Rectangle Style="{StaticResource RowSep}"/>
+                <Grid Style="{StaticResource Row}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,12,8">
+                        <TextBlock Text="毛玻璃不透明度" VerticalAlignment="Center"/>
+                        <ui:InfoTip Text="越低越透"/>
+                        </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Slider x:Name="BlurSlider" Width="180" Minimum="40" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True" ValueChanged="BlurSlider_ValueChanged"/>
+                        <TextBlock x:Name="BlurValueText" Width="40" Margin="10,0,0,0" VerticalAlignment="Center" TextAlignment="Right"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ui:SettingsPage>

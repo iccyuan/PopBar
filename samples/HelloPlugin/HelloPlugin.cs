@@ -21,6 +21,7 @@ public sealed class HelloPlugin : IPopBarPlugin
     public string Name => "Hello 示例插件";
     public string Description => "统计选中文本的字数，演示插件接口的最小用法。";
     public Version Version => new(1, 0, 0);
+    public string Icon => "hash";
 
     public void Initialize(IPluginHost host)
     {
@@ -36,16 +37,16 @@ public sealed class HelloPlugin : IPopBarPlugin
             Id = "count",
             Label = "字数",
             Icon = "hash",
+            PlaceAfter = "copy", // first time on the bar: right after the stock "复制"
             IsApplicable = ctx => ctx.Text.Length > 0,
-            Execute = (ctx, ct) =>
+            Execute = async (ctx, ct) =>
             {
                 var text = ctx.Text;
                 int chars = _cfg.CountSpaces ? text.Length : text.Count(c => !char.IsWhiteSpace(c));
                 int words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
-                var panel = _host.ShowPanel(new PanelOptions { Title = "字数统计", Icon = "hash", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 320 });
+                var panel = await _host.ShowPanelAsync(new PanelOptions { Title = "字数统计", Icon = "hash", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 320 });
                 panel.SetText($"字符：{chars}\n单词：{words}\n行数：{text.Split('\n').Length}");
                 panel.SetStatus("Hello plugin");
-                return Task.CompletedTask;
             },
         },
         new PluginAction

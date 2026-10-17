@@ -29,6 +29,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
     private Settings _cfg = new();
 
     public string Id => "translate";
+    public string Icon => "languages";
     public string Name => "翻译";
     public string Description => "面板里直接出译文，用 Google 或 AI 模型。";
     public Version Version => new(0, 2, 0);
@@ -70,6 +71,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
         {
             Id = "panel", Label = "翻译", Icon = "languages",
             Description = "在浮动面板中翻译选中内容",
+            PlaceAfter = "search", // where the stock bar used to have "翻译"
             IsApplicable = ctx => ctx.Text.Trim().Length > 0 && ctx.Text.Length <= 5000,
             Execute = RunAsync,
         },
@@ -78,7 +80,7 @@ public sealed class TranslatePlugin : IPopBarPlugin, ITextTranslator
     private async Task RunAsync(SelectionContext ctx, CancellationToken ct)
     {
         var text = ctx.Text.Trim();
-        var panel = _host.ShowPanel(new PanelOptions
+        var panel = await _host.ShowPanelAsync(new PanelOptions
         {
             Title = "翻译", Icon = "languages", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY, Source = text, Width = 520,
             Badge = _cfg.Provider == "llm" ? _host.Llm.ModelNameFor(_cfg.LlmProvider, _cfg.Model) : "Google 翻译",

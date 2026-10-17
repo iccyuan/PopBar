@@ -72,6 +72,7 @@ public sealed class HelloPlugin : IPopBarPlugin
     public string Name => "Hello";
     public string Description => "…";
     public Version Version => new(1, 0, 0);
+    public string Icon => "hash";                 // 插件卡片、动作分组用的图标
     IPluginHost _host = null!;
     public void Initialize(IPluginHost host) => _host = host;
 
@@ -80,12 +81,12 @@ public sealed class HelloPlugin : IPopBarPlugin
         new PluginAction
         {
             Id = "count", Label = "字数", Icon = "hash",
+            PlaceAfter = "copy",                  // 第一次加入操作条时放在「复制」后面
             IsApplicable = ctx => ctx.Text.Length > 0,
-            Execute = (ctx, ct) =>
+            Execute = async (ctx, ct) =>
             {
-                var panel = _host.ShowPanel(new PanelOptions { Title = "字数", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY });
+                var panel = await _host.ShowPanelAsync(new PanelOptions { Title = "字数", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY });
                 panel.SetText($"{ctx.Text.Length} 字符");
-                return Task.CompletedTask;
             },
         },
     };
@@ -95,15 +96,17 @@ public sealed class HelloPlugin : IPopBarPlugin
 }
 ```
 
-`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+`IPluginHost` 给插件的能力：面板（`ShowPanel`，可改大小、报错、进度、标签；`Bare = true` 时只给一个圆角容器，整个内容由插件 `SetContent` 自己布局）、操作栏（`ShowPopup`）、AI 模型（`Llm`，每次请求可用 `LlmRequest.Model` 指定模型，设置页里的只是默认；`Ui.ModelPicker` 给插件现成的模型下拉）、框选截图、剪贴板 / 粘贴、全局热键、托盘入口（`AddTrayItem`，`TrayItem` 声明是否进右键菜单、是否默认显示、能否设为左键动作；菜单最多 8 项，由用户在设置里挑选排序）、调用其他动作（`RunActionAsync`）、插件间共享服务（`Services`，如翻译、OCR）、设置草稿（`Settings`，保存后才生效）、设置页同款控件与对话框（`Ui`，按用途分为 `IHostDialogs` 对话框、`IHostInputs` 按键 / 程序 / 窗口 / 文件选择、`IHostVisuals` 图标、`ILlmUi` 服务商与模型下拉，代码里只依赖用得到的那一个）。第三方插件在独立的 `AssemblyLoadContext` 里加载，依赖随 DLL 一起放。
+
+线程：`IPluginHost` 的成员都能在任意线程调用。`ShowPanel`、`RegisterHotkey` 会等 UI 线程执行完再返回，所以不要在持有锁、或 UI 线程正等着你的时候从工作线程调用它们；异步代码里用 `ShowPanelAsync`。`Execute` 在线程池上运行，`IHostUi` 只能在 UI 线程用。
 
 ## 分层
 
 ```
-PopBar.Sdk   接口：IPopBarPlugin / IPluginHost / IPanel / ILlmService / IHostUi / Ui.Form
+PopBar.Sdk   接口：IPopBarPlugin / IPluginHost / IPanel / ILlmService / IHostUi（IHostDialogs / IHostInputs / IHostVisuals / ILlmUi）/ Ui.Form
 Core         SelectionEngine、TextCapture（UIA → 剪贴板策略链）、LlmService、ThemeManager、InputHook
 Plugins      PluginManager、PluginHost、Builtin/*
-UI           PopupWindow、PanelWindow、SettingsWindow、FrostedGlass、Icons
+UI           PopupWindow、PanelWindow、FrostedGlass、Icons；SettingsWindow 只管导航与保存，各页在 UI/Settings（每页一个 SettingsPage，自己读写所管字段、自己判断有无改动）
 App          组合根：托盘、单实例、热键
 ```
 

@@ -30,6 +30,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
     private int _running;
 
     public string Id => "ocr";
+    public string Icon => "type";
     public string Name => "屏幕 OCR";
     public string Description => "框选屏幕区域识别文字，用 Windows 内置 OCR，离线。";
     public Version Version => new(0, 2, 0);
@@ -62,7 +63,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
             _host.Log.Info($"recognized {text.Length} chars from {region.Width}x{region.Height} in {sw.ElapsedMilliseconds}ms");
             if (string.IsNullOrWhiteSpace(text))
             {
-                var p = _host.ShowPanel(new PanelOptions { Title = "OCR", Icon = "type", AnchorX = region.X + region.Width / 2, AnchorY = region.Y + region.Height });
+                var p = await _host.ShowPanelAsync(new PanelOptions { Title = "OCR", Icon = "type", AnchorX = region.X + region.Width / 2, AnchorY = region.Y + region.Height });
                 p.SetText("没有识别到文字。");
                 p.SetStatus("试试放大区域，或在设置里指定识别语言");
                 return;
@@ -70,7 +71,7 @@ public sealed class OcrPlugin : IPopBarPlugin, IOcrEngine
             var ctx = new SelectionContext(text, IntPtr.Zero, "", region.X + region.Width / 2, region.Y + region.Height + 6);
             if (_cfg.ShowPanel)
             {
-                var panel = _host.ShowPanel(new PanelOptions
+                var panel = await _host.ShowPanelAsync(new PanelOptions
                 {
                     Title = "OCR 识别结果", Icon = "type", AnchorX = ctx.ScreenX, AnchorY = ctx.ScreenY + 40, Editable = true,
                 });

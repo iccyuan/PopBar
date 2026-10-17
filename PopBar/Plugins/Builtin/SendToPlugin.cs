@@ -61,6 +61,7 @@ public sealed class SendToPlugin : IPopBarPlugin
     private Action? _rebuildDraftList;
 
     public string Id => "sendto";
+    public string Icon => "send";
     public string Name => "发送到应用";
     public string Description => "把选中内容粘贴到别的程序、带参数启动程序或打开 URL 协议。";
     public Version Version => new(0, 2, 1);

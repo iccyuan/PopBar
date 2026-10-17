@@ -164,18 +164,12 @@ internal sealed class PluginManager : IDisposable
                 if (c.Actions.Any(a => a.IsPlugin && string.Equals(a.Ref, id, StringComparison.OrdinalIgnoreCase))) continue;
                 var def = new ActionDefinition { Id = id.Replace(':', '-'), Type = ActionTypes.Plugin, Ref = id, Label = act.Label, Icon = act.Icon, Enabled = act.EnabledByDefault };
                 string owner = id[..id.IndexOf(':')];
-                // The translation panel sits right after search, where the stock bar used to have "翻译".
-                int search = id == "translate:panel" ? c.Actions.FindIndex(a => a.Id == "search") : -1;
-                // Otherwise a new action joins its siblings (e.g. a second send-to target next to the first).
-                int sibling = c.Actions.FindLastIndex(a => a.IsPlugin && (a.Ref ?? "").StartsWith(owner + ":", StringComparison.OrdinalIgnoreCase));
-                if (search >= 0)
-                    c.Actions.Insert(search + 1, def);
-                else if (id == "ai:explain" && c.Actions.FindIndex(a => a.Ref == "translate:panel") is var t && t >= 0)
-                    c.Actions.Insert(t + 1, def);
-                else if (sibling >= 0)
-                    c.Actions.Insert(sibling + 1, def);
-                else
-                    c.Actions.Add(def);
+                // Where the plugin asked for it, else next to its siblings (a second send-to target by the first), else last.
+                int after = string.IsNullOrWhiteSpace(act.PlaceAfter) ? -1 : c.Actions.FindIndex(a =>
+                    string.Equals(a.Id, act.PlaceAfter, StringComparison.OrdinalIgnoreCase) || string.Equals(a.Ref, act.PlaceAfter, StringComparison.OrdinalIgnoreCase));
+                if (after < 0) after = c.Actions.FindLastIndex(a => a.IsPlugin && (a.Ref ?? "").StartsWith(owner + ":", StringComparison.OrdinalIgnoreCase));
+                if (after >= 0) c.Actions.Insert(after + 1, def);
+                else c.Actions.Add(def);
             }
         });
     }
@@ -190,30 +184,20 @@ internal sealed class PluginManager : IDisposable
         return false;
     }
 
-    /// <summary>
-    /// The fold group a plugin action belongs to on the bar: the whole plugin when the user folded it on the "动作" page
-    /// (one button named after the plugin), else the group its plugin declared, else none.
-    /// </summary>
+    /// <summary>The fold group a plugin action belongs to on the bar, if its plugin declared one (see <see cref="PluginAction.Group"/>).</summary>
     public Core.BarGroup? GroupOf(ActionDefinition def)
-    {
-        if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out _)) return null;
-        if (_store.Current.IsPluginFolded(plugin.Id)) return new Core.BarGroup(plugin.Id + "/*", plugin.Name, PluginIcon(plugin.Id));
-        return DeclaredGroupOf(def);
-    }
-
-    /// <summary>The fold group a plugin action belongs to, if its plugin declared one (see <see cref="PluginAction.Group"/>).</summary>
-    public Core.BarGroup? DeclaredGroupOf(ActionDefinition def)
     {
         if (!def.IsPlugin || def.Ref == null || !TryGet(def.Ref, out var plugin, out var action) || string.IsNullOrWhiteSpace(action.Group)) return null;
         return new Core.BarGroup(plugin.Id + "/" + action.Group, action.Group, action.GroupIcon);
     }
 
-    /// <summary>Icon standing for a plugin as a whole (settings cards, folded bar button).</summary>
-    public static string PluginIcon(string id) => id switch
+    /// <summary>The icon a plugin declared for itself (<see cref="IPopBarPlugin.Icon"/>); "puzzle" for unknown ids.</summary>
+    public string IconOf(string pluginId)
     {
-        "translate" => "languages", "ai" => "sparkles", "ocr" => "type", "screenshot" => "crop", "sendto" => "send",
-        "qr" => "qr-code", "codec" => "code", "notes" => "sticky-note", "screentranslate" => "scan-text", _ => "puzzle",
-    };
+        var p = _plugins.FirstOrDefault(l => string.Equals(l.Plugin.Id, pluginId, StringComparison.OrdinalIgnoreCase))?.Plugin;
+        try { return p?.Icon is { Length: > 0 } icon ? icon : "puzzle"; }
+        catch (Exception ex) { Log.Warn($"plugin {pluginId} Icon threw: {ex.Message}"); return "puzzle"; }
+    }
 
     /// <summary>Does this plugin action exist, is its plugin enabled, and does it apply to the selection?</summary>
     public bool IsApplicable(ActionDefinition def, SelectionContext ctx, AppConfig cfg)

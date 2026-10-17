@@ -3,7 +3,12 @@ using System.Windows.Threading;
 
 namespace PopBar.Sdk;
 
-/// <summary>Services PopBar provides to plugins. All members are thread-safe unless noted.</summary>
+/// <summary>
+/// Services PopBar provides to plugins. Every member may be called from any thread. Members marked "waits for the UI
+/// thread" run their work there and block the calling worker until it is done; don't call them from a worker while
+/// holding a lock, or while the UI thread is itself waiting for that worker (it would deadlock). From the UI thread
+/// they run inline. The *Async variants never block.
+/// </summary>
 public interface IPluginHost
 {
     IPluginLogger Log { get; }
@@ -15,7 +20,7 @@ public interface IPluginHost
     ILlmService Llm { get; }
     /// <summary>UI thread dispatcher for building WPF elements.</summary>
     Dispatcher Dispatcher { get; }
-    /// <summary>Host-styled controls for settings views (key / hotkey capture, app picker, icons...).</summary>
+    /// <summary>Host-styled dialogs, inputs, icons and model pickers (UI thread only). See <see cref="IHostUi"/>.</summary>
     IHostUi Ui { get; }
     /// <summary>"dark" or "light" - current bar theme.</summary>
     string Theme { get; }
@@ -27,11 +32,16 @@ public interface IPluginHost
     ISettingsSession Settings { get; }
 
     // ---- UI ----
-    /// <summary>Open a floating result panel anchored near the selection. Returns on the calling thread; the panel is created on the UI thread.</summary>
+    /// <summary>
+    /// Open a floating result panel anchored near the selection. Waits for the UI thread (the panel is created there);
+    /// prefer <see cref="ShowPanelAsync"/> from async code. The returned panel's methods can be called from any thread.
+    /// </summary>
     IPanel ShowPanel(PanelOptions options);
+    /// <summary><see cref="ShowPanel"/> without blocking the calling thread.</summary>
+    Task<IPanel> ShowPanelAsync(PanelOptions options);
     /// <summary>Show the standard PopBar action bar for arbitrary text (e.g. OCR output) at a screen point.</summary>
     void ShowPopup(SelectionContext context);
-    /// <summary>Let the user drag a rectangle on screen; returns PNG bytes + screen rect, or null if cancelled.</summary>
+    /// <summary>Let the user drag a rectangle on screen; returns PNG bytes + screen rect, or null if cancelled. Never blocks the caller.</summary>
     Task<RegionCapture?> CaptureScreenRegionAsync();
     /// <summary>
     /// Pause PopBar's selection detection (e.g. while your own full-screen overlay handles mouse drags).
@@ -49,14 +59,18 @@ public interface IPluginHost
     void ActivateWindow(IntPtr window);
     /// <summary>
     /// A visible application window of a process (exe name or path, e.g. "notepad.exe"); failing that, its main window
-    /// hidden in the tray; else IntPtr.Zero. With <paramref name="windowClass"/> (as reported by <see cref="IHostUi.WindowPicker"/>)
+    /// hidden in the tray; else IntPtr.Zero. With <paramref name="windowClass"/> (as reported by <see cref="IHostInputs.WindowPicker"/>)
     /// a window of that class is preferred when the program has several.
     /// </summary>
     IntPtr FindWindowByProcess(string processName, string? windowClass = null);
 
     // ---- integration ----
-    /// <summary>Register a global hotkey ("Ctrl+Alt+O"). Returns false if the combination is taken.</summary>
+    /// <summary>
+    /// Register a global hotkey ("Ctrl+Alt+O"). Returns false if the combination is taken. Waits for the UI thread
+    /// (hotkeys belong to its message window); <paramref name="callback"/> runs on the UI thread.
+    /// </summary>
     bool RegisterHotkey(string id, string gesture, Action callback);
+    /// <summary>Remove a hotkey. Never blocks: from a worker it is queued to the UI thread, in call order.</summary>
     void UnregisterHotkey(string id);
     /// <summary>
     /// Register a tray entry: it can be listed in the tray's right-click menu, picked as the tray icon's left-click action,

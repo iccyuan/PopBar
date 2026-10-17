@@ -1,0 +1,10 @@
+<ui:SettingsPage x:Class="PopBar.UI.PluginsPage" x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:PopBar.UI">
+    <StackPanel>
+        <TextBlock Style="{StaticResource H2}" Text="已安装的插件" Margin="4,0,0,8"/>
+        <TextBlock Style="{StaticResource Muted}" Margin="4,0,0,10" TextWrapping="Wrap" x:Name="PluginDirText"/>
+        <StackPanel x:Name="PluginList"/>
+    </StackPanel>
+</ui:SettingsPage>

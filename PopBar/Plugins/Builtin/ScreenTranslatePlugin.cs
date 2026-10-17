@@ -33,6 +33,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
     private int _running;
 
     public string Id => "screentranslate";
+    public string Icon => "scan-text";
     public string Name => "屏幕翻译";
     public string Description => "框选屏幕区域，译文覆盖在原位置，按住看原文。";
     public Version Version => new(0, 1, 0);
@@ -64,7 +65,7 @@ public sealed class ScreenTranslatePlugin : IPopBarPlugin
             if (ocr == null || translator == null)
             {
                 var c = System.Windows.Forms.Cursor.Position;
-                var p = _host.ShowPanel(new PanelOptions { Title = "屏幕翻译", Icon = "scan-text", AnchorX = c.X, AnchorY = c.Y });
+                var p = await _host.ShowPanelAsync(new PanelOptions { Title = "屏幕翻译", Icon = "scan-text", AnchorX = c.X, AnchorY = c.Y });
                 p.SetText("屏幕翻译需要同时启用「屏幕 OCR」和「翻译」插件。");
                 return;
             }

@@ -193,15 +193,16 @@ internal sealed class PluginHost : IPluginHost
     public IServiceRegistry Services => _s.Services;
     public ISettingsSession Settings { get; }
 
-    public IPanel ShowPanel(PanelOptions options)
+    public IPanel ShowPanel(PanelOptions options) => _s.Dispatcher.Invoke(() => OpenPanel(options));
+
+    public async Task<IPanel> ShowPanelAsync(PanelOptions options) => await _s.Dispatcher.InvokeAsync(() => OpenPanel(options));
+
+    private IPanel OpenPanel(PanelOptions options)
     {
-        return _s.Dispatcher.Invoke(() =>
-        {
-            var w = new PanelWindow(options, Theme);
-            _s.Panels.Add(w);
-            w.ShowAt(options.AnchorX, options.AnchorY);
-            return (IPanel)w;
-        });
+        var w = new PanelWindow(options, Theme);
+        _s.Panels.Add(w);
+        w.ShowAt(options.AnchorX, options.AnchorY);
+        return w;
     }
 
     public void ShowPopup(SelectionContext context) => _s.ShowPopup(context);
@@ -211,7 +212,8 @@ internal sealed class PluginHost : IPluginHost
         _s.Panels.Suppress();
         try
         {
-            var task = _s.Dispatcher.Invoke(() =>
+            // Queued, not Invoke: a worker asking for a capture must not hold its thread until the UI gets to it.
+            var task = await _s.Dispatcher.InvokeAsync(() =>
             {
                 var w = new RegionCaptureWindow();
                 w.Show();
@@ -283,7 +285,11 @@ internal sealed class PluginHost : IPluginHost
     public bool RegisterHotkey(string id, string gesture, Action callback) =>
         _s.Dispatcher.Invoke(() => _s.Hotkeys.Register($"{_pluginId}:{id}", gesture, callback));
 
-    public void UnregisterHotkey(string id) => _s.Dispatcher.Invoke(() => _s.Hotkeys.Unregister($"{_pluginId}:{id}"));
+    public void UnregisterHotkey(string id)
+    {
+        if (_s.Dispatcher.CheckAccess()) _s.Hotkeys.Unregister($"{_pluginId}:{id}");
+        else _s.Dispatcher.InvokeAsync(() => _s.Hotkeys.Unregister($"{_pluginId}:{id}"));
+    }
 
     public void AddTrayItem(TrayItem item) => _s.AddTrayItem($"{_pluginId}:{item.Id}", item);
 
