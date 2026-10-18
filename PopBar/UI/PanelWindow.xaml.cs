@@ -160,6 +160,7 @@ public partial class PanelWindow : Window, IPanel
         Glass.SizeChanged += (_, _) => UpdateGlassViewbox();
         SizeChanged += (_, _) => KeepOnScreen();
         Card.SizeChanged += (_, _) => KeepOnScreen();   // a card growing upwards inside spare room moves without the window resizing
+        LayoutUpdated += (_, _) => MeasureCard();       // for ContainsScreenPoint, called from the mouse hook's thread
     }
 
     /// <summary>The user moved the panel: a panel that grows upwards does so from where it was put down.</summary>
@@ -267,10 +268,14 @@ public partial class PanelWindow : Window, IPanel
         Root.MinHeight = Math.Max(need, Math.Min(need + RoomStep, avail));
     }
 
-    /// <summary>Streaming settled: give back the spare room (it is transparent, so the window shrinking is not seen).</summary>
+    /// <summary>
+    /// Streaming settled: give back the spare room (it is transparent, so the window shrinking is not seen). Not for a
+    /// panel growing upwards: its room is above the card, and the window shrinking from the bottom would show the card
+    /// jumping up for a frame before <see cref="KeepOnScreen"/> moves it back down.
+    /// </summary>
     private void ReleaseRoom()
     {
-        if (!_answer.IsRunning && !_think.IsRunning) Root.MinHeight = 0;
+        if (!_growUp && !_answer.IsRunning && !_think.IsRunning) Root.MinHeight = 0;
     }
 
     /// <summary>
@@ -279,13 +284,25 @@ public partial class PanelWindow : Window, IPanel
     /// </summary>
     private RECT CardRect(RECT window)
     {
-        var at = Card.TranslatePoint(new Point(0, 0), this);
-        int left = window.Left + (int)Math.Round(at.X * _scale), top = window.Top + (int)Math.Round(at.Y * _scale);
+        // the mouse hook asks from its own thread, where the layout cannot be read: it gets the last one seen
+        var l = Dispatcher.CheckAccess() ? MeasureCard() : _cardLayout;
+        if (l == null) return window;
+        int left = window.Left + (int)Math.Round(l.X * _scale), top = window.Top + (int)Math.Round(l.Y * _scale);
         return new RECT
         {
             Left = left, Top = top,
-            Right = left + (int)Math.Round(Card.ActualWidth * _scale), Bottom = top + (int)Math.Round(Card.ActualHeight * _scale),
+            Right = left + (int)Math.Round(l.Width * _scale), Bottom = top + (int)Math.Round(l.Height * _scale),
         };
+    }
+
+    /// <summary>The card's box inside the window (DIP) and the shadow margin around it.</summary>
+    private sealed record CardLayout(double X, double Y, double Width, double Height, double Margin);
+    private volatile CardLayout? _cardLayout;
+
+    private CardLayout MeasureCard()
+    {
+        var at = Card.TranslatePoint(new Point(0, 0), this);
+        return _cardLayout = new CardLayout(at.X, at.Y, Card.ActualWidth, Card.ActualHeight, Root.Margin.Left);
     }
 
     /// <summary>
@@ -358,7 +375,7 @@ public partial class PanelWindow : Window, IPanel
         if (!GetWindowRect(_hwnd, out var r)) return false;
         // the card and its shadow margin, not the spare room above or below it
         var card = CardRect(r);
-        int m = (int)Math.Round(Root.Margin.Left * _scale);
+        int m = (int)Math.Round((_cardLayout?.Margin ?? 0) * _scale);
         return new RECT { Left = card.Left - m, Top = card.Top - m, Right = card.Right + m, Bottom = card.Bottom + m }.Contains(x, y);
     }
 

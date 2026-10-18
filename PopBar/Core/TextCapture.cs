@@ -175,14 +175,14 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
         int n = ranges.Length;
         if (n == 0) return new(null, settled);
         var sb = new StringBuilder();
-        var list = new List<IUIAutomationTextRange>(n);
+        var list = new List<(IUIAutomationTextRange Range, string Text)>(n);
         for (int i = 0; i < n; i++)
         {
             var range = ranges.GetElement(i);
             if (range == null) continue;
-            list.Add(range);
-            var s = range.GetText(-1);
-            if (!string.IsNullOrEmpty(s)) sb.Append(s);
+            var s = range.GetText(-1) ?? "";
+            list.Add((range, s));
+            sb.Append(s);
         }
         if (sb.Length == 0) return new(null, settled);
         var bounds = BoundsOf(list);
@@ -209,11 +209,28 @@ internal sealed class UiaCaptureStrategy : ITextCaptureStrategy
             || (string.Equals(fw, "Chrome", StringComparison.OrdinalIgnoreCase) && el.CurrentControlType == UIA_ControlTypeIds.UIA_DocumentControlTypeId);
     }
 
-    private static RECT? BoundsOf(List<IUIAutomationTextRange> ranges)
+    private static RECT? BoundsOf(List<(IUIAutomationTextRange Range, string Text)> ranges)
     {
         RECT? u = null;
-        foreach (var r in ranges) u = TextBounds.Union(u, BoundsOf(r));
+        foreach (var (r, text) in ranges) u = TextBounds.Union(u, BoundsOf(Trimmed(r, text)) ?? BoundsOf(r));
         return u;
+    }
+
+    /// <summary>
+    /// The range without its trailing line break / spaces. A triple click in a browser selects a paragraph up to the
+    /// start of the next block, whose rectangle (often its whole box) would otherwise count as selected text.
+    /// </summary>
+    private static IUIAutomationTextRange Trimmed(IUIAutomationTextRange range, string text)
+    {
+        int trail = text.Length - text.TrimEnd().Length;
+        if (trail == 0 || trail == text.Length) return range;
+        try
+        {
+            var t = range.Clone();
+            t.MoveEndpointByUnit(TextPatternRangeEndpoint.TextPatternRangeEndpoint_End, TextUnit.TextUnit_Character, -trail);
+            return t;
+        }
+        catch { return range; }
     }
 
     /// <summary>The union of a range's line rectangles (left, top, width, height, ...); only the visible lines are reported.</summary>
